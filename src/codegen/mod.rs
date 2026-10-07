@@ -465,8 +465,13 @@ fn generate_tinyfsm_events(
     let has_event = tera.render("dm_key_has_event.hpp", &wrap_ctx)?;
     std::fs::write(output_dir.join("dm_key_has_event.hpp"), has_event)?;
 
+    // The (key id, event type) typelist, over the same `events` that drive the structs and the
+    // switch, so it cannot list a key that has no struct or omit one that has.
+    let event_list = tera.render("dm_key_event_list.hpp", &wrap_ctx)?;
+    std::fs::write(output_dir.join("dm_key_event_list.hpp"), event_list)?;
+
     log::info!(
-        "Generated dm_key_events.hpp + dm_key_events_wrapper.hpp/.cpp + dm_key_has_event.hpp ({} event keys)",
+        "Generated dm_key_events.hpp + dm_key_events_wrapper.hpp/.cpp + dm_key_has_event.hpp + dm_key_event_list.hpp ({} event keys)",
         events.len()
     );
     Ok(true)

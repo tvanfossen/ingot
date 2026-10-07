@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - tinyfsm test submodule (`deps/tinyfsm`) and C++ fixture (`tests/fixtures/cxx`)
   that compiles, links, and runs the generated wrapper against real tinyfsm,
   wired into `invoke test`.
+- `dm_key_event_list.hpp` under `--emit-tinyfsm`: `dm_event_list<KE, L>`, a
+  neutral alias pairing every event key's `DM_KEY_` id with its `FSM_EVENT_`
+  struct in model order, plus `dm_event_count`. The consumer supplies both
+  templates, so ingot names no consumer type. Golden-output and agreement tests
+  in `tests/codegen_event_list.rs`; the C++ fixture instantiates it.
 - Rust integration tests (`tests/codegen_tinyfsm.rs`) asserting the generated
   event-struct, wrapper-switch, and flag-off behavior.
 - Rust integration tests (`tests/codegen_determinism.rs`) asserting byte-identical
