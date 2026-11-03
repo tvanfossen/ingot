@@ -570,3 +570,75 @@ requirements:
     acceptance_criteria: >-
       The generic model's groups resolve per variant; each malformed form is refused; a moved bit
       or a changed group is refused against the previous contract.
+  REQ-ING-SHD-001:
+    name: Shadow wire mapping of keys and enums
+    subsystem: Generated outputs (G2)
+    description: >-
+      A SETTINGS or STATE key may name the shadow paths it maps to (one or several). An enum value
+      may carry inbound accept aliases beside its wire string; within a resolved enum an inbound
+      string maps to one code. A shadowed enum key's values all have explicit wire strings; a
+      shadowed SETTINGS enum key declares inbound_unknown (an inbound string, or reject) and a
+      shadowed STATE enum key declares outbound_unknown (a wire string, or raw); index is refused.
+      Every shadowed SETTINGS key has exactly one applies STATE twin of its type and enum, itself
+      reported; on_reject (echo by default, or clear_desired) is for shadowed SETTINGS keys,
+      forced and render for shadowed STATE keys, telem names are unique. Paths are dotted
+      identifiers; no two rows share a reported or desired path and no path is both a value and
+      an object.
+    acceptance_criteria: >-
+      The generic model declares every form; each malformed form is refused; contract.json and
+      the keyspace files carry them; without them the store tables and every digest are
+      byte-identical.
+  REQ-ING-SHD-002:
+    name: Apply groups, echo-only paths and constant rows
+    subsystem: Generated outputs (G2)
+    description: >-
+      contract.toml declares apply groups; a SETTINGS key may join one and declare implies writes
+      of other keys of its group, with values of their type. Echo-only desired paths have a type
+      and may name the SETTINGS key command bodies apply. Constant reported rows carry a literal
+      value or an image value (the contract version, or the contract hash the reporter fills),
+      optionally forced on every delta.
+    acceptance_criteria: >-
+      The generic model declares them; an undeclared group, an implies outside the group, a bad
+      value and a malformed row are refused; the outputs carry them.
+  REQ-ING-CMD-001:
+    name: Shadow commands enumerate every command
+    subsystem: Generated outputs (G2)
+    description: >-
+      Namespace files declare shadow_commands rows: topic, variants (with the build each is
+      grounded in), protocol (single, or command_array with element selectors), a selector (field
+      plus wire value, array element or object form), a body (fields, settings, or one object
+      holding a selected verb; a binary body is refused: no library accepts one), the command and
+      its arguments (key of the command's class, required with its result code, or optional with
+      an absent value or omitted when absent; base64 text into a string key). When any row exists,
+      every command of the variant has a row or is marked internal with a reason. The keyspace
+      lists every command with its id, name, result and dedupe keys, owner and wire rows.
+    acceptance_criteria: >-
+      The generic model enumerates every command and form; each malformed row, a duplicate
+      selector on overlapping variants and an unenumerated command are refused; the keyspace
+      files list every command with its rows.
+  REQ-ING-TOP-001:
+    name: MQTT topic declarations and envelopes
+    subsystem: Generated outputs (G2)
+    description: >-
+      contract.toml declares topics: id, template over the placeholders stage, duid, model, thing
+      and shadow_name (repeatable), direction, connection, subscribe order, local wrapper, ack
+      topic, settings_in_every_body and the command envelope (id and source fields, each required
+      or optional with a declared default; a source names an enum and its default is a member; a
+      topic without a source declares its default origin). Ids, templates, subscribe orders and
+      local wrappers are unique and an ack is a pub topic; a shadow name given as a placeholder on
+      one topic and a literal on another is refused unless the literal topic keeps it explicitly.
+    acceptance_criteria: >-
+      The generic model declares its topics and envelopes; each malformed form is refused; the
+      outputs carry them.
+  REQ-ING-SIZ-001:
+    name: Worst-case shadow document size
+    subsystem: Generated outputs (G2)
+    description: >-
+      For each variant ingot computes the compact byte length of the full reported document with
+      every row at its longest value (wire strings, type extremes, strings at six bytes per byte,
+      rendered lists, every error id, constants) and of the forced delta rows, records both in
+      contract.json and the keyspace, and refuses a full document above 8192 bytes (the AWS IoT
+      shadow document quota).
+    acceptance_criteria: >-
+      The generic model's sizes equal an independent count; a model whose full document exceeds
+      8192 bytes is refused.
