@@ -40,8 +40,9 @@ pub struct Key {
     pub readers: Vec<String>,
     pub survives_reset: bool,
     pub mfg: bool,
-    /// The resolved enum of the key's variant.
+    /// The resolved enum of the key's variant, and its name (`namespace::enum`).
     pub enum_values: Option<ResolvedEnum>,
+    pub enum_name: Option<String>,
     pub wk: Option<usize>,
     pub command: Option<(String, CmdPart)>,
     pub declared_read_only: bool,
@@ -143,7 +144,8 @@ impl ClassCtx<'_> {
     /// A key of this class with every field at its class default.
     ///
     /// v2: no range, allowed set or sentinel, scale 1.
-    /// @version 2
+    /// v3: no enum name.
+    /// @version 3
     /// @req REQ-ING-TIV-003
     fn base(&self, name: &str, index: u16, ty: KeyType, introduced: Version) -> Key {
         Key {
@@ -164,6 +166,7 @@ impl ClassCtx<'_> {
             survives_reset: self.ns.meta.mfg,
             mfg: self.ns.meta.mfg,
             enum_values: None,
+            enum_name: None,
             wk: None,
             command: None,
             declared_read_only: false,
@@ -200,7 +203,8 @@ fn check_index(ctx: &ClassCtx, name: &str, index: u16, errors: &mut Errors) {
 /// Resolve one declared key; problems go to `errors`.
 ///
 /// v2: units, ranges, allowed sets, sentinels and scale (G2 1.3).
-/// @version 2
+/// v3: the enum name, for the keyspace.
+/// @version 3
 /// @req REQ-ING-TIV-003
 /// @req REQ-ING-RNG-001
 pub fn declared_key(ctx: &ClassCtx, def: &KeyDef, errors: &mut Errors) -> Key {
@@ -220,6 +224,10 @@ pub fn declared_key(ctx: &ClassCtx, def: &KeyDef, errors: &mut Errors) -> Key {
         .enum_ref
         .as_ref()
         .and_then(|e| enum_of(ctx, &key.path, e, errors));
+    key.enum_name = def
+        .enum_ref
+        .as_ref()
+        .map(|e| format!("{}::{e}", ctx.ns.meta.id));
     size_key(&mut key, def.max_size, errors);
     rate_key(
         &mut key,

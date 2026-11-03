@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/tvanfossen/ingot/keyspace.schema.json",
+  "title": "ingot keyspace declaration, schema_version 1.0",
+  "description": "The keys a device declares, for tooling. Consumers ignore unknown properties, keys and enum codes (or show them raw), treat a JSON number where an enum wire string is expected as an unknown code, and refuse an unknown schema_version major. No property names a UI class, a layout or an endpoint.",
+  "$defs": {
+    "trusted": {
+      "propertyNames": {
+        "not": { "pattern": "(?i)(^|_)(widget|layout|label|ui|url|endpoint|href|icon|colou?r)(_|$)" }
+      }
+    },
+    "presence": {
+      "type": "object",
+      "additionalProperties": { "type": "boolean" }
+    },
+    "key": {
+      "$ref": "#/$defs/trusted",
+      "type": "object",
+      "required": ["id", "name", "type", "role", "present"],
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string" },
+        "type": { "enum": ["bool", "uint8", "int8", "uint16", "int16", "uint32", "int32", "float32", "string", "binary", "struct"] },
+        "role": { "enum": ["settings", "state", "command", "config", "diag"] },
+        "present": { "oneOf": [{ "type": "boolean" }, { "$ref": "#/$defs/presence" }] }
+      }
+    },
+    "enum": {
+      "$ref": "#/$defs/trusted",
+      "type": "object",
+      "required": ["name", "values"],
+      "properties": {
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/trusted",
+            "type": "object",
+            "required": ["code", "name", "wire"],
+            "properties": {
+              "code": { "type": "integer" },
+              "name": { "type": "string" },
+              "wire": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$ref": "#/$defs/trusted",
+  "type": "object",
+  "required": ["schema_version", "contract", "tiv", "ingot", "variants", "namespaces", "enums", "commands", "rights"],
+  "properties": {
+    "schema_version": { "type": "string", "pattern": "^1\\.[0-9]+$" },
+    "contract": {
+      "type": "object",
+      "required": ["name", "major", "minor", "patch"]
+    },
+    "variants": { "type": "array", "items": { "type": "string" } },
+    "namespaces": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/trusted",
+        "type": "object",
+        "required": ["id", "name", "classes"],
+        "properties": {
+          "classes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/trusted",
+              "type": "object",
+              "required": ["index", "name", "role", "keys"],
+              "properties": { "keys": { "type": "array", "items": { "$ref": "#/$defs/key" } } }
+            }
+          }
+        }
+      }
+    },
+    "enums": { "type": "array", "items": { "$ref": "#/$defs/enum" } },
+    "commands": { "type": "array", "items": { "$ref": "#/$defs/trusted", "type": "object" } },
+    "rights": { "type": "array", "items": { "$ref": "#/$defs/trusted", "type": "object" } }
+  }
+}

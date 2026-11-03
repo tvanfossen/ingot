@@ -9,6 +9,8 @@ pub mod digest;
 pub mod emit;
 pub mod enums;
 pub mod keys;
+pub mod keyspace;
+pub mod keyspace_out;
 pub mod model;
 pub mod previous;
 pub mod ranges;
@@ -54,14 +56,19 @@ pub fn provenance(commit: &str, allow_dirty: bool) -> Result<String, String> {
 
 /// Generate the contract-mode outputs, or fail with every refusal logged.
 ///
-/// @version 1
+/// v2: `--variant` checked against the declared variants; every variant (and the base) is
+/// resolved for the all-variants keyspace.
+/// @version 2
 /// @req REQ-ING-TIV-009
 /// @req REQ-ING-TIV-010
 /// @req REQ-ING-TIV-011
 /// @req REQ-ING-TIV-012
+/// @req REQ-ING-KSP-001
 pub fn generate(opts: &Options, tera: &Tera) -> Result<(), Box<dyn std::error::Error>> {
     let commit = provenance(COMMIT, opts.allow_dirty)?;
     let (tables, mut errors) = model::build(opts.contract, opts.variant)?;
+    variants::check_selected(&tables.variants, opts.variant, &mut errors);
+    let all = keyspace_out::build_all(opts.contract, &tables.variants, &mut errors)?;
     refuse_model::check(&tables, &mut errors);
     refuse_rights::check(&tables, &mut errors);
     bounds::check(&tables, &mut errors);
@@ -75,6 +82,7 @@ pub fn generate(opts: &Options, tera: &Tera) -> Result<(), Box<dyn std::error::E
         None => None,
     };
     refuse(&errors)?;
+    keyspace_out::write(tera, &tables, &all, &commit, opts.output)?;
     write_outputs(opts, tera, &tables, &snapshot, review.as_deref())
 }
 

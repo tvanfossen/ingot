@@ -4,17 +4,12 @@
 use super::keys::Errors;
 use super::schema::NamespaceFile;
 
-/// Refuse an undeclared or missing `--variant` and any per-variant entry for an undeclared
-/// variant. A model that declares no variants accepts any.
+/// Refuse an undeclared or missing `--variant`. A model that declares no variants accepts any.
 ///
-/// @version 1
+/// v2: the per-variant entries are checked by check_entries.
+/// @version 2
 /// @req REQ-ING-TIV-015
-pub fn check(
-    declared: &[String],
-    variant: Option<&str>,
-    namespaces: &[NamespaceFile],
-    errors: &mut Errors,
-) {
+pub fn check_selected(declared: &[String], variant: Option<&str>, errors: &mut Errors) {
     if declared.is_empty() {
         return;
     }
@@ -26,6 +21,17 @@ pub fn check(
             "the model declares variants; --variant must name one of: {list}"
         )),
     }
+}
+
+/// Refuse any per-variant entry of the namespace files for an undeclared variant.
+///
+/// @version 1
+/// @req REQ-ING-TIV-015
+pub fn check_entries(declared: &[String], namespaces: &[NamespaceFile], errors: &mut Errors) {
+    if declared.is_empty() {
+        return;
+    }
+    let list = declared.join(", ");
     for (path, v) in uses(namespaces) {
         if !declared.contains(&v) {
             errors.push(format!(

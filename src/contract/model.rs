@@ -62,11 +62,14 @@ struct Loaded {
     files: Vec<(String, Vec<u8>)>,
 }
 
-/// Load and resolve the model whose contract file is `contract_path`, for `variant`.
+/// Load and resolve the model whose contract file is `contract_path`, for `variant`
+/// (`None`: the base values, as the all-variants keyspace shows them).
 ///
 /// v2: declared variants are checked and recorded.
 /// v3: the unit vocabulary is recorded.
-/// @version 3
+/// v4: whether `--variant` names a declared variant is the caller's check
+/// (variants::check_selected), so the base can be resolved too.
+/// @version 4
 /// @req REQ-ING-TIV-015
 /// @req REQ-ING-TIV-002
 /// @req REQ-ING-TIV-003
@@ -74,7 +77,7 @@ pub fn build(contract_path: &Path, variant: Option<&str>) -> Result<(Tables, Err
     let loaded = load(contract_path)?;
     let mut errors = Errors::new();
     let declared = &loaded.contract.contract.variants;
-    variants::check(declared, variant, &loaded.namespaces, &mut errors);
+    variants::check_entries(declared, &loaded.namespaces, &mut errors);
     let (keys, commands) = collect_keys(&loaded, variant, &mut errors);
     let (principals, grants) = rights::principals(loaded.contract.principals, &mut errors);
     rights::check_grants(&principals, &grants, &keys, &mut errors);

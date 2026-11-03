@@ -55,6 +55,10 @@ const EMBEDDED: &[(&str, &str)] = &[
     ("dmt_tables.h", include_str!("../../templates/dmt_tables.h")),
     ("dmt_types.h", include_str!("../../templates/dmt_types.h")),
     (
+        "keyspace.schema.json",
+        include_str!("../../templates/keyspace.schema.json"),
+    ),
+    (
         "integer_storage.c",
         include_str!("../../templates/integer_storage.c"),
     ),
