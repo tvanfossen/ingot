@@ -4,7 +4,7 @@
 use super::keys::{CmdPart, Errors, Key};
 use super::model::Tables;
 use super::schema::{Kind, Persist};
-use super::types::{OWNER_CORE, WK_RULES};
+use super::types::{WkRule, OWNER_CORE, WK_RULES};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Largest namespace ID (10 bits) and class index (5 bits).
@@ -153,9 +153,10 @@ fn well_known(tables: &Tables, errors: &mut Errors) {
     }
 }
 
-/// The key mapped to role `index` has the type, class and flags R-WK requires.
+/// The key mapped to role `index` has the type, class, flags and size R-WK requires.
 ///
-/// @version 1
+/// v2: also the minimum size.
+/// @version 2
 /// @req REQ-ING-TIV-010
 fn wk_key(tables: &Tables, index: usize, key: &Key, errors: &mut Errors) {
     let rule = WK_RULES[index];
@@ -184,11 +185,31 @@ fn wk_key(tables: &Tables, index: usize, key: &Key, errors: &mut Errors) {
     if rule.name == "TRACE_ENABLE" {
         trace_enable(tables, key, errors);
     }
+    wk_size(tables, rule, key, errors);
 }
 
-/// The trace-enable command: non-persistent, binary payload with room for the signed envelope.
+/// The key is at least as large as the keystore reads it (`min_size + per_principal * N`).
 ///
 /// @version 1
+/// @req REQ-ING-TIV-010
+fn wk_size(tables: &Tables, rule: WkRule, key: &Key, errors: &mut Errors) {
+    let principals = tables.principals.len() as u32;
+    let need = rule.min_size + rule.per_principal * principals;
+    if key.max_size < need {
+        errors.push(format!(
+            "{}: {} needs max_size >= {need} (has {})",
+            key.path, rule.name, key.max_size
+        ));
+    }
+}
+
+/// Size of the signed trace-enable envelope (keystore `docs/trace-enable-envelope.md`).
+const TRACE_ENVELOPE_BYTES: u32 = 118;
+
+/// The trace-enable command: non-persistent, binary, with room for the signed envelope.
+///
+/// v2: payload_max must hold the 118-byte envelope.
+/// @version 2
 /// @req REQ-ING-TIV-010
 fn trace_enable(tables: &Tables, key: &Key, errors: &mut Errors) {
     let command = tables.commands.iter().find(|c| c.keys[0] == key.id);
@@ -197,6 +218,12 @@ fn trace_enable(tables: &Tables, key: &Key, errors: &mut Errors) {
     if !ok {
         errors.push(format!(
             "{}: TRACE_ENABLE needs a non-persistent binary command with payload_max > 0",
+            key.path
+        ));
+    }
+    if command.is_some_and(|c| c.max_payload < TRACE_ENVELOPE_BYTES) {
+        errors.push(format!(
+            "{}: TRACE_ENABLE needs payload_max >= {TRACE_ENVELOPE_BYTES} for its signed envelope",
             key.path
         ));
     }

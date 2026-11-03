@@ -198,11 +198,15 @@ pub struct WkRule {
     pub survives_reset: bool,
     /// Written only by the core: no principal may have write on it (R-V5).
     pub core_written: bool,
+    /// Smallest `max_size` the keystore reads the key with: `min_size + per_principal * N`.
+    pub min_size: u32,
+    pub per_principal: u32,
 }
 
 /// Build one R-WK row.
 ///
-/// @version 1
+/// v2: no minimum size unless a row sets one.
+/// @version 2
 /// @req REQ-ING-TIV-010
 const fn wk(name: &'static str, required: bool, ty: Option<KeyType>, persist: Persist) -> WkRule {
     WkRule {
@@ -212,6 +216,8 @@ const fn wk(name: &'static str, required: bool, ty: Option<KeyType>, persist: Pe
         persist,
         survives_reset: false,
         core_written: ty.is_some(),
+        min_size: 0,
+        per_principal: 0,
     }
 }
 
@@ -239,18 +245,25 @@ pub const WK_RULES: [WkRule; 26] = [
         Some(KeyType::Uint32),
         Persist::Deferred,
     ),
-    wk(
-        "DIAG_KEYSTORE_VERSION",
-        true,
-        Some(KeyType::String),
-        Persist::None,
-    ),
-    wk(
-        "DIAG_CONTRACT_VERSION",
-        true,
-        Some(KeyType::String),
-        Persist::None,
-    ),
+    // "M.m.p+<12 hex commit>" is at most 30 bytes; "M.m.p" at most 17 (keystore REQ-KS-VER-001).
+    WkRule {
+        min_size: 30,
+        ..wk(
+            "DIAG_KEYSTORE_VERSION",
+            true,
+            Some(KeyType::String),
+            Persist::None,
+        )
+    },
+    WkRule {
+        min_size: 17,
+        ..wk(
+            "DIAG_CONTRACT_VERSION",
+            true,
+            Some(KeyType::String),
+            Persist::None,
+        )
+    },
     WkRule {
         survives_reset: true,
         core_written: false,
@@ -271,7 +284,12 @@ pub const WK_RULES: [WkRule; 26] = [
     diag("DIAG_TORN_TAILS", KeyType::Uint32),
     diag("DIAG_ALLOC_GAPS", KeyType::Uint32),
     diag("DIAG_CONNECTED", KeyType::Uint32),
-    diag("DIAG_SUBSCRIBERS", KeyType::Binary),
+    // 4-byte header, then 20 bytes per principal (keystore REQ-KS-TRC-003).
+    WkRule {
+        min_size: 4,
+        per_principal: 20,
+        ..diag("DIAG_SUBSCRIBERS", KeyType::Binary)
+    },
     diag("DIAG_TRACE_REFUSALS", KeyType::Uint32),
 ];
 
