@@ -2,6 +2,7 @@ use clap::Parser;
 use std::path::PathBuf;
 
 mod codegen;
+mod contract;
 mod hash;
 mod model;
 
@@ -17,12 +18,24 @@ mod model;
 #[command(name = "ingot", version, about, long_about)]
 struct Cli {
     /// Path to data model TOML file(s) or directory of TOML files (repeatable)
-    #[arg(short, long, required_unless_present = "table_types")]
+    #[arg(short, long, required_unless_present_any = ["table_types", "contract"])]
     model: Vec<PathBuf>,
 
     /// Write only dmt_types.h, the model-independent table-interface header, to --output
-    #[arg(long, conflicts_with = "model")]
+    #[arg(long, conflicts_with_all = ["model", "contract"])]
     table_types: bool,
+
+    /// Contract mode: generate the table-interface store tables from this contract.toml
+    #[arg(long, conflicts_with = "model")]
+    contract: Option<PathBuf>,
+
+    /// Contract mode: the previous release's contract.json, for the minor/major checks
+    #[arg(long, requires = "contract")]
+    previous_contract: Option<PathBuf>,
+
+    /// Contract mode: accept an ingot built from a dirty tree (for ingot's own tests)
+    #[arg(long, requires = "contract")]
+    allow_dirty_ingot: bool,
 
     /// Output directory for generated code
     #[arg(short, long, default_value = "generated")]
@@ -117,16 +130,36 @@ fn main() {
 
 /// Load the templates and run the mode the command line selects.
 ///
-/// @version 1
+/// v2: contract mode, which only uses the built-in templates.
+/// @version 2
 /// @req REQ-ING-CLI-001
 /// @req REQ-ING-CLI-002
 /// @req REQ-ING-TIV-001
+/// @req REQ-ING-TIV-009
 fn dispatch(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
-    let tera = codegen::templates::load(cli.templates.as_deref())?;
-    if cli.table_types {
-        return codegen::tables::write_table_types(&tera, &cli.output);
+    if cli.contract.is_some() && cli.templates.is_some() {
+        return Err("contract mode uses the built-in templates; drop --templates".into());
     }
-    run(cli, &tera)
+    let tera = codegen::templates::load(cli.templates.as_deref())?;
+    match (&cli.contract, cli.table_types) {
+        (Some(contract), _) => contract::generate(&contract_options(cli, contract), &tera),
+        (None, true) => codegen::tables::write_table_types(&tera, &cli.output),
+        (None, false) => run(cli, &tera),
+    }
+}
+
+/// The contract-mode options the command line gives.
+///
+/// @version 1
+/// @req REQ-ING-TIV-002
+fn contract_options<'a>(cli: &'a Cli, contract: &'a std::path::Path) -> contract::Options<'a> {
+    contract::Options {
+        contract,
+        variant: cli.variant.as_deref(),
+        previous: cli.previous_contract.as_deref(),
+        output: &cli.output,
+        allow_dirty: cli.allow_dirty_ingot,
+    }
 }
 
 /// Load, filter, validate and generate the model the command line names.

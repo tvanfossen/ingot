@@ -53,6 +53,7 @@ enum { DMT_PK_UNIX = 0, DMT_PK_INPROC = 1, DMT_PK_UART = 2 };
 #define DMT_CMD_HEADER_BYTES     8u      /* (epoch u32, cmd_seq u32) */
 #define DMT_RESULT_HEADER_BYTES  12u     /* (epoch u32, cmd_seq u32, outcome u32) */
 #define DMT_DEDUPE_ENTRY_BYTES   64u     /* one (source, cloud id, payload hash) entry */
+#define DMT_OWNER_CORE           0xFFFFu /* owner_principal: the core answers this command */
 
 /* Rights bitmap: key index i is in byte i / 4, read at bit 2*(i % 4), write at bit 2*(i % 4)+1. */
 #define DMT_RIGHT_READ   0x1u

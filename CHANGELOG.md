@@ -29,6 +29,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   header for an external key-value store core: type codes, persistence
   classes, roles, flags, sizing constants and the key, principal, uid-cap
   and command table layouts. Its bytes depend only on the TIV.
+  `DMT_OWNER_CORE` marks commands the store core answers itself.
+- Contract mode (`--contract`): generates the store tables of a keyed
+  model (`dmt_tables.h/.c`: keys, defaults, reserved IDs, principals,
+  rights bitmap, per-uid caps, commands, well-known roles, KSET v1
+  handshake digests per principal and minor) and a machine-readable
+  `contract.json`, from a `contract.toml` and namespace files with
+  explicit IDs. Every rule of the table interface is a generation-time
+  refusal; `--previous-contract` checks that a minor only adds and that a
+  major reserves removed IDs, and writes a release-review report. The
+  tables state the ingot commit; a dirty build is refused unless
+  `--allow-dirty-ingot`. `examples/contract/` holds a generic model at
+  1.0, 1.1 and 2.0.
 
 ### Changed
 - Templates are compiled into the binary, so an ingot build always

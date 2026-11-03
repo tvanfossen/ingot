@@ -44,6 +44,28 @@ not depend on any model.
 ``--emit-tinyfsm`` applies only to C targets. It emits additive C++ headers and
 source for consumers using tinyfsm.
 
+Contract Mode
+-------------
+
++--------------------------------+---------+--------------------------------------------------+
+| Option                         | Default | Description                                      |
++================================+=========+==================================================+
+| ``--contract <FILE>``          | —       | Generate the table-interface store tables from a |
+|                                |         | ``contract.toml`` and its namespace files        |
++--------------------------------+---------+--------------------------------------------------+
+| ``--previous-contract <FILE>`` | —       | The previous release's ``contract.json``; checks |
+|                                |         | that a minor is additive and a major reserves    |
+|                                |         | removed IDs, and writes ``release-review.txt``   |
++--------------------------------+---------+--------------------------------------------------+
+| ``--allow-dirty-ingot``        | off     | Accept an ingot built from a dirty tree (for     |
+|                                |         | ingot's own tests); the output says ``-dirty``   |
++--------------------------------+---------+--------------------------------------------------+
+
+Contract mode writes ``dmt_types.h``, ``dmt_tables.h``, ``dmt_tables.c`` and
+``contract.json`` for the selected ``--variant``, or nothing at all if the model
+breaks any rule; every refusal is logged. It always uses the built-in templates.
+``examples/contract/`` holds a generic model at contract 1.0, 1.1 and 2.0.
+
 Key Filtering
 -------------
 

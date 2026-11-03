@@ -51,6 +51,8 @@ const EMBEDDED: &[(&str, &str)] = &[
         include_str!("../../templates/dm_namespace_definitions.h"),
     ),
     ("dm_rust.rs", include_str!("../../templates/dm_rust.rs")),
+    ("dmt_tables.c", include_str!("../../templates/dmt_tables.c")),
+    ("dmt_tables.h", include_str!("../../templates/dmt_tables.h")),
     ("dmt_types.h", include_str!("../../templates/dmt_types.h")),
     (
         "integer_storage.c",

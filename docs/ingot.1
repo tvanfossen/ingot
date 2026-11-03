@@ -117,6 +117,18 @@ into ingot, for template development. Also configurable through
 Write only dmt_types.h, the model-independent table-interface header, to the
 output directory.
 .TP
+.BI \-\-contract " " file
+Contract mode: generate dmt_types.h, dmt_tables.h, dmt_tables.c and
+contract.json from a contract.toml and its namespace files, or nothing if the
+model breaks any rule. Uses the built-in templates only.
+.TP
+.BI \-\-previous\-contract " " file
+Contract mode: check against the previous release's contract.json and write
+release-review.txt.
+.TP
+.B \-\-allow\-dirty\-ingot
+Contract mode: accept an ingot built from a dirty tree; the output says -dirty.
+.TP
 .BI \-\-include\-list " " file
 YAML file listing key define names to include (whitelist).
 All keys not in the list are excluded.
