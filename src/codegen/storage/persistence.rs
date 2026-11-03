@@ -1,4 +1,4 @@
-use crate::codegen::c_default_literal;
+use crate::codegen::{c_default_literal, key_stem};
 use crate::model::schema::{DataModel, DataType};
 use serde::Serialize;
 
@@ -37,25 +37,19 @@ pub struct PersistenceStorage {
 /// v2: defaults come from the shared codegen::c_default_literal; an unused KeyEncoding (and the
 /// namespace ID it needed) is no longer built.
 /// v3: C storage type, dm_val_t field and buffer flag come from DataType.
-/// @version 3
+/// v4: the define name comes from the shared codegen::key_stem.
+/// @version 4
 /// @req REQ-ING-GEN-007
 pub fn collect_persistence_storage(model: &DataModel) -> Option<PersistenceStorage> {
     let mut entries = Vec::new();
 
     for class in &model.classes {
-        let c_ns_name = class
-            .namespace_name
-            .as_deref()
-            .unwrap_or(&model.meta.id)
-            .to_uppercase();
-        let class_name = class.id.to_uppercase();
         for key in &class.keys {
             if !key.persistent {
                 continue;
             }
 
-            let key_name = key.id.to_uppercase().replace(' ', "_");
-            let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");
+            let define_name = format!("DM_KEY_{}", key_stem(class, model, key));
             let field_name = format!(
                 "{}_{}",
                 class.id.to_lowercase(),

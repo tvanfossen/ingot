@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
+use super::key::define_stem;
 use super::schema::DataModel;
 
 /// Parsed key list supporting both name and hex-value entries.
@@ -75,18 +76,6 @@ fn parse_hex(s: &str) -> Option<u32> {
     }
 }
 
-/// Construct the bare define name for a key: `{NAMESPACE}_{CLASS}_{KEY}`.
-/// @version 1
-/// @req REQ-ING-FLT-001
-fn define_name(ns: &str, class: &str, key: &str) -> String {
-    format!(
-        "{}_{}_{}",
-        ns.to_uppercase(),
-        class.to_uppercase().replace(' ', "_"),
-        key.to_uppercase().replace(' ', "_"),
-    )
-}
-
 /// Returns true if a key matches the list by name, normalized name, or encoded value.
 ///
 /// Normalized matching strips underscores so that TOML snake_case IDs
@@ -101,42 +90,45 @@ fn matches(list: &KeyList, name: &str, encoded: Option<u32>) -> bool {
 }
 
 /// Filter the model to only include keys present in the include list.
-/// @version 1
+/// v2: the define name comes from the shared key::define_stem.
+/// @version 2
 /// @req REQ-ING-FLT-001
 pub fn apply_include_list(model: &mut DataModel, include: &KeyList) {
     let fallback_ns = model.meta.id.clone();
     for class in &mut model.classes {
         let ns = class.namespace_name.as_deref().unwrap_or(&fallback_ns);
         class.keys.retain(|key| {
-            let dn = define_name(ns, &class.id, &key.id);
+            let dn = define_stem(ns, &class.id, &key.id);
             matches(include, &dn, None)
         });
     }
 }
 
 /// Remove keys present in the exclude list from the model.
-/// @version 1
+/// v2: the define name comes from the shared key::define_stem.
+/// @version 2
 /// @req REQ-ING-FLT-001
 pub fn apply_exclude_list(model: &mut DataModel, exclude: &KeyList) {
     let fallback_ns = model.meta.id.clone();
     for class in &mut model.classes {
         let ns = class.namespace_name.as_deref().unwrap_or(&fallback_ns);
         class.keys.retain(|key| {
-            let dn = define_name(ns, &class.id, &key.id);
+            let dn = define_stem(ns, &class.id, &key.id);
             !matches(exclude, &dn, None)
         });
     }
 }
 
 /// Mark keys present in the persistent list as persistent.
-/// @version 1
+/// v2: the define name comes from the shared key::define_stem.
+/// @version 2
 /// @req REQ-ING-FLT-002
 pub fn apply_persistent_keys(model: &mut DataModel, persistent: &KeyList) {
     let fallback_ns = model.meta.id.clone();
     for class in &mut model.classes {
         let ns = class.namespace_name.as_deref().unwrap_or(&fallback_ns);
         for key in &mut class.keys {
-            let dn = define_name(ns, &class.id, &key.id);
+            let dn = define_stem(ns, &class.id, &key.id);
             if matches(persistent, &dn, None) {
                 key.persistent = true;
             }
@@ -212,7 +204,8 @@ fn yaml_value_to_toml(v: &serde_yaml::Value) -> toml::Value {
 /// For each key whose normalized define name matches an override entry,
 /// replace the key's default value with the override value.
 /// Returns the number of overrides applied.
-/// @version 1
+/// v2: the define name comes from the shared key::define_stem.
+/// @version 2
 /// @req REQ-ING-FLT-003
 pub fn apply_property_overrides(model: &mut DataModel, overrides: &PropertyOverrides) -> usize {
     let fallback_ns = model.meta.id.clone();
@@ -220,7 +213,7 @@ pub fn apply_property_overrides(model: &mut DataModel, overrides: &PropertyOverr
     for class in &mut model.classes {
         let ns = class.namespace_name.as_deref().unwrap_or(&fallback_ns);
         for key in &mut class.keys {
-            let dn = define_name(ns, &class.id, &key.id);
+            let dn = define_stem(ns, &class.id, &key.id);
             let norm = normalize(&dn);
             if let Some(val) = overrides.overrides.get(&norm) {
                 key.default = Some(val.clone());

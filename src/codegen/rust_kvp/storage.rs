@@ -3,7 +3,9 @@ use crate::model::schema::{DataModel, DataType, KeyDef};
 use serde::Serialize;
 
 use super::enums;
-use crate::codegen::{encode_key, join_list, resolve_class_idx, resolve_ns_id, resolve_ns_name};
+use crate::codegen::{
+    encode_key, join_list, key_stem, resolve_class_idx, resolve_ns_id, resolve_ns_name,
+};
 
 /// One group of same-typed integer/bool keys sharing a perfect hash table.
 #[derive(Debug, Serialize)]
@@ -101,7 +103,8 @@ struct ResolvedKey<'a> {
 /// Walk every class/key in the model, resolving names and the 32-bit encoding.
 ///
 /// v2: namespace name and key ID come from the shared resolve_ns_name and encode_key.
-/// @version 2
+/// v3: the key constant's name comes from the shared key_stem.
+/// @version 3
 /// @req REQ-ING-RST-002
 fn resolve_all_keys(model: &DataModel, ns_id: u16) -> Vec<ResolvedKey<'_>> {
     let mut out = Vec::new();
@@ -118,11 +121,7 @@ fn resolve_all_keys(model: &DataModel, ns_id: u16) -> Vec<ResolvedKey<'_>> {
             let ns_lower = ns_name.to_lowercase();
             let class_lower = class.id.to_lowercase();
             let method_name = format!("{ns_lower}_{class_lower}_{key_name}");
-
-            let ns_upper = ns_name.to_uppercase();
-            let class_upper = class.id.to_uppercase();
-            let key_upper = key.id.to_uppercase().replace(' ', "_");
-            let const_name = format!("DM_KEY_{ns_upper}_{class_upper}_{key_upper}");
+            let const_name = format!("DM_KEY_{}", key_stem(class, model, key));
 
             let enum_info = if INT_TYPES.contains(&key.data_type) {
                 key.enum_ref

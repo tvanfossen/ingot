@@ -41,9 +41,33 @@ impl KeyEncoding {
     }
 }
 
+/// `<NAMESPACE>_<CLASS>_<KEY>`, upper-case with spaces as underscores: the stem of a key's
+/// `DM_KEY_` define, its helper names and its manifest and key-list name.
+///
+/// @version 1
+/// @req REQ-ING-GEN-002
+/// @req REQ-ING-FLT-001
+pub fn define_stem(namespace: &str, class: &str, key: &str) -> String {
+    format!(
+        "{}_{}_{}",
+        namespace.to_uppercase(),
+        class.to_uppercase().replace(' ', "_"),
+        key.to_uppercase().replace(' ', "_"),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn define_stem_upper_cases_and_joins() {
+        assert_eq!(
+            define_stem("battery", "status", "state of charge"),
+            "BATTERY_STATUS_STATE_OF_CHARGE"
+        );
+        assert_eq!(define_stem("rig", "my class", "x"), "RIG_MY_CLASS_X");
+    }
 
     #[test]
     fn fields_land_in_their_bits() {

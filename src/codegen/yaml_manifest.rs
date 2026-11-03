@@ -1,4 +1,4 @@
-use crate::codegen::{encode_key, resolve_class_idx, resolve_ns_id, resolve_ns_name};
+use crate::codegen::{encode_key, key_stem, resolve_class_idx, resolve_ns_id, resolve_ns_name};
 use crate::model::schema::{DataModel, DataType};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -51,7 +51,8 @@ struct KeyTypeEntry {
 ///
 /// v2: namespace, class index and key ID come from the shared resolve_* helpers and
 /// encode_key instead of inline copies.
-/// @version 2
+/// v3: the define name comes from the shared key_stem.
+/// @version 3
 /// @req REQ-ING-MAN-001
 pub fn generate_yaml_manifest(
     model: &DataModel,
@@ -64,20 +65,12 @@ pub fn generate_yaml_manifest(
     for (pos, class) in model.classes.iter().enumerate() {
         let c_ns_id = resolve_ns_id(class, ns_id);
         let c_ns_name = resolve_ns_name(class, model);
-        let c_ns_upper = c_ns_name.to_uppercase();
         let c_idx = resolve_class_idx(class, pos);
-        let class_name = class.id.to_uppercase();
         let mut data = Vec::new();
 
         for (key_pos, key) in class.keys.iter().enumerate() {
             let encoded = encode_key(c_ns_id, c_idx, key_pos, key);
-
-            let define_name = format!(
-                "{}_{}_{}",
-                c_ns_upper,
-                class_name,
-                key.id.to_uppercase().replace(' ', "_")
-            );
+            let define_name = key_stem(class, model, key);
 
             // Inline enum values: DEFINE_NAME_VALUENAME
             let enum_values = key.enum_ref.as_ref().and_then(|enum_name| {

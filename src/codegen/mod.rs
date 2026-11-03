@@ -4,7 +4,7 @@ pub mod storage;
 pub mod target;
 pub mod yaml_manifest;
 
-use crate::model::key::KeyEncoding;
+use crate::model::key::{define_stem, KeyEncoding};
 use crate::model::schema::{DataModel, DataType, KeyDef};
 use serde::Serialize;
 use std::path::Path;
@@ -506,6 +506,18 @@ pub(crate) fn resolve_ns_name(class: &crate::model::schema::Class, model: &DataM
         .to_string()
 }
 
+/// `<NAMESPACE>_<CLASS>_<KEY>` of `key` in `class`; the key's define is `DM_KEY_` + this.
+///
+/// @version 1
+/// @req REQ-ING-GEN-002
+pub(crate) fn key_stem(
+    class: &crate::model::schema::Class,
+    model: &DataModel,
+    key: &KeyDef,
+) -> String {
+    define_stem(&resolve_ns_name(class, model), &class.id, &key.id)
+}
+
 /// Resolve the class index, using explicit class_index or positional fallback.
 /// @version 1
 /// @req REQ-ING-KEY-002
@@ -564,25 +576,23 @@ pub(crate) fn encoded_keys(
 /// Build renderable key definitions from the model.
 ///
 /// v2: the key ID comes from the shared encode_key.
-/// @version 2
+/// v3: the define name comes from the shared key_stem.
+/// @version 3
 /// @req REQ-ING-GEN-002
 fn collect_key_definitions(model: &DataModel, ns_id: u16) -> Vec<KeyDefRenderable> {
     let mut defs = Vec::new();
 
     for (pos, class) in model.classes.iter().enumerate() {
         let c_ns_id = resolve_ns_id(class, ns_id);
-        let c_ns_name = resolve_ns_name(class, model).to_uppercase();
         let c_idx = resolve_class_idx(class, pos);
-        let class_name = class.id.to_uppercase();
         for (key_pos, key) in class.keys.iter().enumerate() {
             let encoded = encode_key(c_ns_id, c_idx, key_pos, key);
-            let key_name = key.id.to_uppercase().replace(' ', "_");
 
             defs.push(KeyDefRenderable {
                 namespace: resolve_ns_name(class, model),
                 class: class.id.clone(),
                 name: key.id.clone(),
-                define_name: format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}"),
+                define_name: format!("DM_KEY_{}", key_stem(class, model, key)),
                 hex_value: format!("{encoded:#010X}"),
                 type_name: format!("{:?}", key.data_type).to_lowercase(),
                 unit: key.unit.clone(),
@@ -623,23 +633,20 @@ struct HelperEntry {
 ///
 /// v2: an unused KeyEncoding (and the namespace ID it needed) is no longer built.
 /// v3: C type, dm_val_t field and buffer flag come from DataType.
-/// @version 3
+/// v4: the define and helper names come from the shared key_stem.
+/// @version 4
 /// @req REQ-ING-GEN-008
 fn collect_helpers(model: &DataModel) -> Vec<HelperEntry> {
     let mut helpers = Vec::new();
 
     for class in &model.classes {
-        let c_ns_name = resolve_ns_name(class, model).to_uppercase();
-        let class_name = class.id.to_uppercase();
-
         for key in &class.keys {
             if !key.helpers {
                 continue;
             }
 
-            let key_name = key.id.to_uppercase().replace(' ', "_");
-            let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");
-            let helper_name = format!("{c_ns_name}_{class_name}_{key_name}");
+            let helper_name = key_stem(class, model, key);
+            let define_name = format!("DM_KEY_{helper_name}");
 
             let raw_c_type = key.data_type.c_value_type().to_string();
             let is_string = key.data_type.is_buffer();
@@ -697,18 +704,15 @@ struct TestKeyEntry {
 ///
 /// v2: defaults come from the shared c_default_literal; an unused KeyEncoding is no longer built.
 /// v3: C type, dm_val_t field and buffer flag come from DataType.
-/// @version 3
+/// v4: the define name comes from the shared key_stem.
+/// @version 4
 /// @req REQ-ING-GEN-009
 fn collect_test_keys(model: &DataModel) -> Vec<TestKeyEntry> {
     let mut entries = Vec::new();
 
     for class in &model.classes {
-        let c_ns_name = resolve_ns_name(class, model).to_uppercase();
-        let class_name = class.id.to_uppercase();
-
         for key in &class.keys {
-            let key_name = key.id.to_uppercase().replace(' ', "_");
-            let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");
+            let define_name = format!("DM_KEY_{}", key_stem(class, model, key));
 
             let default_c = c_default_literal(&key.default, key.data_type);
             let test_c = format_test_value(key.data_type, &default_c);
@@ -733,22 +737,19 @@ fn collect_test_keys(model: &DataModel) -> Vec<TestKeyEntry> {
 ///
 /// v2: defaults come from the shared c_default_literal; an unused KeyEncoding is no longer built.
 /// v3: C type, dm_val_t field and buffer flag come from DataType.
-/// @version 3
+/// v4: the define name comes from the shared key_stem.
+/// @version 4
 /// @req REQ-ING-GEN-009
 fn collect_persistence_test_entries(model: &DataModel) -> Vec<PersistenceTestEntry> {
     let mut entries = Vec::new();
 
     for class in &model.classes {
-        let c_ns_name = resolve_ns_name(class, model).to_uppercase();
-        let class_name = class.id.to_uppercase();
-
         for key in &class.keys {
             if !key.persistent {
                 continue;
             }
 
-            let key_name = key.id.to_uppercase().replace(' ', "_");
-            let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");
+            let define_name = format!("DM_KEY_{}", key_stem(class, model, key));
 
             let default_c = c_default_literal(&key.default, key.data_type);
             let test_c = format_test_value(key.data_type, &default_c);
