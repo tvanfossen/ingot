@@ -333,10 +333,11 @@ pub fn generate(
 /// Templates rendered from the flat list of event keys, each written under its own name.
 ///
 /// They share one context, so every file lists exactly the same keys in the same order.
-const EVENT_KEY_TEMPLATES: [&str; 3] = [
+const EVENT_KEY_TEMPLATES: [&str; 4] = [
     "dm_key_events_wrapper.hpp",
     "dm_key_events_wrapper.cpp",
     "dm_key_has_event.hpp",
+    "dm_key_event_list.hpp",
 ];
 
 /// Render the template `name` and write the result to `output_dir/name`.
@@ -354,8 +355,8 @@ fn render_template(
     Ok(())
 }
 
-/// Render the C++/tinyfsm event header, the dispatch-by-key wrapper and the
-/// has-event predicate.
+/// Render the C++/tinyfsm event header, the dispatch-by-key wrapper, the
+/// has-event predicate and the (key id, event) typelist.
 ///
 /// Emits nothing when no key carries `event = true` — a consumer with no
 /// event keys gets no C++ artifacts even with the flag on.
@@ -365,6 +366,7 @@ fn render_template(
 /// @version 2
 /// @req REQ-ING-EVT-001
 /// @req REQ-ING-EVT-002
+/// @req REQ-ING-EVT-003
 fn generate_tinyfsm_events(
     tera: &Tera,
     version: &str,

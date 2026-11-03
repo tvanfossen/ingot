@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stop taking dispatch-queue slots. Generated from the same key list as the
   event structs and `send_tinyfsm_event_by_key()`, and skipped with them
   when the model has no event keys.
+- `--emit-tinyfsm`: `dm_key_event_list.hpp` declares
+  `dm_event_list<KE, L>`, every event key paired with its `FSM_EVENT_`
+  struct as `L<KE<DM_KEY_X, FSM_EVENT_X>, ...>` in model order, plus
+  `dm_event_count`. The consumer supplies both templates, so the list names
+  no consumer type and can drive compile-time registration or dispatch
+  tables.
 
 ### Fixed
 - `--target rust`: generic by-key setters reject writes to keys marked
