@@ -683,3 +683,24 @@ fn store_tables_and_digests_do_not_depend_on_enum_maps() {
     assert_same_store_tables(&with, &without);
     let _ = fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn version_prints_the_commit_contract_mode_stamps() {
+    let dir = unique_dir("version");
+    let gen = dir.join("gen");
+    generate_ok("v1_0", &gen, &[]);
+    let out = Command::new(env!("CARGO_BIN_EXE_ingot"))
+        .arg("--version")
+        .output()
+        .expect("spawn ingot");
+    let printed = String::from_utf8_lossy(&out.stdout).into_owned();
+    let commit = contract_json(&gen)["ingot"]["commit"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        printed.trim(),
+        format!("ingot {} ({commit})", env!("CARGO_PKG_VERSION"))
+    );
+    let _ = fs::remove_dir_all(&dir);
+}

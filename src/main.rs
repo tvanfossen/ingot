@@ -6,6 +6,15 @@ mod contract;
 mod hash;
 mod model;
 
+/// `ingot --version`: the package version and the commit the binary was built from (the same
+/// INGOT_GIT_COMMIT contract mode stamps into its outputs).
+const VERSION: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    " (",
+    env!("INGOT_GIT_COMMIT"),
+    ")"
+);
+
 /// ingot - Embedded database code generator
 ///
 /// Generates optimized C99 or no_std Rust code for embedded key-value
@@ -15,7 +24,7 @@ mod model;
 /// Supported targets: STM32 (32-bit), ESP32 (Xtensa/RISC-V), 8-bit
 /// microcontrollers, 64-bit Linux systems, and no_std Rust.
 #[derive(Parser, Debug)]
-#[command(name = "ingot", version, about, long_about)]
+#[command(name = "ingot", version = VERSION, about, long_about)]
 struct Cli {
     /// Path to data model TOML file(s) or directory of TOML files (repeatable)
     #[arg(short, long, required_unless_present_any = ["table_types", "contract"])]
