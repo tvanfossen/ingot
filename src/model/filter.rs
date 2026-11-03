@@ -3,13 +3,6 @@ use std::path::Path;
 
 use super::schema::DataModel;
 
-/// A parsed key list entry — either a define name or a hex key value.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum ListEntry {
-    Name(String),
-    HexValue(u32),
-}
-
 /// Parsed key list supporting both name and hex-value entries.
 ///
 /// Names are stored in two forms: original (for exact matching) and
@@ -276,14 +269,6 @@ type = "uint8"
             normalized: names.iter().map(|s| normalize(s)).collect(),
             names: names.iter().map(|s| s.to_string()).collect(),
             values: HashSet::new(),
-        }
-    }
-
-    fn key_list_from_values(vals: &[u32]) -> KeyList {
-        KeyList {
-            names: HashSet::new(),
-            normalized: HashSet::new(),
-            values: vals.iter().copied().collect(),
         }
     }
 

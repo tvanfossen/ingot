@@ -1,6 +1,3 @@
-// TODO: remove once modules have consumers
-#![allow(dead_code)]
-
 use clap::Parser;
 use std::path::PathBuf;
 
@@ -424,7 +421,8 @@ fn expand_to_toml_files(paths: &[PathBuf]) -> Result<Vec<PathBuf>, Box<dyn std::
 
 /// Validate several namespace files and merge them into one model, keeping each class's namespace.
 ///
-/// @version 1
+/// v2: the merged meta no longer sets the removed, never-read `doc` field.
+/// @version 2
 /// @req REQ-ING-CLI-003
 fn merge_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::error::Error>> {
     let mut merged_classes = Vec::new();
@@ -477,7 +475,6 @@ fn merge_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::erro
         meta: model::schema::Meta {
             id: "unified".to_string(),
             version: "0.0.0".to_string(),
-            doc: None,
             namespace_id: None,
         },
         enums: merged_enums,

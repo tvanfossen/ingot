@@ -43,7 +43,6 @@ pub struct DataModel {
 pub struct Meta {
     pub id: String,
     pub version: String,
-    pub doc: Option<String>,
     /// Optional 10-bit namespace identifier (0–1023) for key encoding.
     /// When set, this value occupies bits 31–22 of every generated key.
     /// Namespaces without an explicit ID get one assigned at build time.
@@ -65,7 +64,6 @@ pub struct EnumDef {
 #[derive(Debug, Deserialize)]
 pub struct Class {
     pub id: String,
-    pub doc: Option<String>,
     /// Optional 5-bit class index (0–31) for key encoding.
     /// When set, occupies bits 21–17 of every key in this class.
     pub class_index: Option<u8>,
@@ -86,7 +84,6 @@ pub struct KeyDef {
     pub id: String,
     #[serde(rename = "type")]
     pub data_type: DataType,
-    pub doc: Option<String>,
     pub unit: Option<String>,
 
     /// Optional 10-bit key index (0–1023) for key encoding.
@@ -153,23 +150,6 @@ impl DataType {
             // 7 = float (reserved, not used)
             DataType::String => 8,
             DataType::Binary => 9,
-        }
-    }
-
-    /// C type name for code generation.
-    /// @version 1
-    /// @req REQ-ING-MOD-002
-    pub fn c_type(self) -> &'static str {
-        match self {
-            DataType::Bool => "bool",
-            DataType::Uint8 => "uint8_t",
-            DataType::Int8 => "int8_t",
-            DataType::Uint16 => "uint16_t",
-            DataType::Int16 => "int16_t",
-            DataType::Uint32 => "uint32_t",
-            DataType::Int32 => "int32_t",
-            DataType::String => "char *",
-            DataType::Binary => "uint8_t *",
         }
     }
 
@@ -281,13 +261,6 @@ mod tests {
         }
         // All must fit in 4 bits
         assert!(codes.iter().all(|&c| c < 16));
-    }
-
-    #[test]
-    fn data_type_c_names() {
-        assert_eq!(DataType::Uint8.c_type(), "uint8_t");
-        assert_eq!(DataType::Bool.c_type(), "bool");
-        assert_eq!(DataType::String.c_type(), "char *");
     }
 
     #[test]

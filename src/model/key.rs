@@ -39,22 +39,6 @@ impl KeyEncoding {
         }
         val
     }
-
-    /// Unpack a 32-bit key ID into its fields.
-    ///
-    /// @version 1
-    /// @req REQ-ING-KEY-001
-    pub fn decode(val: u32) -> Self {
-        Self {
-            namespace: ((val >> 22) & 0x3FF) as u16,
-            class: ((val >> 17) & 0x1F) as u8,
-            id: ((val >> 7) & 0x3FF) as u16,
-            data_type: ((val >> 3) & 0xF) as u8,
-            thread_safe: (val >> 2) & 1 == 1,
-            derived: (val >> 1) & 1 == 1,
-            read_only: val & 1 == 1,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -62,7 +46,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn roundtrip_encoding() {
+    fn fields_land_in_their_bits() {
         let key = KeyEncoding {
             namespace: 5,
             class: 3,
@@ -72,9 +56,8 @@ mod tests {
             derived: false,
             read_only: true,
         };
-        let encoded = key.encode();
-        let decoded = KeyEncoding::decode(encoded);
-        assert_eq!(key, decoded);
+        // 5<<22 | 3<<17 | 42<<7 | 2<<3 | thread-safe (bit 2) | read-only (bit 0)
+        assert_eq!(key.encode(), 0x0146_1515);
     }
 
     #[test]
@@ -90,8 +73,6 @@ mod tests {
         };
         let encoded = key.encode();
         assert_eq!(encoded, 0xFFFFFFFF);
-        let decoded = KeyEncoding::decode(encoded);
-        assert_eq!(key, decoded);
     }
 
     #[test]

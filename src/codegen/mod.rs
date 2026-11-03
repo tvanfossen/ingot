@@ -105,7 +105,8 @@ fn int_type_info(suffix: &str) -> DmIntTypeInfo {
 /// Generate all C code from a parsed data model.
 ///
 /// v2: the Unity test collectors no longer take the namespace ID they did not use.
-/// @version 2
+/// v3: neither does the helper collector.
+/// @version 3
 /// @req REQ-ING-GEN-001
 pub fn generate(
     model: &DataModel,
@@ -299,7 +300,7 @@ pub fn generate(
 
     // --- Generate dm_helpers.h / dm_helpers.c ---
     {
-        let helpers = collect_helpers(model, ns_id);
+        let helpers = collect_helpers(model);
         if !helpers.is_empty() {
             let has_string_helpers = helpers.iter().any(|h| h.is_string);
             let has_enum_helpers = helpers.iter().any(|h| h.is_enum);
@@ -581,34 +582,21 @@ struct HelperEntry {
 }
 
 /// Collect helper entries for keys with helpers=true.
-/// @version 1
+///
+/// v2: an unused KeyEncoding (and the namespace ID it needed) is no longer built.
+/// @version 2
 /// @req REQ-ING-GEN-008
-fn collect_helpers(model: &DataModel, ns_id: u16) -> Vec<HelperEntry> {
+fn collect_helpers(model: &DataModel) -> Vec<HelperEntry> {
     let mut helpers = Vec::new();
 
-    for (pos, class) in model.classes.iter().enumerate() {
-        let c_ns_id = resolve_ns_id(class, ns_id);
+    for class in &model.classes {
         let c_ns_name = resolve_ns_name(class, model).to_uppercase();
-        let c_idx = resolve_class_idx(class, pos);
         let class_name = class.id.to_uppercase();
 
-        for (key_pos, key) in class.keys.iter().enumerate() {
+        for key in &class.keys {
             if !key.helpers {
                 continue;
             }
-
-            let type_code = key.data_type.type_code();
-            let encoding = KeyEncoding {
-                namespace: c_ns_id,
-                class: c_idx,
-                id: key.key_index.unwrap_or(key_pos as u16),
-                data_type: type_code,
-                thread_safe: key.thread_safe,
-                derived: false,
-                read_only: key.read_only,
-            };
-            // Ensure encoding is used (validate key is encodable)
-            let _ = encoding.encode();
 
             let key_name = key.id.to_uppercase().replace(' ', "_");
             let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");

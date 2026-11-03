@@ -31,7 +31,6 @@ clap = { version = "4", features = ["derive", "env"] }
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 tera = "1"
-rand = "0.9"
 serde_yaml = "0.9"
 thiserror = "2"
 log = "0.4"
