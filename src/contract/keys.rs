@@ -1,5 +1,6 @@
 //! Resolve declared keys and command types into the rows of `dmt_keys`.
 
+use super::enums::ResolvedEnum;
 use super::schema::{ClassDef, CommandDef, KeyDef, KeyType, NamespaceFile, Payload, Persist, Role};
 use super::types::{
     wk_index, Version, CMD_HEADER_BYTES, DEDUPE_ENTRY_BYTES, KF_ALIAS, KF_CMD, KF_CMD_DEDUPE,
@@ -38,7 +39,8 @@ pub struct Key {
     pub readers: Vec<String>,
     pub survives_reset: bool,
     pub mfg: bool,
-    pub enum_values: Option<BTreeMap<String, i64>>,
+    /// The resolved enum of the key's variant.
+    pub enum_values: Option<ResolvedEnum>,
     pub wk: Option<usize>,
     pub command: Option<(String, CmdPart)>,
     pub declared_read_only: bool,
@@ -98,6 +100,8 @@ impl Key {
 pub struct ClassCtx<'a> {
     pub ns: &'a NamespaceFile,
     pub class: &'a ClassDef,
+    /// The namespace's enums, resolved for the variant.
+    pub enums: &'a BTreeMap<String, ResolvedEnum>,
     pub variant: Option<&'a str>,
     pub default_burst: u32,
 }
@@ -323,17 +327,14 @@ fn role(path: &str, name: &str, errors: &mut Errors) -> Option<usize> {
     index
 }
 
-/// Values of the namespace enum `name`, recording an error for an undefined one.
+/// The namespace enum `name`, resolved for the variant, recording an error for an undefined one.
 ///
-/// @version 1
+/// v2: the resolved (variant) enum, with wire strings.
+/// @version 2
 /// @req REQ-ING-TIV-003
-fn enum_of(
-    ctx: &ClassCtx,
-    path: &str,
-    name: &str,
-    errors: &mut Errors,
-) -> Option<BTreeMap<String, i64>> {
-    let values = ctx.ns.enums.get(name).map(|e| e.values.clone());
+/// @req REQ-ING-TIV-016
+fn enum_of(ctx: &ClassCtx, path: &str, name: &str, errors: &mut Errors) -> Option<ResolvedEnum> {
+    let values = ctx.enums.get(name).cloned();
     if values.is_none() {
         errors.push(format!("{path}: undefined enum '{name}'"));
     }

@@ -6,6 +6,7 @@ use super::schema::{
     Bounds, CommandDef, ContractFile, NamespaceFile, Persist, Reserved, UidCapsDef,
 };
 use super::types::{Version, WK_RULES};
+use super::{enums, variants};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
@@ -38,6 +39,8 @@ pub struct Tables {
     pub version: Version,
     pub patch: u16,
     pub variant: String,
+    /// The declared variants (empty when the model declares none).
+    pub variants: Vec<String>,
     pub model_hash: String,
     pub keys: Vec<Key>,
     pub reserved: Vec<u32>,
@@ -57,12 +60,16 @@ struct Loaded {
 
 /// Load and resolve the model whose contract file is `contract_path`, for `variant`.
 ///
-/// @version 1
+/// v2: declared variants are checked and recorded.
+/// @version 2
+/// @req REQ-ING-TIV-015
 /// @req REQ-ING-TIV-002
 /// @req REQ-ING-TIV-003
 pub fn build(contract_path: &Path, variant: Option<&str>) -> Result<(Tables, Errors), String> {
     let loaded = load(contract_path)?;
     let mut errors = Errors::new();
+    let declared = &loaded.contract.contract.variants;
+    variants::check(declared, variant, &loaded.namespaces, &mut errors);
     let (keys, commands) = collect_keys(&loaded, variant, &mut errors);
     let (principals, grants) = rights::principals(loaded.contract.principals, &mut errors);
     rights::check_grants(&principals, &grants, &keys, &mut errors);
@@ -80,6 +87,7 @@ pub fn build(contract_path: &Path, variant: Option<&str>) -> Result<(Tables, Err
         patch: meta.patch,
         name: meta.name,
         variant: variant.unwrap_or_default().to_string(),
+        variants: meta.variants,
         model_hash: model_hash(&loaded.files, variant.unwrap_or_default()),
         keys,
         reserved,
@@ -220,9 +228,11 @@ pub fn hex(bytes: &[u8]) -> String {
 
 /// Every key of the model (declared and command-generated), sorted by ID, and the commands.
 ///
-/// @version 1
+/// v2: each namespace's enums are resolved once, for the variant.
+/// @version 2
 /// @req REQ-ING-TIV-003
 /// @req REQ-ING-TIV-005
+/// @req REQ-ING-TIV-016
 fn collect_keys(
     loaded: &Loaded,
     variant: Option<&str>,
@@ -231,10 +241,12 @@ fn collect_keys(
     let mut keys = Vec::new();
     let mut commands = Vec::new();
     for ns in &loaded.namespaces {
+        let enums = enums::resolve_all(ns, &loaded.contract.contract.variants, variant, errors);
         for class in &ns.classes {
             let ctx = ClassCtx {
                 ns,
                 class,
+                enums: &enums,
                 variant,
                 default_burst: loaded.contract.bounds.default_rate_burst,
             };

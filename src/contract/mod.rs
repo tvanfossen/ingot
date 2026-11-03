@@ -7,6 +7,7 @@
 pub mod bounds;
 pub mod digest;
 pub mod emit;
+pub mod enums;
 pub mod keys;
 pub mod model;
 pub mod previous;
@@ -17,6 +18,7 @@ pub mod schema;
 pub mod snapshot;
 pub mod types;
 pub mod value;
+pub mod variants;
 
 use crate::codegen::{tables::write_table_types, write_generated};
 use std::path::Path;

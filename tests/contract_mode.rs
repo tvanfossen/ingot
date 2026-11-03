@@ -300,7 +300,7 @@ fn contract_json_carries_every_header_and_key_field() {
         "path": "drive.state.odometer", "id": 0x00C2_0098, "type": "uint32", "introduced_in": "1.0",
         "persist": "deferred", "deferred_ms": 5000, "rate_per_day": 86400, "rate_burst": 4,
         "max_size": 4, "secret": false, "survives_reset": false, "mfg": false, "alias_of": null,
-        "enum": null, "command": null, "wk": null, "doc": null, "unit": null})
+        "enum": null, "enum_wire": null, "command": null, "wk": null, "doc": null, "unit": null})
     );
     let mode = key_json(&gen, "drive.settings.mode");
     assert_eq!(
@@ -613,5 +613,73 @@ fn c_strings_are_escaped() {
     let h = fs::read_to_string(gen.join("dmt_tables.h")).unwrap();
     assert!(h.contains("\"ge\\\"ne\\\\ric\""), "{h}");
     run_c_check(&gen, "check_tables");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn enums_resolve_per_variant_with_wire_strings() {
+    let dir = unique_dir("enum_variants");
+    let (a, b) = (dir.join("a"), dir.join("b"));
+    generate_ok("v1_0", &a, &[]);
+    generate_ok("v1_0", &b, &["--variant", "sku_b"]);
+    let mode = |gen: &Path| key_json(gen, "drive.settings.mode");
+    assert_eq!(
+        mode(&a)["enum"],
+        serde_json::json!({"off": 0, "eco": 1, "sport": 2})
+    );
+    assert_eq!(
+        mode(&a)["enum_wire"],
+        serde_json::json!({"0": "off", "1": "eco", "2": "sportMode"})
+    );
+    // sku_b renames 1, adds 3 and removes sport
+    assert_eq!(
+        mode(&b)["enum"],
+        serde_json::json!({"off": 0, "saver": 1, "turbo": 3})
+    );
+    assert_eq!(
+        mode(&b)["enum_wire"],
+        serde_json::json!({"0": "off", "1": "saver", "3": "turbo"})
+    );
+    assert_eq!(
+        contract_json(&a)["variants"],
+        serde_json::json!(["sku_a", "sku_b"])
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// sku_b's enum changes in the generic 1.0 model.
+const SKU_B_MODE: &str = "[enums.mode.variants.sku_b]              # sku_b renames 1, adds 3, has no sport\nremove = [\"sport\"]\n\n[enums.mode.variants.sku_b.values]\nsaver = 1\nturbo = 3\n";
+
+/// @brief Assert two generations have the same store tables (dmt_tables.h apart from the
+/// model hash) and the same digests for every principal.
+/// @version 1
+fn assert_same_store_tables(a: &Path, b: &Path) {
+    let read = |d: &Path, f: &str| fs::read_to_string(d.join(f)).unwrap();
+    assert_eq!(read(a, "dmt_tables.c"), read(b, "dmt_tables.c"));
+    let hash_free = |d: &Path| {
+        read(d, "dmt_tables.h")
+            .lines()
+            .filter(|l| !l.contains("MODEL_HASH"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    assert_eq!(hash_free(a), hash_free(b));
+    for p in contract_json(a)["principals"].as_array().unwrap() {
+        let name = p["name"].as_str().unwrap();
+        assert_eq!(digests(a, name), digests(b, name), "{name}");
+    }
+}
+
+#[test]
+fn store_tables_and_digests_do_not_depend_on_enum_maps() {
+    // the same model with and without sku_b's enum changes; only the model hash differs
+    let dir = unique_dir("enum_neutral");
+    let (with, model_dir, without) = (dir.join("with"), dir.join("model"), dir.join("without"));
+    generate_ok("v1_0", &with, &["--variant", "sku_b"]);
+    edited_copy("v1_0", &model_dir, &[("ns/drive.toml", SKU_B_MODE, "")]);
+    let contract = model_dir.join("contract.toml");
+    let (ok, stderr) = generate(&contract, &without, &["--variant", "sku_b"]);
+    assert!(ok, "{stderr}");
+    assert_same_store_tables(&with, &without);
     let _ = fs::remove_dir_all(&dir);
 }

@@ -1,19 +1,20 @@
 //! Default values in the table interface's value encoding, and write rates.
 
+use super::enums::ResolvedEnum;
 use super::schema::KeyType;
-use std::collections::BTreeMap;
 
 /// Encode `value` as a default of a key of type `ty` (little-endian scalars, one-byte bool,
 /// IEEE-754 float32, string and binary bytes); `enum_values`, when given, must contain it.
 ///
-/// @version 1
+/// v2: the enum is the variant-resolved enum.
+/// @version 2
 /// @req REQ-ING-TIV-004
 /// @req REQ-ING-TIV-010
 pub fn encode_default(
     ty: KeyType,
     value: &toml::Value,
     max_size: u32,
-    enum_values: Option<&BTreeMap<String, i64>>,
+    enum_values: Option<&ResolvedEnum>,
 ) -> Result<Vec<u8>, String> {
     let bytes = match ty {
         KeyType::Bool => encode_bool(value),
@@ -89,17 +90,18 @@ fn encode_binary(value: &toml::Value) -> Result<Vec<u8>, String> {
 
 /// Little-endian bytes of an in-range integer default.
 ///
-/// @version 1
+/// v2: membership in the variant-resolved enum.
+/// @version 2
 /// @req REQ-ING-TIV-004
 fn encode_int(
     ty: KeyType,
     value: &toml::Value,
-    enum_values: Option<&BTreeMap<String, i64>>,
+    enum_values: Option<&ResolvedEnum>,
 ) -> Result<Vec<u8>, String> {
     let n = value
         .as_integer()
         .ok_or_else(|| format!("default {value} is not an integer"))?;
-    if enum_values.is_some_and(|values| !values.values().any(|&v| v == n)) {
+    if enum_values.is_some_and(|values| !values.values().any(|m| m.value == n)) {
         return Err(format!("default {n} is not a value of the key's enum"));
     }
     int_bytes(ty, n).ok_or_else(|| format!("default {n} is out of range for {}", ty.name()))
@@ -237,7 +239,16 @@ mod tests {
         assert!(encode_default(KeyType::Struct, &v(0), 8, None).is_err());
         let wide = Value::Array(vec![Value::Integer(256)]);
         assert!(encode_default(KeyType::Binary, &wide, 4, None).is_err());
-        let enums = BTreeMap::from([("off".to_string(), 0), ("on".to_string(), 1)]);
+        let member = |value| crate::contract::enums::Member {
+            value,
+            wire: String::new(),
+        };
+        let enums: ResolvedEnum = [
+            ("off".to_string(), member(0)),
+            ("on".to_string(), member(1)),
+        ]
+        .into_iter()
+        .collect();
         assert!(encode_default(KeyType::Uint8, &v(2), 1, Some(&enums)).is_err());
         assert_eq!(
             encode_default(KeyType::Uint8, &v(1), 1, Some(&enums)),

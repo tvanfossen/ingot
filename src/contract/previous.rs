@@ -144,16 +144,26 @@ fn key_unchanged(old: &KeyJson, new: &KeyJson, errors: &mut Errors) {
     }
 }
 
-/// Every previous enum member keeps its value.
+/// Every previous enum member keeps its value, and every previous number its wire string.
 ///
-/// @version 1
+/// v2: wire strings too (a snapshot from before wire strings has none to keep).
+/// @version 2
 /// @req REQ-ING-TIV-012
+/// @req REQ-ING-TIV-016
 fn enum_kept(old: &KeyJson, new: &KeyJson) -> bool {
-    match (&old.enum_values, &new.enum_values) {
+    let values = match (&old.enum_values, &new.enum_values) {
         (None, None) => true,
         (Some(a), Some(b)) => a.iter().all(|(name, v)| b.get(name) == Some(v)),
         _ => false,
-    }
+    };
+    let empty = BTreeMap::new();
+    let new_wire = new.enum_wire.as_ref().unwrap_or(&empty);
+    let wires = old
+        .enum_wire
+        .iter()
+        .flatten()
+        .all(|(code, wire)| new_wire.get(code) == Some(wire));
+    values && wires
 }
 
 /// Every previous principal is still there with the same uid, token, kind and flags (R-V8).

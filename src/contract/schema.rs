@@ -27,6 +27,9 @@ pub struct ContractMeta {
     pub minor: u16,
     pub patch: u16,
     pub namespace_dir: String,
+    /// The product variants (SKUs); when declared, --variant must name one.
+    #[serde(default)]
+    pub variants: Vec<String>,
 }
 
 /// `[bounds]`: model-level inputs to the queue bounds and budgets.
@@ -161,14 +164,42 @@ pub struct NamespaceMeta {
     pub _doc: Option<String>,
 }
 
-/// A named enum: member name to value.
+/// A named enum: member name to value (and wire string), and its per-variant changes.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EnumDef {
     /// Documentation only; accepted, not generated.
     #[serde(rename = "doc")]
     pub _doc: Option<String>,
-    pub values: BTreeMap<String, i64>,
+    pub values: BTreeMap<String, EnumValueDef>,
+    #[serde(default)]
+    pub variants: BTreeMap<String, EnumVariantDef>,
+}
+
+/// One enum value: a bare number (its wire string is its name) or a number with a wire string.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum EnumValueDef {
+    Number(i64),
+    Wire(WireValue),
+}
+
+/// `{ value = n, wire = "..." }`.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct WireValue {
+    pub value: i64,
+    pub wire: String,
+}
+
+/// A variant's changes to an enum: values merged over the base by number, base names removed.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EnumVariantDef {
+    #[serde(default)]
+    pub values: BTreeMap<String, EnumValueDef>,
+    #[serde(default)]
+    pub remove: Vec<String>,
 }
 
 /// Class role.

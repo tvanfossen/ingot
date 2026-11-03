@@ -7,7 +7,14 @@ namespace_id = 3
 [enums.mode.values]
 off = 0
 eco = 1
-sport = 2
+sport = { value = 2, wire = "sportMode" }   # a wire string other than the name
+
+[enums.mode.variants.sku_b]              # sku_b renames 1, adds 3, has no sport
+remove = ["sport"]
+
+[enums.mode.variants.sku_b.values]
+saver = 1
+turbo = 3
 
 [[classes]]
 id = "settings"

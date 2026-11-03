@@ -38,9 +38,23 @@ pub fn copy_dir(from: &Path, to: &Path) {
     }
 }
 
+/// @brief Run the ingot binary with exactly `args`; returns (success, stderr).
+/// @version 1
+pub fn run_ingot(args: &[&str]) -> (bool, String) {
+    let result = Command::new(env!("CARGO_BIN_EXE_ingot"))
+        .args(args)
+        .output()
+        .expect("spawn ingot");
+    (
+        result.status.success(),
+        String::from_utf8_lossy(&result.stderr).into_owned(),
+    )
+}
+
 /// @brief Run contract mode on `contract` into `out` (variant sku_a unless `extra` names one);
 /// returns (success, stderr).
-/// @version 1
+/// v2: runs through run_ingot.
+/// @version 2
 pub fn generate(contract: &Path, out: &Path, extra: &[&str]) -> (bool, String) {
     let mut args = vec![
         "--contract",
@@ -53,14 +67,7 @@ pub fn generate(contract: &Path, out: &Path, extra: &[&str]) -> (bool, String) {
         args.extend(["--variant", "sku_a"]);
     }
     args.extend_from_slice(extra);
-    let result = Command::new(env!("CARGO_BIN_EXE_ingot"))
-        .args(&args)
-        .output()
-        .expect("spawn ingot");
-    (
-        result.status.success(),
-        String::from_utf8_lossy(&result.stderr).into_owned(),
-    )
+    run_ingot(&args)
 }
 
 /// @brief Generate `version` of the generic model into `out`, asserting success.

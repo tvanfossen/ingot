@@ -8,6 +8,7 @@ major = 2
 minor = 0
 patch = 0
 namespace_dir = "ns"
+variants = ["sku_a", "sku_b"]
 
 [bounds]
 headroom_pct = 200

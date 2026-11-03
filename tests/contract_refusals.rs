@@ -100,6 +100,11 @@ const CASES: &[Case] = &[
     ("v1_0", "contract.toml", "{ key = \"net.health.iotd_hb\", access = \"rw\" },", "{ key = \"net.health.iotd_hb\", access = \"rw\" },\n  { namespace = \"drvie\", access = \"r\" },", "grant on drvie covers no key"),
     ("v1_0", "contract.toml", "{ key = \"net.health.iotd_hb\", access = \"rw\" },", "{ key = \"net.health.iotd_hb\", access = \"rw\" },\n  { namespace = \"drive\", class = \"stat\", access = \"r\" },", "grant on drive.stat covers no key"),
     ("v1_0", "ns/net.toml", "id = \"net\"", "id = \"drive\"", "declared by two files"),
+    ("v1_0", "ns/drive.toml", "defaults = { sku_b = 80 }", "defaults = { sku_c = 80 }", "drive.settings.speed_limit: variant sku_c is not declared (declared: sku_a, sku_b)"),
+    ("v1_0", "ns/drive.toml", "[enums.mode.variants.sku_b]  ", "[enums.mode.variants.sku_c]  ", "drive::mode: variant sku_c is not declared"),
+    ("v1_0", "ns/drive.toml", "remove = [\"sport\"]", "remove = [\"sprot\"]", "drive::mode (sku_b): the variant removes sprot, which is not a base value"),
+    ("v1_0", "ns/drive.toml", "saver = 1", "saver = 3", "drive::mode (sku_b): number 3 has two names"),
+    ("v1_0", "ns/drive.toml", "wire = \"sportMode\"", "wire = \"eco\"", "drive::mode (sku_a): wire string eco is used twice"),
 ];
 
 #[test]
@@ -174,6 +179,7 @@ const PREVIOUS_CASES: &[(&str, &str, &str, &str, &str, &str)] = &[
     ("v2_0", "v1_1", "ns/drive.toml", "id = \"enabled\"", "id = \"active\"", "is reused by drive.state.active"),
     ("v1_1", "v1_0", "ns/drive.toml", "enum = \"mode\"\nintroduced_in = \"1.0\"", "enum = \"mode\"\nintroduced_in = \"1.1\"", "drive.settings.mode: ID"),
     ("v1_1", "v1_0", "ns/drive.toml", "enum = \"mode\"\nintroduced_in = \"1.0\"", "introduced_in = \"1.0\"", "drive.settings.mode: ID"),
+    ("v1_1", "v1_0", "ns/drive.toml", "wire = \"sportMode\"", "wire = \"sport_mode\"", "drive.settings.mode: ID"),
     ("v1_1", "v1_0", "ns/net.toml", "secret = true\nreaders = [\"iotd.net\", \"integrator\", \"iotd.ota\"]\n", "", "net.credentials.cloud_token: ID"),
     ("v1_1", "v1_0", "ns/drive.toml", "id = \"speed_limit\"", "id = \"speed_limit\"\nsurvives_reset = true", "drive.settings.speed_limit: ID"),
     ("v1_1", "v1_0", "ns/drive.toml", "deferred_ms = 5000", "deferred_ms = 6000", "drive.state.odometer: ID"),
@@ -360,6 +366,72 @@ fn every_multi_edit_refusal_has_a_triggering_model() {
         let case = dir.join(format!("case{i}"));
         edited_copy(version, &case, edits);
         refused(&case, expected);
+    }
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_model_declaring_variants_needs_a_declared_variant() {
+    let dir = unique_dir("variant_flag");
+    let contract = model("v1_0").join("contract.toml");
+    let out = dir.join("out");
+    let base = [
+        "--contract",
+        contract.to_str().unwrap(),
+        "--output",
+        out.to_str().unwrap(),
+        "--allow-dirty-ingot",
+    ];
+    let (ok, stderr) = run_ingot(&[&base[..], &["--variant", "nosuch"]].concat());
+    assert!(
+        !ok && stderr.contains("--variant nosuch is not declared (declared: sku_a, sku_b)"),
+        "{stderr}"
+    );
+    let (ok, stderr) = run_ingot(&base);
+    assert!(
+        !ok && stderr.contains("--variant must name one of: sku_a, sku_b"),
+        "{stderr}"
+    );
+    assert!(!out.join("dmt_tables.c").exists());
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// @brief Remove the fields ingot added after TIV 1.0 shipped (variants, enum_wire) from the
+/// contract.json in `gen`, as an older ingot would have written it.
+/// @version 1
+fn strip_to_old_snapshot(gen: &Path) {
+    let path = gen.join("contract.json");
+    let mut json: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+    json.as_object_mut().unwrap().remove("variants");
+    for key in json["keys"].as_array_mut().unwrap() {
+        key.as_object_mut().unwrap().remove("enum_wire");
+    }
+    fs::write(&path, serde_json::to_string_pretty(&json).unwrap()).unwrap();
+}
+
+#[test]
+fn a_snapshot_from_before_wire_strings_is_still_checked() {
+    // an old contract.json reads back, and enum changes are still refused through the enum
+    // values alone: the enum dropped from a key, and a value removed
+    let edits = [
+        (
+            "enum = \"mode\"\nintroduced_in = \"1.0\"",
+            "introduced_in = \"1.0\"",
+        ),
+        ("eco = 1\n", ""),
+    ];
+    let dir = unique_dir("old_snapshot");
+    for (i, (from, to)) in edits.iter().enumerate() {
+        let (prev, case) = (dir.join(format!("prev{i}")), dir.join(format!("model{i}")));
+        generate_ok("v1_0", &prev, &[]);
+        strip_to_old_snapshot(&prev);
+        edited_copy("v1_1", &case, &[("ns/drive.toml", from, to)]);
+        refused_against(
+            &case.join("contract.toml"),
+            &prev,
+            "drive.settings.mode: ID",
+        );
     }
     let _ = fs::remove_dir_all(&dir);
 }
