@@ -264,30 +264,34 @@ fn release_review_lists_only_sensitive_grants_of_new_principals() {
 }
 
 /// The 1.1 model's trace-enable command, moved off its role to an owner new in 1.1, and a new
-/// command taking the role. (A role move within a major is not refused today.)
+/// command taking the role.
 const TRACE_ROLE: &str = "owner = \"core\"\npayload_max = 118\ndedupe_ring = 4\nwk = \"TRACE_ENABLE\"\ndoc = \"Signed trace-enable envelope; the core verifies it.\"\n";
 const TRACE_ROLE_MOVED: &str = "owner = \"iotd.ota\"\npayload_max = 118\ndedupe_ring = 4\ndoc = \"Signed trace-enable envelope; the core verifies it.\"\n\n[[classes.commands]]\nid = \"trace_enable2\"\ncmd_index = 9\nresult_index = 10\ndedupe_index = 11\nintroduced_in = \"1.1\"\npersistence = \"none\"\nowner = \"core\"\npayload_max = 118\ndedupe_ring = 4\nwk = \"TRACE_ENABLE\"\n";
 
 #[test]
-fn release_review_sees_a_write_on_the_previous_trace_enable_key() {
+fn a_well_known_role_may_not_move_in_a_minor() {
     let cloud = "  { key = \"core.command.trace_enable\", access = \"rw\" },\n  { key = \"drive.command.map_edit\", access = \"rw\" },";
     let cloud2 = "  { key = \"core.command.trace_enable\", access = \"rw\" },\n  { key = \"core.command.trace_enable2\", access = \"rw\" },\n  { key = \"drive.command.map_edit\", access = \"rw\" },";
     let ota = "  { key = \"core.command.trace_enable\", access = \"rw\" },\n  { key = \"core.command.trace_enable_result\", access = \"rw\" },\n]\n\n[[uid_caps]]";
-    let lines = review_lines(
-        "review_trace",
-        &[
-            ("ns/core.toml", TRACE_ROLE, TRACE_ROLE_MOVED),
-            ("contract.toml", cloud, cloud2),
-            ("contract.toml", "]\n\n[[uid_caps]]", ota),
-        ],
-    );
-    assert_eq!(
-        lines,
-        [
-            "new principal iotd.ota: rw on existing core.command.trace_enable",
-            "new principal iotd.ota: r on existing net.credentials.cloud_token",
-        ]
-    );
+    let moved: &[(&str, &str, &str)] = &[
+        ("ns/core.toml", TRACE_ROLE, TRACE_ROLE_MOVED),
+        ("contract.toml", cloud, cloud2),
+        ("contract.toml", "]\n\n[[uid_caps]]", ota),
+    ];
+    let dropped: &[(&str, &str, &str)] = &[("ns/core.toml", "wk = \"DIAG_FSYNC_COUNT\"\n", "")];
+    let cases = [
+        (moved, "well-known role TRACE_ENABLE moved from core.command.trace_enable to core.command.trace_enable2 in a minor"),
+        (dropped, "well-known role DIAG_FSYNC_COUNT moved from core.diag.fsync_count to no key in a minor"),
+    ];
+    let dir = unique_dir("role_move");
+    let prev = dir.join("prev");
+    generate_ok("v1_0", &prev, &[]);
+    for (i, (edits, expected)) in cases.iter().enumerate() {
+        let case = dir.join(format!("model{i}"));
+        edited_copy("v1_1", &case, edits);
+        refused_against(&case.join("contract.toml"), &prev, expected);
+    }
+    let _ = fs::remove_dir_all(&dir);
 }
 
 /// @brief Run contract mode on `model_dir/contract.toml` and assert it is refused with a log

@@ -5,8 +5,10 @@ use super::keys::Errors;
 use super::snapshot::{KeyJson, Snapshot};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// Roles whose writers a release review must see (with MFG keys).
-const SENSITIVE_ROLES: [&str; 3] = ["RESET_REQUEST", "RESET_PRE_COMMAND", "TRACE_ENABLE"];
+/// Roles whose writers a release review must see (with MFG keys). TRACE_ENABLE is not one: it
+/// is required from the first contract with exactly one writer, previous principals keep their
+/// rights in a minor and the role cannot move, so no new principal can ever write it.
+const SENSITIVE_ROLES: [&str; 2] = ["RESET_REQUEST", "RESET_PRE_COMMAND"];
 
 /// Compare `cur` with `prev`; refusals go to `errors`, release-review lines are returned.
 ///
@@ -69,9 +71,11 @@ fn removed_ids_reserved(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     }
 }
 
-/// Within a major: keys, principals and rights only grow, at a new minor.
+/// Within a major: keys, principals and rights only grow, at a new minor, and no well-known
+/// role moves.
 ///
-/// @version 1
+/// v2: well-known roles stay on their keys.
+/// @version 2
 /// @req REQ-ING-TIV-012
 fn minor_additive(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     let cur_keys: BTreeMap<&str, &KeyJson> =
@@ -89,6 +93,30 @@ fn minor_additive(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     new_keys_at_this_version(prev, cur, &old_paths, errors);
     principals_unchanged(prev, cur, errors);
     rights_unchanged(prev, cur, &old_paths, errors);
+    roles_kept(prev, cur, errors);
+}
+
+/// Every well-known role of `prev` is still on the same key: moving one would change what the
+/// core reads and writes, which is a major (decided 2026-11-03).
+///
+/// @version 1
+/// @req REQ-ING-TIV-012
+fn roles_kept(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
+    let roles = |s: &Snapshot| -> BTreeMap<String, String> {
+        s.keys
+            .iter()
+            .filter_map(|k| k.wk.clone().map(|w| (w, k.path.clone())))
+            .collect()
+    };
+    let now = roles(cur);
+    for (role, path) in roles(prev) {
+        let moved_to = now.get(&role).map_or("no key", String::as_str);
+        if moved_to != path {
+            errors.push(format!(
+                "well-known role {role} moved from {path} to {moved_to} in a minor (a major)"
+            ));
+        }
+    }
 }
 
 /// Keys new since `prev` carry this version, and adding any needs a minor bump.
@@ -211,7 +239,7 @@ fn rights_unchanged(
 }
 
 /// Release-review lines: new principals granted read on an existing secret, or write on an
-/// existing MFG, reset or trace-enable key.
+/// existing MFG or reset key.
 ///
 /// @version 1
 /// @req REQ-ING-TIV-012
@@ -238,13 +266,14 @@ fn review(prev: &Snapshot, cur: &Snapshot) -> Vec<String> {
 
 /// Whether `access` on `key` is a grant a release review must acknowledge.
 ///
-/// @version 1
+/// v2: reset roles only (see SENSITIVE_ROLES).
+/// @version 2
 /// @req REQ-ING-TIV-012
 fn sensitive(key: &KeyJson, access: &str) -> bool {
     let writes = access.contains('w');
-    let reset_or_trace = key
+    let reset = key
         .wk
         .as_deref()
         .is_some_and(|w| SENSITIVE_ROLES.contains(&w));
-    (key.secret && access.contains('r')) || (writes && (reset_or_trace || key.mfg))
+    (key.secret && access.contains('r')) || (writes && (reset || key.mfg))
 }
