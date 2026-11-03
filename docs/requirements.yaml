@@ -521,3 +521,16 @@ requirements:
     acceptance_criteria: >-
       A variant's add, rename and remove appear in contract.json; tables and digests are
       unchanged by enum maps; a conflicting map or a changed wire string in a minor is refused.
+  REQ-ING-G2-001:
+    name: Units, ranges, discrete sets, sentinels and scale
+    subsystem: Generated outputs (G2)
+    description: >-
+      contract.toml may name a unit vocabulary; every unit is then one of its tokens. An integer
+      key without an enum may declare an inclusive min/max/step range in wire units or an allowed
+      set, a sentinel default (unset) outside them, and a scale to its displayed unit (a scaled
+      key names its unit). Every default is accepted by the range or set unless it is the
+      sentinel. contract.json carries them and the vocabulary; against --previous-contract in a
+      minor a range or set may only widen and unit, scale, sentinel and vocabulary are kept.
+    acceptance_criteria: >-
+      The generic model declares them; each malformed form is refused; widening passes and
+      narrowing is refused against the previous contract.
