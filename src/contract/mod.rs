@@ -11,6 +11,7 @@ pub mod enums;
 pub mod keys;
 pub mod model;
 pub mod previous;
+pub mod ranges;
 pub mod refuse_model;
 pub mod refuse_rights;
 pub mod rights;

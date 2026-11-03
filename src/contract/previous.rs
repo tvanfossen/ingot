@@ -71,18 +71,22 @@ fn removed_ids_reserved(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     }
 }
 
-/// Within a major: keys, principals and rights only grow, at a new minor, and no well-known
-/// role moves.
+/// Within a major: keys, principals and rights only grow, at a new minor, no well-known role
+/// moves, and units, ranges and the unit vocabulary are kept.
 ///
 /// v2: well-known roles stay on their keys.
-/// @version 2
+/// v3: units, scale, sentinels and ranges (widen only), and the unit vocabulary.
+/// @version 3
 /// @req REQ-ING-TIV-012
 fn minor_additive(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     let cur_keys: BTreeMap<&str, &KeyJson> =
         cur.keys.iter().map(|k| (k.path.as_str(), k)).collect();
     for old in &prev.keys {
         match cur_keys.get(old.path.as_str()) {
-            Some(new) => key_unchanged(old, new, errors),
+            Some(new) => {
+                key_unchanged(old, new, errors);
+                limits_kept(old, new, errors);
+            }
             None => errors.push(format!(
                 "{} was removed in a minor (a removal is a major)",
                 old.path
@@ -94,6 +98,19 @@ fn minor_additive(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     principals_unchanged(prev, cur, errors);
     rights_unchanged(prev, cur, &old_paths, errors);
     roles_kept(prev, cur, errors);
+    units_kept(prev, cur, errors);
+}
+
+/// Every unit token of `prev` keeps its quantity and meaning.
+///
+/// @version 1
+/// @req REQ-ING-RNG-001
+fn units_kept(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
+    for (token, def) in &prev.units {
+        if cur.units.get(token) != Some(def) {
+            errors.push(format!("unit {token} was removed or changed in a minor"));
+        }
+    }
 }
 
 /// Every well-known role of `prev` is still on the same key: moving one would change what the
@@ -169,6 +186,43 @@ fn key_unchanged(old: &KeyJson, new: &KeyJson, errors: &mut Errors) {
              command, enum values or a smaller max_size changed in a minor",
             old.path
         ));
+    }
+}
+
+/// An existing key keeps its unit, scale and sentinel, and accepts every value it accepted
+/// before (a range or allowed set may only widen).
+///
+/// @version 1
+/// @req REQ-ING-RNG-001
+fn limits_kept(old: &KeyJson, new: &KeyJson, errors: &mut Errors) {
+    let same = old.unit == new.unit && old.scale == new.scale && old.unset == new.unset;
+    if !(same && still_accepted(old, new)) {
+        errors.push(format!(
+            "{}: unit, scale or unset changed, or its range or allowed set narrowed, in a minor",
+            old.path
+        ));
+    }
+}
+
+/// Whether `new` accepts every value `old` did (an unlimited key accepts everything).
+///
+/// @version 1
+/// @req REQ-ING-RNG-001
+fn still_accepted(old: &KeyJson, new: &KeyJson) -> bool {
+    let accepts = |v: i64| match (&new.range, &new.allowed) {
+        (Some(r), _) => r.contains(v),
+        (None, Some(a)) => a.contains(&v),
+        (None, None) => true,
+    };
+    match (&old.range, &old.allowed) {
+        (Some(r), _) => {
+            new.range.is_none() && new.allowed.is_none()
+                || new
+                    .range
+                    .is_some_and(|n| n.contains(r.min) && n.contains(r.max) && r.step % n.step == 0)
+        }
+        (None, Some(a)) => a.iter().all(|v| accepts(*v)),
+        (None, None) => new.range.is_none() && new.allowed.is_none(),
     }
 }
 

@@ -100,6 +100,23 @@ const CASES: &[Case] = &[
     ("v1_0", "contract.toml", "{ key = \"net.health.iotd_hb\", access = \"rw\" },", "{ key = \"net.health.iotd_hb\", access = \"rw\" },\n  { namespace = \"drvie\", access = \"r\" },", "grant on drvie covers no key"),
     ("v1_0", "contract.toml", "{ key = \"net.health.iotd_hb\", access = \"rw\" },", "{ key = \"net.health.iotd_hb\", access = \"rw\" },\n  { namespace = \"drive\", class = \"stat\", access = \"r\" },", "grant on drive.stat covers no key"),
     ("v1_0", "ns/net.toml", "id = \"net\"", "id = \"drive\"", "declared by two files"),
+    ("v1_0", "ns/drive.toml", "unit = \"mm/s\"\nmin", "unit = \"mph\"\nmin", "drive.settings.speed_limit: unit mph is not in the unit vocabulary"),
+    ("v1_0", "ns/drive.toml", "max = 2000\n", "max = 2005\n", "range 0..2005 step 10 must lie in"),
+    ("v1_0", "ns/drive.toml", "max = 2000\n", "max = 70000\n", "range 0..70000 step 10 must lie in 0..65535"),
+    ("v1_0", "ns/drive.toml", "step = 10\n", "step = 0\n", "range 0..2000 step 0 must lie in"),
+    ("v1_0", "ns/drive.toml", "min = 0\nmax = 2000", "min = 2000\nmax = 0", "range 2000..0 step 10 must lie in"),
+    ("v1_0", "ns/drive.toml", "max = 2000\n", "", "drive.settings.speed_limit: a range needs both min and max"),
+    ("v1_0", "ns/drive.toml", "default = 100", "default = 105", "drive.settings.speed_limit: default 105 is outside the range or allowed set"),
+    ("v1_0", "ns/drive.toml", "defaults = { sku_b = 80 }", "defaults = { sku_b = 85 }", "drive.settings.speed_limit: default 85 is outside the range or allowed set"),
+    ("v1_0", "ns/drive.toml", "enum = \"mode\"\n", "enum = \"mode\"\nmin = 0\nmax = 2\n", "drive.settings.mode: range, allowed, unset and scale are for integer keys without an enum"),
+    ("v1_0", "ns/drive.toml", "id = \"label\"", "id = \"label\"\nscale = 2.0", "drive.state.label: range, allowed, unset and scale are for integer keys"),
+    ("v1_0", "ns/drive.toml", "id = \"odometer\"", "id = \"odometer\"\nscale = 2.0", "drive.state.odometer: a scaled key names its displayed unit"),
+    ("v1_0", "ns/drive.toml", "step = 10\n", "step = 10\nscale = 0.0\n", "drive.settings.speed_limit: scale 0 must be a positive finite number"),
+    ("v1_0", "ns/drive.toml", "step = 10\n", "step = 10\nallowed = [100]\n", "allowed must be a non-empty set of distinct values"),
+    ("v1_0", "ns/drive.toml", "id = \"odometer\"", "id = \"odometer\"\nallowed = [1, 1]", "drive.state.odometer: allowed must be a non-empty set of distinct values"),
+    ("v1_0", "ns/drive.toml", "id = \"odometer\"", "id = \"odometer\"\nallowed = [-1]", "drive.state.odometer: allowed must be a non-empty set of distinct values"),
+    ("v1_0", "ns/drive.toml", "step = 10\n", "step = 10\nunset = 100\n", "drive.settings.speed_limit: unset 100 must equal the default and lie outside the range or allowed set"),
+    ("v1_0", "ns/drive.toml", "id = \"odometer\"", "id = \"odometer\"\nunset = 0", "drive.state.odometer: unset 0 must equal the default and lie outside"),
     ("v1_0", "ns/drive.toml", "defaults = { sku_b = 80 }", "defaults = { sku_c = 80 }", "drive.settings.speed_limit: variant sku_c is not declared (declared: sku_a, sku_b)"),
     ("v1_0", "ns/drive.toml", "[enums.mode.variants.sku_b]  ", "[enums.mode.variants.sku_c]  ", "drive::mode: variant sku_c is not declared"),
     ("v1_0", "ns/drive.toml", "remove = [\"sport\"]", "remove = [\"sprot\"]", "drive::mode (sku_b): the variant removes sprot, which is not a base value"),
@@ -180,6 +197,10 @@ const PREVIOUS_CASES: &[(&str, &str, &str, &str, &str, &str)] = &[
     ("v1_1", "v1_0", "ns/drive.toml", "enum = \"mode\"\nintroduced_in = \"1.0\"", "enum = \"mode\"\nintroduced_in = \"1.1\"", "drive.settings.mode: ID"),
     ("v1_1", "v1_0", "ns/drive.toml", "enum = \"mode\"\nintroduced_in = \"1.0\"", "introduced_in = \"1.0\"", "drive.settings.mode: ID"),
     ("v1_1", "v1_0", "ns/drive.toml", "wire = \"sportMode\"", "wire = \"sport_mode\"", "drive.settings.mode: ID"),
+    ("v1_1", "v1_0", "ns/drive.toml", "max = 2000\n", "max = 1000\n", "drive.settings.speed_limit: unit, scale or unset changed, or its range or allowed set narrowed"),
+    ("v1_1", "v1_0", "ns/drive.toml", "step = 10\n", "step = 20\n", "drive.settings.speed_limit: unit, scale or unset changed"),
+    ("v1_1", "v1_0", "ns/drive.toml", "unit = \"mm/s\"\nmin", "unit = \"%\"\nmin", "drive.settings.speed_limit: unit, scale or unset changed"),
+    ("v1_1", "v1_0", "units.toml", "meaning = \"percent\"", "meaning = \"per cent\"", "unit % was removed or changed in a minor"),
     ("v1_1", "v1_0", "ns/net.toml", "secret = true\nreaders = [\"iotd.net\", \"integrator\", \"iotd.ota\"]\n", "", "net.credentials.cloud_token: ID"),
     ("v1_1", "v1_0", "ns/drive.toml", "id = \"speed_limit\"", "id = \"speed_limit\"\nsurvives_reset = true", "drive.settings.speed_limit: ID"),
     ("v1_1", "v1_0", "ns/drive.toml", "deferred_ms = 5000", "deferred_ms = 6000", "drive.state.odometer: ID"),
@@ -437,5 +458,84 @@ fn a_snapshot_from_before_wire_strings_is_still_checked() {
             "drive.settings.mode: ID",
         );
     }
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn ranges_and_sets_may_only_widen_in_a_minor() {
+    // against the 1.1 model itself: each edit of an existing key's limits, accepted or refused
+    let accepted: &[(&str, &str)] = &[
+        ("max = 2000\n", "max = 3000\n"),
+        ("min = 0\nmax = 2000\nstep = 10\n", ""),
+        (
+            "allowed = [250, 500, 1000]",
+            "allowed = [250, 500, 750, 1000]",
+        ),
+        (
+            "allowed = [250, 500, 1000]",
+            "min = 0\nmax = 1000\nstep = 250",
+        ),
+    ];
+    let refused_edits: &[(&str, &str)] = &[
+        ("allowed = [250, 500, 1000]", "allowed = [250, 500]"),
+        (
+            "allowed = [250, 500, 1000]",
+            "min = 0\nmax = 750\nstep = 250",
+        ),
+        ("id = \"odometer\"", "id = \"odometer\"\nmin = 0\nmax = 10"),
+        ("id = \"odometer\"", "id = \"odometer\"\nallowed = [0]"),
+    ];
+    let dir = unique_dir("widen");
+    let prev = dir.join("prev");
+    generate_ok("v1_1", &prev, &[]);
+    let args_for = |p: &Path| p.join("contract.json");
+    for (i, (from, to)) in accepted.iter().chain(refused_edits).enumerate() {
+        let case = dir.join(format!("model{i}"));
+        edited_copy("v1_1", &case, &[("ns/drive.toml", from, to)]);
+        let previous = args_for(&prev);
+        let out = case.join("out");
+        let args = ["--previous-contract", previous.to_str().unwrap()];
+        let (ok, stderr) = generate(&case.join("contract.toml"), &out, &args);
+        let narrowed = stderr.contains("its range or allowed set narrowed");
+        assert_eq!(
+            (ok, narrowed),
+            (i < accepted.len(), i >= accepted.len()),
+            "case {i}: {stderr}"
+        );
+    }
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn an_unset_sentinel_default_lies_outside_the_range() {
+    let dir = unique_dir("unset");
+    let case = dir.join("model");
+    edited_copy(
+        "v1_0",
+        &case,
+        &[
+            (
+                "ns/drive.toml",
+                "min = 0\nmax = 2000\nstep = 10\n",
+                "min = 200\nmax = 2000\nstep = 10\nunset = 100\n",
+            ),
+            (
+                "ns/drive.toml",
+                "defaults = { sku_b = 80 }",
+                "defaults = { sku_b = 200 }",
+            ),
+        ],
+    );
+    let (ok, stderr) = generate(&case.join("contract.toml"), &case.join("out"), &[]);
+    assert!(ok, "{stderr}");
+    let keys = contract_json(&case.join("out"))["keys"].clone();
+    let limit = keys
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|k| k["path"] == "drive.settings.speed_limit")
+        .unwrap()
+        .clone();
+    assert_eq!(limit["unset"], 100);
     let _ = fs::remove_dir_all(&dir);
 }

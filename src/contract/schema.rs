@@ -30,6 +30,23 @@ pub struct ContractMeta {
     /// The product variants (SKUs); when declared, --variant must name one.
     #[serde(default)]
     pub variants: Vec<String>,
+    /// The unit vocabulary file, relative to contract.toml; when given, every unit is a token of it.
+    pub units: Option<String>,
+}
+
+/// The unit vocabulary file: token to its quantity and meaning.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct UnitsFile {
+    pub units: BTreeMap<String, UnitDef>,
+}
+
+/// One unit token.
+#[derive(Debug, Deserialize, Clone, serde::Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct UnitDef {
+    pub quantity: String,
+    pub meaning: String,
 }
 
 /// `[bounds]`: model-level inputs to the queue bounds and budgets.
@@ -288,7 +305,18 @@ pub struct KeyDef {
     pub max_size: Option<u32>,
     pub wk: Option<String>,
     pub doc: Option<String>,
+    /// The displayed unit (display = wire x scale), a token of the vocabulary.
     pub unit: Option<String>,
+    /// Inclusive range and step, in wire units (integer keys).
+    pub min: Option<i64>,
+    pub max: Option<i64>,
+    pub step: Option<i64>,
+    /// A discrete set of accepted values, instead of min/max/step.
+    pub allowed: Option<Vec<i64>>,
+    /// A sentinel default meaning "never set", outside the range.
+    pub unset: Option<i64>,
+    /// Wire to display factor.
+    pub scale: Option<f64>,
     #[serde(default)]
     pub read_only: bool,
     #[serde(default)]

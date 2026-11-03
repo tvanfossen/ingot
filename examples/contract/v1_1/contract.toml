@@ -9,6 +9,7 @@ minor = 1
 patch = 0
 namespace_dir = "ns"
 variants = ["sku_a", "sku_b"]
+units = "units.toml"
 
 [bounds]
 headroom_pct = 200

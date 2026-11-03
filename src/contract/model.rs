@@ -1,9 +1,10 @@
 //! Load a contract-mode model and resolve it into the content of the generated tables.
 
 use super::keys::{command_keys, declared_key, ClassCtx, Errors, Key};
+use super::ranges::Units;
 use super::rights::{self, Principal};
 use super::schema::{
-    Bounds, CommandDef, ContractFile, NamespaceFile, Persist, Reserved, UidCapsDef,
+    Bounds, CommandDef, ContractFile, NamespaceFile, Persist, Reserved, UidCapsDef, UnitsFile,
 };
 use super::types::{Version, WK_RULES};
 use super::{enums, variants};
@@ -41,6 +42,8 @@ pub struct Tables {
     pub variant: String,
     /// The declared variants (empty when the model declares none).
     pub variants: Vec<String>,
+    /// The unit vocabulary, when the model declares one.
+    pub units: Option<Units>,
     pub model_hash: String,
     pub keys: Vec<Key>,
     pub reserved: Vec<u32>,
@@ -55,13 +58,15 @@ pub struct Tables {
 struct Loaded {
     contract: ContractFile,
     namespaces: Vec<NamespaceFile>,
+    units: Option<Units>,
     files: Vec<(String, Vec<u8>)>,
 }
 
 /// Load and resolve the model whose contract file is `contract_path`, for `variant`.
 ///
 /// v2: declared variants are checked and recorded.
-/// @version 2
+/// v3: the unit vocabulary is recorded.
+/// @version 3
 /// @req REQ-ING-TIV-015
 /// @req REQ-ING-TIV-002
 /// @req REQ-ING-TIV-003
@@ -88,6 +93,7 @@ pub fn build(contract_path: &Path, variant: Option<&str>) -> Result<(Tables, Err
         name: meta.name,
         variant: variant.unwrap_or_default().to_string(),
         variants: meta.variants,
+        units: loaded.units,
         model_hash: model_hash(&loaded.files, variant.unwrap_or_default()),
         keys,
         reserved,
@@ -128,17 +134,41 @@ fn layout(ns: &NamespaceFile) -> NsLayout {
     }
 }
 
-/// Read and parse the contract file and every `.toml` in its namespace directory.
+/// Read and parse the contract file, every `.toml` in its namespace directory and the unit
+/// vocabulary it names; every one is an input of the model hash.
 ///
-/// @version 1
+/// v2: the unit vocabulary.
+/// @version 2
 /// @req REQ-ING-TIV-002
+/// @req REQ-ING-RNG-001
 fn load(contract_path: &Path) -> Result<Loaded, String> {
     let base = contract_path.parent().unwrap_or(Path::new("."));
     let text = read(contract_path)?;
     let contract: ContractFile = parse(contract_path, &text)?;
     let mut files = vec![(file_name(contract_path), text.into_bytes())];
+    let namespaces = load_namespaces(base, &contract.contract.namespace_dir, &mut files)?;
+    let units = load_units(base, contract.contract.units.as_deref(), &mut files)?;
+    files.sort();
+    Ok(Loaded {
+        contract,
+        namespaces,
+        units,
+        files,
+    })
+}
+
+/// Parse every `.toml` of the namespace directory `dir` (relative to `base`); their bytes join
+/// the hash inputs under their relative paths.
+///
+/// @version 1
+/// @req REQ-ING-TIV-002
+fn load_namespaces(
+    base: &Path,
+    dir: &str,
+    files: &mut Vec<(String, Vec<u8>)>,
+) -> Result<Vec<NamespaceFile>, String> {
     let mut namespaces = Vec::new();
-    for path in namespace_files(&base.join(&contract.contract.namespace_dir))? {
+    for path in namespace_files(&base.join(dir))? {
         let text = read(&path)?;
         namespaces.push(parse(&path, &text)?);
         let rel = path
@@ -148,12 +178,26 @@ fn load(contract_path: &Path) -> Result<Loaded, String> {
             .into_owned();
         files.push((rel, text.into_bytes()));
     }
-    files.sort();
-    Ok(Loaded {
-        contract,
-        namespaces,
-        files,
-    })
+    Ok(namespaces)
+}
+
+/// The unit vocabulary `rel` (relative to `base`), when named; its bytes join the hash inputs.
+///
+/// @version 1
+/// @req REQ-ING-RNG-001
+fn load_units(
+    base: &Path,
+    rel: Option<&str>,
+    files: &mut Vec<(String, Vec<u8>)>,
+) -> Result<Option<Units>, String> {
+    let Some(rel) = rel else {
+        return Ok(None);
+    };
+    let path = base.join(rel);
+    let text = read(&path)?;
+    let parsed: UnitsFile = parse(&path, &text)?;
+    files.push((rel.to_string(), text.into_bytes()));
+    Ok(Some(parsed.units))
 }
 
 /// The sorted `.toml` files of `dir`.
@@ -229,7 +273,8 @@ pub fn hex(bytes: &[u8]) -> String {
 /// Every key of the model (declared and command-generated), sorted by ID, and the commands.
 ///
 /// v2: each namespace's enums are resolved once, for the variant.
-/// @version 2
+/// v3: keys see the unit vocabulary.
+/// @version 3
 /// @req REQ-ING-TIV-003
 /// @req REQ-ING-TIV-005
 /// @req REQ-ING-TIV-016
@@ -247,6 +292,7 @@ fn collect_keys(
                 ns,
                 class,
                 enums: &enums,
+                units: loaded.units.as_ref(),
                 variant,
                 default_burst: loaded.contract.bounds.default_rate_burst,
             };

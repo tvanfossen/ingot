@@ -1,6 +1,7 @@
 //! Resolve declared keys and command types into the rows of `dmt_keys`.
 
 use super::enums::ResolvedEnum;
+use super::ranges::{self, Range, Units};
 use super::schema::{ClassDef, CommandDef, KeyDef, KeyType, NamespaceFile, Payload, Persist, Role};
 use super::types::{
     wk_index, Version, CMD_HEADER_BYTES, DEDUPE_ENTRY_BYTES, KF_ALIAS, KF_CMD, KF_CMD_DEDUPE,
@@ -48,6 +49,11 @@ pub struct Key {
     /// Reference documentation, carried into contract.json.
     pub doc: Option<String>,
     pub unit: Option<String>,
+    /// Range, allowed set, sentinel default and scale (G2 1.3); tooling and binder inputs.
+    pub range: Option<Range>,
+    pub allowed: Option<Vec<i64>>,
+    pub unset: Option<i64>,
+    pub scale: f64,
 }
 
 impl Key {
@@ -102,6 +108,8 @@ pub struct ClassCtx<'a> {
     pub class: &'a ClassDef,
     /// The namespace's enums, resolved for the variant.
     pub enums: &'a BTreeMap<String, ResolvedEnum>,
+    /// The unit vocabulary, when the model declares one.
+    pub units: Option<&'a Units>,
     pub variant: Option<&'a str>,
     pub default_burst: u32,
 }
@@ -134,7 +142,8 @@ impl ClassCtx<'_> {
 
     /// A key of this class with every field at its class default.
     ///
-    /// @version 1
+    /// v2: no range, allowed set or sentinel, scale 1.
+    /// @version 2
     /// @req REQ-ING-TIV-003
     fn base(&self, name: &str, index: u16, ty: KeyType, introduced: Version) -> Key {
         Key {
@@ -161,6 +170,10 @@ impl ClassCtx<'_> {
             declared_thread_safe: false,
             doc: None,
             unit: None,
+            range: None,
+            allowed: None,
+            unset: None,
+            scale: 1.0,
         }
     }
 }
@@ -186,8 +199,10 @@ fn check_index(ctx: &ClassCtx, name: &str, index: u16, errors: &mut Errors) {
 
 /// Resolve one declared key; problems go to `errors`.
 ///
-/// @version 1
+/// v2: units, ranges, allowed sets, sentinels and scale (G2 1.3).
+/// @version 2
 /// @req REQ-ING-TIV-003
+/// @req REQ-ING-RNG-001
 pub fn declared_key(ctx: &ClassCtx, def: &KeyDef, errors: &mut Errors) -> Key {
     check_index(ctx, &def.id, def.key_index, errors);
     let mut key = ctx.base(
@@ -214,6 +229,7 @@ pub fn declared_key(ctx: &ClassCtx, def: &KeyDef, errors: &mut Errors) -> Key {
         errors,
     );
     default_key(&mut key, ctx.variant, def, errors);
+    ranges::apply(&mut key, def, ctx.units, errors);
     key
 }
 

@@ -109,9 +109,10 @@ fn encode_int(
 
 /// `(min, max, width in bytes)` of an integer type.
 ///
-/// @version 1
+/// v2: visible to the range checks.
+/// @version 2
 /// @req REQ-ING-TIV-004
-fn int_range(ty: KeyType) -> Option<(i64, i64, usize)> {
+pub(super) fn int_range(ty: KeyType) -> Option<(i64, i64, usize)> {
     match ty {
         KeyType::Uint8 => Some((0, u8::MAX.into(), 1)),
         KeyType::Int8 => Some((i8::MIN.into(), i8::MAX.into(), 1)),

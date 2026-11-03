@@ -300,14 +300,14 @@ fn contract_json_carries_every_header_and_key_field() {
         "path": "drive.state.odometer", "id": 0x00C2_0098, "type": "uint32", "introduced_in": "1.0",
         "persist": "deferred", "deferred_ms": 5000, "rate_per_day": 86400, "rate_burst": 4,
         "max_size": 4, "secret": false, "survives_reset": false, "mfg": false, "alias_of": null,
-        "enum": null, "enum_wire": null, "command": null, "wk": null, "doc": null, "unit": null})
+        "enum": null, "enum_wire": null, "command": null, "wk": null, "doc": null, "unit": null,
+        "range": null, "allowed": null, "unset": null, "scale": 1.0})
     );
     let mode = key_json(&gen, "drive.settings.mode");
     assert_eq!(
         mode["enum"],
         serde_json::json!({"eco": 1, "off": 0, "sport": 2})
     );
-    assert_eq!(key_json(&gen, "drive.settings.speed_limit")["unit"], "mm/s");
     assert_eq!(
         key_json(&gen, "drive.state.error_overcurrent")["doc"],
         "Error key: set and cleared by the integrator."
@@ -455,6 +455,7 @@ fn the_model_hash_covers_every_input_in_path_order() {
         "a_ns/drive.toml",
         "a_ns/mfg.toml",
         "a_ns/net.toml",
+        "units.toml",
     ];
     assert_eq!(
         contract_json(&gen)["model_hash"],
@@ -702,5 +703,26 @@ fn version_prints_the_commit_contract_mode_stamps() {
         printed.trim(),
         format!("ingot {} ({commit})", env!("CARGO_PKG_VERSION"))
     );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn contract_json_carries_units_ranges_sets_and_scale() {
+    let dir = unique_dir("json_limits");
+    let (g10, g20) = (dir.join("g10"), dir.join("g20"));
+    generate_ok("v1_0", &g10, &[]);
+    generate_ok("v2_0", &g20, &[]);
+    let limit = key_json(&g10, "drive.settings.speed_limit");
+    assert_eq!(limit["unit"], "mm/s");
+    assert_eq!(
+        limit["range"],
+        serde_json::json!({"min": 0, "max": 2000, "step": 10})
+    );
+    assert_eq!(contract_json(&g10)["units"]["mm/s"]["quantity"], "speed");
+    assert_eq!(
+        key_json(&g20, "drive.settings.max_accel")["allowed"],
+        serde_json::json!([250, 500, 1000])
+    );
+    assert_eq!(key_json(&g20, "drive.settings.gain_pct")["scale"], 0.5);
     let _ = fs::remove_dir_all(&dir);
 }
