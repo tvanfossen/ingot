@@ -485,7 +485,8 @@ requirements:
     description: >-
       The tables state the ingot version and the commit it was built from, and the model hash;
       contract mode refuses a build from a dirty tree or unknown commit unless
-      --allow-dirty-ingot is given, which marks the commit -dirty.
+      --allow-dirty-ingot is given, which marks the commit -dirty. `ingot --version` prints the
+      same commit, and the build re-runs on the real git dir (also in a submodule or worktree).
     acceptance_criteria: >-
       A dirty commit string is refused without the flag and accepted with it.
   REQ-ING-TIV-014:
