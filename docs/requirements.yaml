@@ -548,3 +548,25 @@ requirements:
       The head's hash and sizes match the body; the gzip decompresses to it; two runs are
       byte-identical; no property matches the trust pattern; the generic model's body is under
       the 64 KB image budget.
+  REQ-ING-PRS-001:
+    name: Per-variant key presence
+    subsystem: Generated outputs (G2)
+    description: >-
+      A key or command may list the variants it exists on; on any other variant it is not in the
+      tables, contract.json or the resolved keyspace, and the all-variants keyspace states its
+      presence per variant. Every listed variant is a declared one.
+    acceptance_criteria: >-
+      A key limited to one variant is generated for it only, and keyspace.json shows its presence.
+  REQ-ING-ERR-001:
+    name: Error groups
+    subsystem: Generated outputs (G2)
+    description: >-
+      contract.toml declares error groups (width 8, 16, 32 or 64, a wire base with per-variant
+      overrides, a writer, reserved bits, the highest published bit, the shadow field). An error
+      key is a bool STATE key with a group and a bit below the width and not reserved, unique per
+      resolved variant, written by the group's writer alone; groups' wire-id ranges do not
+      overlap. contract.json and the keyspace carry them; in a minor a key's bit and a group's
+      width, wire base, writer and published range are kept and reserved bits only grow.
+    acceptance_criteria: >-
+      The generic model's groups resolve per variant; each malformed form is refused; a moved bit
+      or a changed group is refused against the previous contract.
