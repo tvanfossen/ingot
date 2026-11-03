@@ -497,3 +497,26 @@ requirements:
       the keystore's conformance and handshake suites.
     acceptance_criteria: >-
       All three versions generate; 1.1 passes against 1.0 and 2.0 against 1.1.
+  REQ-ING-TIV-015:
+    name: Declared variants
+    subsystem: Table interface
+    description: >-
+      contract.toml may declare its variants ([contract] variants). When it does, --variant must
+      name one of them, and every per-variant default and per-variant enum names a declared
+      variant; contract.json lists the declared variants.
+    acceptance_criteria: >-
+      An undeclared --variant, a missing --variant, and a defaults or enum entry for an
+      undeclared variant are refused, the message listing the declared variants.
+  REQ-ING-TIV-016:
+    name: Per-variant enum values and wire strings
+    subsystem: Table interface
+    description: >-
+      Each enum value has a wire string (its name unless given). A variant may add a number,
+      rename the name and wire string of a base number, or remove a base name; the resolved enum
+      has unique numbers, names and wire strings. Keys, defaults and contract.json use the
+      resolved enum of the selected variant; the store tables and KSET digests do not depend on
+      enum maps. Against --previous-contract in a minor, every previous (number, wire string)
+      pair is kept.
+    acceptance_criteria: >-
+      A variant's add, rename and remove appear in contract.json; tables and digests are
+      unchanged by enum maps; a conflicting map or a changed wire string in a minor is refused.
