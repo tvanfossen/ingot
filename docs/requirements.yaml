@@ -97,9 +97,11 @@ requirements:
     description: >-
       A key's namespace ID, class index and key index come from the explicit namespace_id,
       class_index and key_index when set, otherwise from the model-level namespace ID and the
-      class's and key's declaration position.
+      class's and key's declaration position in its file, assigned once when the file is parsed
+      (before any key-list filtering, so a filtered build keeps every key's ID).
     acceptance_criteria: >-
-      Explicit indices appear in the encoded ID; omitted ones follow declaration order.
+      Explicit indices appear in the encoded ID; omitted ones follow declaration order; a
+      filtered key keeps its unfiltered ID.
   REQ-ING-VAL-001:
     name: Model validation
     subsystem: Model
@@ -115,10 +117,11 @@ requirements:
     subsystem: Model
     description: >-
       --include-list keeps only the keys named in a YAML list and --exclude-list removes them;
-      entries match the bare or DM_KEY_-prefixed define name, or the name with underscores
-      removed.
+      entries match the bare or DM_KEY_-prefixed define name, the name with underscores
+      removed, or the key's encoded ID as a hex string or integer.
     acceptance_criteria: >-
-      An include list of one key leaves one key; an exclude list removes exactly the named keys.
+      An include list of one key leaves one key; an exclude list removes exactly the named keys;
+      a hex-ID entry selects its key in the include, exclude and persistent lists.
   REQ-ING-FLT-002:
     name: Persistent key list
     subsystem: Model
@@ -365,9 +368,12 @@ requirements:
       --contract reads contract.toml (contract version, bounds, reserved IDs, principals, per-uid
       caps) and the namespace files in its namespace_dir, in the schema of the table-interface
       specification section 7. Unknown fields are errors, and every namespace_id, class_index
-      and key_index is explicit (no positional IDs).
+      and key_index is explicit (no positional IDs). Every grant names either one existing key,
+      or a namespace with an optional class that covers at least one key.
     acceptance_criteria: >-
-      The generic test model loads; a missing index or an unknown field is an error naming the file.
+      The generic test model loads; a missing index or an unknown field is an error naming the
+      file; a class-only grant, or a grant on a key, namespace or class that does not exist, is
+      refused.
   REQ-ING-TIV-003:
     name: Resolved key table
     subsystem: Table interface
@@ -439,10 +445,11 @@ requirements:
     subsystem: Table interface
     description: >-
       Contract mode refuses, as errors, the structural refusals of the specification section 8:
-      duplicate namespace IDs or encoded IDs, ID 0, read_only or thread_safe keys, live keys on
-      reserved IDs, persistent keys without a rate, deferred keys without an interval, struct keys
-      without max_size, bad aliases, introduced-in later than the contract, bad defaults,
-      well-known role errors, duplicate or unheartbeated principals, and budget violations; and
+      duplicate namespace IDs, namespace names or encoded IDs, ID 0, read_only or thread_safe
+      keys, live keys on reserved IDs, persistent keys without a rate, deferred keys without an
+      interval, struct keys without max_size, bad aliases, introduced-in later than the
+      contract, bad defaults, well-known role errors, duplicate or unheartbeated principals,
+      and budget violations; and
       the sizes the keystore reads well-known keys with: DIAG_SUBSCRIBERS max_size at least
       4 + 20 per principal, DIAG_KEYSTORE_VERSION at least 30, DIAG_CONTRACT_VERSION at least 17,
       and the TRACE_ENABLE command's payload_max at least 118 (its signed envelope).
