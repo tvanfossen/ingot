@@ -77,10 +77,13 @@ fn resolve(path: &str, def: &EnumDef, variant: Option<&str>, errors: &mut Errors
     resolved
 }
 
-/// Apply one variant's changes: remove base names, then for each variant value replace the
-/// member holding its number (a rename) or add it (a new number).
+/// Apply one variant's changes: remove base names, then for each variant value drop the base
+/// member holding its number (a rename) and add it, replacing a base member of the same name
+/// (the name moves to a new number). The result does not depend on the order of the values.
 ///
-/// @version 1
+/// v2: a base name may move to a new number (it was refused when the moved name sorted before
+/// the renamed one).
+/// @version 2
 /// @req REQ-ING-TIV-016
 fn apply_variant(
     path: &str,
@@ -98,10 +101,8 @@ fn apply_variant(
     let mut added = BTreeSet::new();
     for (name, value) in &changes.values {
         let m = member(name, value);
-        resolved.retain(|old, b| b.value != m.value || added.contains(old));
-        if resolved.insert(name.clone(), m).is_some() {
-            errors.push(format!("{path}: the variant gives {name} a second number"));
-        }
+        resolved.retain(|old, b| added.contains(old) || b.value != m.value);
+        resolved.insert(name.clone(), m);
         added.insert(name.clone());
     }
 }
@@ -202,16 +203,36 @@ mod tests {
     }
 
     #[test]
+    fn a_base_name_moves_to_a_new_number_in_any_order() {
+        // B11 RGB: 19 is renamed and the base name "unknown" moves from 19 to 22; the result
+        // must not depend on the order the variant's names sort in
+        for (renamed, moved) in [
+            ("adding_water", "unknown"),
+            ("zz_water", "unknown"),
+            ("water", "aa_unknown"),
+        ] {
+            let d = def(
+                &[(moved, 19), ("off", 0)],
+                &[(renamed, 19), (moved, 22)],
+                &[],
+            );
+            let mut errors = Errors::new();
+            let e = resolve("ns::state", &d, Some("v"), &mut errors);
+            assert!(errors.is_empty(), "{renamed}/{moved}: {errors:?}");
+            let row = |v: i64, n: &str| (v, n.to_string(), n.to_string());
+            let mut want = vec![row(0, "off"), row(19, renamed), row(22, moved)];
+            want.sort();
+            assert_eq!(members(&e), want, "{renamed}/{moved}");
+        }
+    }
+    #[test]
     fn conflicting_maps_are_refused() {
         let cases: [(EnumDef, &str); 5] = [
             (
                 def(&[("a", 0)], &[], &["b"]),
                 "removes b, which is not a base value",
             ),
-            (
-                def(&[("a", 0)], &[("a", 1)], &[]),
-                "gives a a second number",
-            ),
+            (def(&[("a", 0)], &[("a", 1)], &[]), ""),
             (
                 def(&[("a", 0)], &[("x", 3), ("y", 3)], &[]),
                 "number 3 has two names",
