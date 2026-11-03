@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use super::key::define_stem;
+use super::key::{define_stem, key_id};
 use super::schema::DataModel;
 
 /// Parsed key list supporting both name and hex-value entries.
@@ -80,58 +80,84 @@ fn parse_hex(s: &str) -> Option<u32> {
 ///
 /// Normalized matching strips underscores so that TOML snake_case IDs
 /// (e.g. `STATE_OF_CHARGE`) match YAML-era names (`STATEOFCHARGE`).
-/// @version 1
+/// v2: the encoded ID is always given.
+/// @version 2
 /// @req REQ-ING-FLT-001
-fn matches(list: &KeyList, name: &str, encoded: Option<u32>) -> bool {
+fn matches(list: &KeyList, name: &str, encoded: u32) -> bool {
     list.names.contains(name)
         || list.names.contains(&format!("DM_KEY_{name}"))
         || list.normalized.contains(&normalize(name))
-        || encoded.is_some_and(|v| list.values.contains(&v))
+        || list.values.contains(&encoded)
+}
+
+/// Which keys of every class `list` names (by define name, normalized name or encoded ID), in
+/// class and key order.
+///
+/// @version 1
+/// @req REQ-ING-FLT-001
+fn listed(model: &DataModel, list: &KeyList) -> Vec<Vec<bool>> {
+    let ns_id = model.meta.namespace_id.unwrap_or(0);
+    model
+        .classes
+        .iter()
+        .map(|class| {
+            let ns = class.namespace_name.as_deref().unwrap_or(&model.meta.id);
+            class
+                .keys
+                .iter()
+                .map(|key| {
+                    let dn = define_stem(ns, &class.id, &key.id);
+                    matches(list, &dn, key_id(class, ns_id, key))
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// Keep, in every class, only the keys whose flag in `keep` is set.
+///
+/// @version 1
+/// @req REQ-ING-FLT-001
+fn retain_keys(model: &mut DataModel, keep: Vec<Vec<bool>>) {
+    for (class, flags) in model.classes.iter_mut().zip(keep) {
+        let mut flags = flags.into_iter();
+        class.keys.retain(|_| flags.next().unwrap_or(false));
+    }
 }
 
 /// Filter the model to only include keys present in the include list.
 /// v2: the define name comes from the shared key::define_stem.
-/// @version 2
+/// v3: hex-ID entries match too (they never did: no encoded ID was passed).
+/// @version 3
 /// @req REQ-ING-FLT-001
 pub fn apply_include_list(model: &mut DataModel, include: &KeyList) {
-    let fallback_ns = model.meta.id.clone();
-    for class in &mut model.classes {
-        let ns = class.namespace_name.as_deref().unwrap_or(&fallback_ns);
-        class.keys.retain(|key| {
-            let dn = define_stem(ns, &class.id, &key.id);
-            matches(include, &dn, None)
-        });
-    }
+    let keep = listed(model, include);
+    retain_keys(model, keep);
 }
 
 /// Remove keys present in the exclude list from the model.
 /// v2: the define name comes from the shared key::define_stem.
-/// @version 2
+/// v3: hex-ID entries match too (they never did: no encoded ID was passed).
+/// @version 3
 /// @req REQ-ING-FLT-001
 pub fn apply_exclude_list(model: &mut DataModel, exclude: &KeyList) {
-    let fallback_ns = model.meta.id.clone();
-    for class in &mut model.classes {
-        let ns = class.namespace_name.as_deref().unwrap_or(&fallback_ns);
-        class.keys.retain(|key| {
-            let dn = define_stem(ns, &class.id, &key.id);
-            !matches(exclude, &dn, None)
-        });
-    }
+    let keep = listed(model, exclude)
+        .into_iter()
+        .map(|class| class.into_iter().map(|hit| !hit).collect())
+        .collect();
+    retain_keys(model, keep);
 }
 
 /// Mark keys present in the persistent list as persistent.
 /// v2: the define name comes from the shared key::define_stem.
-/// @version 2
+/// v3: hex-ID entries match too (they never did: no encoded ID was passed).
+/// @version 3
 /// @req REQ-ING-FLT-002
 pub fn apply_persistent_keys(model: &mut DataModel, persistent: &KeyList) {
-    let fallback_ns = model.meta.id.clone();
-    for class in &mut model.classes {
-        let ns = class.namespace_name.as_deref().unwrap_or(&fallback_ns);
-        for key in &mut class.keys {
-            let dn = define_stem(ns, &class.id, &key.id);
-            if matches(persistent, &dn, None) {
-                key.persistent = true;
-            }
+    let hits = listed(model, persistent);
+    for (class, flags) in model.classes.iter_mut().zip(hits) {
+        for (key, hit) in class.keys.iter_mut().zip(flags) {
+            key.persistent |= hit;
         }
     }
 }
@@ -229,7 +255,41 @@ mod tests {
     use super::*;
 
     fn parse_model(toml_str: &str) -> DataModel {
-        toml::from_str(toml_str).unwrap()
+        DataModel::from_toml(toml_str).unwrap()
+    }
+
+    /// A list holding only the encoded ID of key `k` of the test model's first class.
+    fn key_list_from_id(model: &DataModel, k: usize) -> KeyList {
+        let class = &model.classes[0];
+        KeyList {
+            values: HashSet::from([super::super::key::key_id(class, 5, &class.keys[k])]),
+            ..KeyList::default()
+        }
+    }
+
+    #[test]
+    fn hex_ids_select_keys_in_every_list() {
+        let mut model = test_model();
+        let current = key_list_from_id(&model, 1);
+        apply_include_list(&mut model, &current);
+        assert_eq!(model.classes[0].keys.len(), 1);
+        assert_eq!(model.classes[0].keys[0].id, "current");
+
+        let mut model = test_model();
+        let level = key_list_from_id(&model, 2);
+        apply_exclude_list(&mut model, &level);
+        assert!(model.classes[0].keys.iter().all(|k| k.id != "level"));
+        assert_eq!(model.classes[0].keys.len(), 2);
+
+        let mut model = test_model();
+        let voltage = key_list_from_id(&model, 0);
+        model.classes[0].keys[2].persistent = true;
+        apply_persistent_keys(&mut model, &voltage);
+        assert!(model.classes[0].keys[0].persistent && !model.classes[0].keys[1].persistent);
+        assert!(
+            model.classes[0].keys[2].persistent,
+            "an unlisted persistent key stays persistent"
+        );
     }
 
     fn test_model() -> DataModel {
@@ -238,6 +298,7 @@ mod tests {
 [meta]
 id = "battery"
 version = "1.0.0"
+namespace_id = 5
 
 [[classes]]
 id = "status"
