@@ -130,6 +130,18 @@ impl KeyType {
 }
 
 impl Persist {
+    /// Name used in the model, contract.json and refusal messages.
+    ///
+    /// @version 1
+    /// @req REQ-ING-TIV-009
+    pub fn name(self) -> &'static str {
+        match self {
+            Persist::None => "none",
+            Persist::Deferred => "deferred",
+            Persist::Durable => "durable",
+        }
+    }
+
     /// `DMT_P_*` code.
     ///
     /// @version 1

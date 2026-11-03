@@ -169,25 +169,13 @@ fn well_known(tables: &Tables, errors: &mut Errors) {
 /// The key mapped to role `index` has the type, class, flags and size R-WK requires.
 ///
 /// v2: also the minimum size.
-/// @version 2
+/// v3: each mismatch names the attribute, what the role needs and what the key has.
+/// @version 3
 /// @req REQ-ING-TIV-010
 fn wk_key(tables: &Tables, index: usize, key: &Key, errors: &mut Errors) {
     let rule = WK_RULES[index];
-    let is_command = key.command.as_ref().map(|(_, p)| *p) == Some(CmdPart::Command);
-    let ok = match rule.ty {
-        None => is_command,
-        Some(ty) => {
-            !is_command
-                && key.ty == ty
-                && key.persist == rule.persist
-                && key.survives_reset == rule.survives_reset
-        }
-    };
-    if !ok {
-        errors.push(format!(
-            "{}: does not have the type and class role {} requires",
-            key.path, rule.name
-        ));
+    for why in wk_mismatches(rule, key) {
+        errors.push(format!("{}: role {} {why}", key.path, rule.name));
     }
     if rule.name == "DEVICE_ID" && !key.mfg {
         errors.push(format!(
@@ -199,6 +187,37 @@ fn wk_key(tables: &Tables, index: usize, key: &Key, errors: &mut Errors) {
         trace_enable(tables, key, errors);
     }
     wk_size(tables, rule, key, errors);
+}
+
+/// What `key` lacks for `rule`: a command for a command role, otherwise a plain key of the
+/// role's type, persistence class and survives-reset, each named with what the key has.
+///
+/// @version 1
+/// @req REQ-ING-TIV-010
+fn wk_mismatches(rule: WkRule, key: &Key) -> Vec<String> {
+    let is_command = key.command.as_ref().map(|(_, p)| *p) == Some(CmdPart::Command);
+    let Some(ty) = rule.ty else {
+        return (!is_command)
+            .then(|| "needs a command key".to_string())
+            .into_iter()
+            .collect();
+    };
+    let mut out = Vec::new();
+    if is_command {
+        out.push("needs a plain key, not a command".to_string());
+    }
+    if key.ty != ty {
+        out.push(format!("needs type {} (has {})", ty.name(), key.ty.name()));
+    }
+    if key.persist != rule.persist {
+        let (need, has) = (rule.persist.name(), key.persist.name());
+        out.push(format!("needs persistence {need} (has {has})"));
+    }
+    if key.survives_reset != rule.survives_reset {
+        let (need, has) = (rule.survives_reset, key.survives_reset);
+        out.push(format!("needs survives_reset = {need} (has {has})"));
+    }
+    out
 }
 
 /// The key is at least as large as the keystore reads it (`min_size + per_principal * N`).

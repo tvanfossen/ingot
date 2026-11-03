@@ -32,10 +32,10 @@ const CASES: &[Case] = &[
     ("v1_0", "ns/drive.toml", "introduced_in = \"1.0\"\nwrite_rate = \"10/s\"", "introduced_in = \"1.1\"\nwrite_rate = \"10/s\"", "later than the contract"),
     ("v1_0", "ns/drive.toml", "default = 100", "default = 70000", "out of range"),
     ("v1_0", "ns/core.toml", "wk = \"SECRETS_FALLBACK\"", "", "SECRETS_FALLBACK is not mapped"),
-    ("v1_0", "ns/core.toml", "type = \"uint32\"\nintroduced_in = \"1.0\"\npersistence = \"deferred\"", "type = \"uint16\"\nintroduced_in = \"1.0\"\npersistence = \"deferred\"", "type and class role"),
+    ("v1_0", "ns/core.toml", "type = \"uint32\"\nintroduced_in = \"1.0\"\npersistence = \"deferred\"", "type = \"uint16\"\nintroduced_in = \"1.0\"\npersistence = \"deferred\"", "core.diag.corruption: role DIAG_CORRUPTION needs type uint32 (has uint16)"),
     ("v1_0", "ns/mfg.toml", "mfg = true", "mfg = false", "MFG namespace"),
-    ("v1_0", "ns/core.toml", "type = \"uint32\"\nintroduced_in = \"1.0\"\npersistence = \"deferred\"", "type = \"uint32\"\nintroduced_in = \"1.0\"\npersistence = \"durable\"", "core.diag.corruption: does not have the type and class role DIAG_CORRUPTION"),
-    ("v1_0", "ns/core.toml", "survives_reset = true\n", "", "core.config.boot_epoch: does not have the type and class role BOOT_EPOCH"),
+    ("v1_0", "ns/core.toml", "type = \"uint32\"\nintroduced_in = \"1.0\"\npersistence = \"deferred\"", "type = \"uint32\"\nintroduced_in = \"1.0\"\npersistence = \"durable\"", "core.diag.corruption: role DIAG_CORRUPTION needs persistence deferred (has durable)"),
+    ("v1_0", "ns/core.toml", "survives_reset = true\n", "", "core.config.boot_epoch: role BOOT_EPOCH needs survives_reset = true (has false)"),
     ("v1_0", "ns/core.toml", "payload_max = 118", "payload_max = 0", "payload_max > 0"),
     ("v1_0", "ns/core.toml", "payload_max = 118", "payload_max = 117", "payload_max >= 118"),
     ("v1_0", "ns/core.toml", "max_size = 512", "max_size = 163", "DIAG_SUBSCRIBERS needs max_size >= 164"),
@@ -342,7 +342,7 @@ const MULTI_CASES: &[MultiCase] = &[
             ("ns/core.toml", "wk = \"RESET_PRE_COMMAND\"\n", ""),
             ("ns/core.toml", "wk = \"DIAG_FSYNC_COUNT\"", "wk = \"RESET_PRE_COMMAND\""),
         ],
-        "core.diag.fsync_count: does not have the type and class role RESET_PRE_COMMAND",
+        "core.diag.fsync_count: role RESET_PRE_COMMAND needs a command key",
     ),
     // a typed role on a command key of the right type, persistence and survives-reset
     (
@@ -355,7 +355,7 @@ const MULTI_CASES: &[MultiCase] = &[
                 "persistence = \"none\"\nowner = \"iotd.map\"\npayload = \"binary\"\nwk = \"DIAG_SUBSCRIBERS\"",
             ),
         ],
-        "drive.command.map_edit: does not have the type and class role DIAG_SUBSCRIBERS",
+        "drive.command.map_edit: role DIAG_SUBSCRIBERS needs a plain key, not a command",
     ),
 ];
 

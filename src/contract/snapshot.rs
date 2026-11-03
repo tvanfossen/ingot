@@ -6,7 +6,7 @@ use super::digest::digests;
 use super::enums::ResolvedEnum;
 use super::model::hex;
 use super::model::Tables;
-use super::schema::{Kind, Persist};
+use super::schema::Kind;
 use super::types::WK_RULES;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -97,19 +97,6 @@ pub struct CommandJson {
     pub owner: String,
 }
 
-/// Name of a persistence class in contract.json.
-///
-/// @version 1
-/// @req REQ-ING-TIV-009
-fn persist_name(p: Persist) -> String {
-    match p {
-        Persist::None => "none",
-        Persist::Deferred => "deferred",
-        Persist::Durable => "durable",
-    }
-    .to_string()
-}
-
 /// Name of a principal kind in contract.json.
 ///
 /// @version 1
@@ -180,7 +167,8 @@ fn contract_json(tables: &Tables) -> ContractJson {
 
 /// Command types of the snapshot.
 ///
-/// @version 1
+/// v2: persistence names from Persist::name.
+/// @version 2
 /// @req REQ-ING-TIV-009
 fn commands_json(tables: &Tables) -> Vec<CommandJson> {
     tables
@@ -188,7 +176,7 @@ fn commands_json(tables: &Tables) -> Vec<CommandJson> {
         .iter()
         .map(|c| CommandJson {
             path: c.path.clone(),
-            persist: persist_name(c.persist),
+            persist: c.persist.name().to_string(),
             owner: c.owner.clone(),
         })
         .collect()
@@ -198,7 +186,8 @@ fn commands_json(tables: &Tables) -> Vec<CommandJson> {
 ///
 /// v2: deferred_ms is the effective interval (0 for non-deferred keys).
 /// v3: the enum is the variant-resolved one, with its wire strings.
-/// @version 3
+/// v4: persistence names from Persist::name.
+/// @version 4
 /// @req REQ-ING-TIV-009
 /// @req REQ-ING-TIV-016
 fn key_json(k: &super::keys::Key) -> KeyJson {
@@ -207,7 +196,7 @@ fn key_json(k: &super::keys::Key) -> KeyJson {
         id: k.id,
         ty: k.ty.name().to_string(),
         introduced_in: k.introduced.to_string(),
-        persist: persist_name(k.persist),
+        persist: k.persist.name().to_string(),
         deferred_ms: k.effective_deferred_ms(),
         rate_per_day: k.rate_per_day,
         rate_burst: k.rate_burst,
