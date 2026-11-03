@@ -14,6 +14,8 @@ table_types` runs, and the file is restored. Status is the result on this branch
 | `g.key.is_none() &&` in `rights::cell` | a key grant has no namespace (`check_grants` refuses one with both), so `scope_matches` never matches it |
 | the owner count in `refuse_rights::heartbeats` | two principals sharing a heartbeat cannot both be its only writer, so the writer check already refuses it |
 | the key-position fallback in the legacy `encode_key` | positions were stamped before filtering in `main::run`, so the fallback was unreachable from the binary; positions are now stamped once in `DataModel::from_toml` |
+| the TRACE_ENABLE entry of the release review's sensitive roles | TRACE_ENABLE is required from the first contract with exactly one writer (R-V5); previous principals keep their rights in a minor (R-V8); the role cannot move within a major (W1). A new principal can therefore never write it in an accepted model |
+| the "gives X a second number" refusal of a variant enum | a resolved enum is keyed by name, so one name with two numbers cannot occur; the refusal only fired, wrongly, when a base name moved to a new number in a particular order |
 
 ## Gaps the sweep found and closed
 
@@ -175,11 +177,6 @@ table_types` runs, and the file is restored. Status is the result on this branch
 | RM18 | src/contract/refuse_model.rs | `let ok = target.is_some_and(\|t\| {` | `let ok = target.is_none_or(\|t\| {` | alias target exists | KILLED | every_refusal_has_a_triggering_model |
 | RM19 | src/contract/refuse_model.rs | `[] if rule.required => {` | `[] if false => {` | required role mapped | KILLED | every_refusal_has_a_triggering_model | |
 | RM20 | src/contract/refuse_model.rs | `[key] => wk_key(tables, index, key, errors),` | `[key, ..] => wk_key(tables, index, key, errors),` | role mapped once | KILLED | every_refusal_has_a_triggering_model | |
-| RM21 | src/contract/refuse_model.rs | `None => is_command,` | `None => true,` | command role on a command | KILLED | every_multi_edit_refusal_has_a_triggering_model |
-| RM22 | src/contract/refuse_model.rs | `!is_command\n                && key.ty == ty` | `true\n                && key.ty == ty` | typed role not on a command | KILLED | every_multi_edit_refusal_has_a_triggering_model |
-| RM23 | src/contract/refuse_model.rs | `&& key.ty == ty\n` | `\n` | typed role type | KILLED | every_refusal_has_a_triggering_model | |
-| RM24 | src/contract/refuse_model.rs | `&& key.persist == rule.persist` | `(deleted)` | typed role persistence | KILLED | every_refusal_has_a_triggering_model | |
-| RM25 | src/contract/refuse_model.rs | `&& key.survives_reset == rule.survives_reset` | `(deleted)` | typed role survives reset | KILLED | every_refusal_has_a_triggering_model | |
 | RM26 | src/contract/refuse_model.rs | `if rule.name == "DEVICE_ID" && !key.mfg {` | `if false {` | DEVICE_ID in MFG | KILLED | every_refusal_has_a_triggering_model |
 | RM27 | src/contract/refuse_model.rs | `if rule.name == "TRACE_ENABLE" {\n        trace_enable` | `if false {\n        trace_enable` | trace-enable checks run | KILLED | every_refusal_has_a_triggering_model |
 | RM28 | src/contract/refuse_model.rs | `let need = rule.min_size + rule.per_principal * principals;` | `let need = rule.min_size;` | per-principal size | KILLED | every_refusal_has_a_triggering_model | |
@@ -297,9 +294,9 @@ table_types` runs, and the file is restored. Status is the result on this branch
 | E47 | src/contract/emit.rs | `"{ 0U }".to_string()` | `"{ }".to_string()` | blob never empty | KILLED | a_model_without_uid_caps_or_defaults_still_compiles |
 | E48 | src/contract/emit.rs | `&only_inproc(tables.bounds.inproc_queue_bytes),` | `&only_inproc(0),` | inproc queue budget | KILLED | generic_model_versions_and_previous_checks |
 | E49 | src/contract/emit.rs | `&only_inproc(tables.bounds.inproc_snapshot_bytes),` | `&only_inproc(0),` | inproc snapshot budget | KILLED | generic_model_versions_and_previous_checks |
-| S01 | src/contract/snapshot.rs | `Persist::None => "none",` | `Persist::None => "nil",` | persist name none | KILLED | contract_json_carries_every_principal_command_and_rights_field |
-| S02 | src/contract/snapshot.rs | `Persist::Deferred => "deferred",` | `Persist::Deferred => "durable",` | persist name deferred | KILLED | contract_json_carries_every_header_and_key_field |
-| S03 | src/contract/snapshot.rs | `Persist::Durable => "durable",` | `Persist::Durable => "deferred",` | persist name durable | KILLED | contract_json_carries_every_principal_command_and_rights_field |
+| S01 | src/contract/types.rs | `Persist::None => "none",` | `Persist::None => "nil",` | persist name none | KILLED | contract_json_carries_every_principal_command_and_rights_field |
+| S02 | src/contract/types.rs | `Persist::Deferred => "deferred",` | `Persist::Deferred => "durable",` | persist name deferred | KILLED | contract_json_carries_every_header_and_key_field |
+| S03 | src/contract/types.rs | `Persist::Durable => "durable",` | `Persist::Durable => "deferred",` | persist name durable | KILLED | contract_json_carries_every_principal_command_and_rights_field |
 | S04 | src/contract/snapshot.rs | `Kind::Unix => "unix",` | `Kind::Unix => "uart",` | kind name unix | KILLED | contract_json_carries_every_principal_command_and_rights_field |
 | S05 | src/contract/snapshot.rs | `Kind::Inproc => "inproc",` | `Kind::Inproc => "unix",` | kind name inproc | KILLED | contract_json_carries_every_principal_command_and_rights_field |
 | S06 | src/contract/snapshot.rs | `Kind::Uart => "uart",` | `Kind::Uart => "unix",` | kind name uart | KILLED | contract_json_carries_every_principal_command_and_rights_field |
@@ -315,7 +312,7 @@ table_types` runs, and the file is restored. Status is the result on this branch
 | S16 | src/contract/snapshot.rs | `id: k.id,` | `id: 0,` | key id | KILLED | contract_json_carries_every_header_and_key_field generic_model_versions_and_previous_checks |
 | S17 | src/contract/snapshot.rs | `ty: k.ty.name().to_string(),` | `ty: String::new(),` | key type | KILLED | contract_json_carries_every_header_and_key_field |
 | S18 | src/contract/snapshot.rs | `introduced_in: k.introduced.to_string(),` | `introduced_in: String::new(),` | key introduced_in | KILLED | contract_json_carries_every_header_and_key_field generic_model_versions_and_previous_checks |
-| S19 | src/contract/snapshot.rs | `persist: persist_name(k.persist),` | `persist: persist_name(Persist::None),` | key persist | KILLED | contract_json_carries_every_header_and_key_field |
+| S19 | src/contract/snapshot.rs | `persist: k.persist.name().to_string(),` | `persist: "none".to_string(),` | key persist | KILLED | contract_json_carries_every_header_and_key_field |
 | S20 | src/contract/snapshot.rs | `deferred_ms: k.effective_deferred_ms(),` | `deferred_ms: k.deferred_ms,` | key effective interval | KILLED | contract_json_carries_every_header_and_key_field |
 | S21 | src/contract/snapshot.rs | `rate_per_day: k.rate_per_day,` | `rate_per_day: 0,` | key rate | KILLED | contract_json_carries_every_header_and_key_field |
 | S22 | src/contract/snapshot.rs | `rate_burst: k.rate_burst,` | `rate_burst: 0,` | key burst | KILLED | contract_json_carries_every_header_and_key_field |
@@ -337,7 +334,7 @@ table_types` runs, and the file is restored. Status is the result on this branch
 | S38 | src/contract/snapshot.rs | `queue_bound: queue_bound(tables, p),` | `queue_bound: 0,` | principal queue bound | KILLED | contract_json_carries_every_principal_command_and_rights_field queue_bound_is_computed_from_rates_and_latency write_only_keys_count_in_neither_the_queue_bound_nor_the_snapshot |
 | S39 | src/contract/snapshot.rs | `latency_budget_ms: principal.latency_budget_ms,` | `latency_budget_ms: 0,` | principal latency | KILLED | contract_json_carries_every_principal_command_and_rights_field |
 | S40 | src/contract/snapshot.rs | `digests: digests.iter().map(\|d\| hex(d)).collect(),` | `digests: Vec::new(),` | principal digests | KILLED | digests_match_the_independent_oracle generic_model_versions_and_previous_checks | |
-| S41 | src/contract/snapshot.rs | `persist: persist_name(c.persist),` | `persist: persist_name(Persist::None),` | command persist | KILLED | contract_json_carries_every_principal_command_and_rights_field |
+| S41 | src/contract/snapshot.rs | `persist: c.persist.name().to_string(),` | `persist: "none".to_string(),` | command persist | KILLED | contract_json_carries_every_principal_command_and_rights_field |
 | S42 | src/contract/snapshot.rs | `owner: c.owner.clone(),` | `owner: String::new(),` | command owner | KILLED | contract_json_carries_every_principal_command_and_rights_field |
 | S43 | src/contract/snapshot.rs | `path: c.path.clone(),` | `path: String::new(),` | command path | KILLED | contract_json_carries_every_principal_command_and_rights_field |
 | S44 | src/contract/snapshot.rs | `name: tables.name.clone(),` | `name: String::new(),` | contract name | KILLED | contract_json_carries_every_header_and_key_field |
@@ -374,11 +371,10 @@ table_types` runs, and the file is restored. Status is the result on this branch
 | P30 | src/contract/previous.rs | `.filter(\|(n, _)\| !known.contains(n.as_str()))` | `.filter(\|_\| true)` | review new principals only | KILLED | generic_model_versions_and_previous_checks | |
 | P31 | src/contract/previous.rs | `(key.secret && access.contains('r'))` | `(key.secret)` | secret read only | KILLED | release_review_lists_only_sensitive_grants_of_new_principals |
 | P32 | src/contract/previous.rs | `let writes = access.contains('w');` | `let writes = true;` | MFG/reset write only | KILLED | release_review_lists_only_sensitive_grants_of_new_principals |
-| P33 | src/contract/previous.rs | `(writes && (reset_or_trace \|\| key.mfg))` | `(writes && key.mfg)` | reset/trace write | KILLED | release_review_lists_only_sensitive_grants_of_new_principals release_review_sees_a_write_on_the_previous_trace_enable_key | |
-| P34 | src/contract/previous.rs | `(writes && (reset_or_trace \|\| key.mfg))` | `(writes && reset_or_trace)` | MFG write | KILLED | release_review_lists_only_sensitive_grants_of_new_principals |
-| P35 | src/contract/previous.rs | `["RESET_REQUEST", "RESET_PRE_COMMAND", "TRACE_ENABLE"];` | `["X", "RESET_PRE_COMMAND", "TRACE_ENABLE"];` | review RESET_REQUEST | KILLED | release_review_lists_only_sensitive_grants_of_new_principals |
-| P36 | src/contract/previous.rs | `["RESET_REQUEST", "RESET_PRE_COMMAND", "TRACE_ENABLE"];` | `["RESET_REQUEST", "X", "TRACE_ENABLE"];` | review RESET_PRE_COMMAND | KILLED | release_review_lists_only_sensitive_grants_of_new_principals |
-| P37 | src/contract/previous.rs | `["RESET_REQUEST", "RESET_PRE_COMMAND", "TRACE_ENABLE"];` | `["RESET_REQUEST", "RESET_PRE_COMMAND", "X"];` | review TRACE_ENABLE | KILLED | release_review_sees_a_write_on_the_previous_trace_enable_key |
+| P33 | src/contract/previous.rs | `(writes && (reset \|\| key.mfg))` | `(writes && key.mfg)` | reset write | KILLED | release_review_lists_only_sensitive_grants_of_new_principals | |
+| P34 | src/contract/previous.rs | `(writes && (reset \|\| key.mfg))` | `(writes && reset)` | MFG write | KILLED | release_review_lists_only_sensitive_grants_of_new_principals |
+| P35 | src/contract/previous.rs | `["RESET_REQUEST", "RESET_PRE_COMMAND"];` | `["X", "RESET_PRE_COMMAND"];` | review RESET_REQUEST | KILLED | release_review_lists_only_sensitive_grants_of_new_principals |
+| P36 | src/contract/previous.rs | `["RESET_REQUEST", "RESET_PRE_COMMAND"];` | `["RESET_REQUEST", "X"];` | review RESET_PRE_COMMAND | KILLED | release_review_lists_only_sensitive_grants_of_new_principals |
 | MD01 | src/contract/mod.rs | `let clean = !commit.ends_with("-dirty") && commit != "unknown";` | `let clean = commit != "unknown";` | dirty build refused | KILLED | contract::tests::dirty_or_unknown_builds_need_the_override |
 | MD02 | src/contract/mod.rs | `let clean = !commit.ends_with("-dirty") && commit != "unknown";` | `let clean = !commit.ends_with("-dirty");` | unknown build refused | KILLED | contract::tests::dirty_or_unknown_builds_need_the_override |
 | MD03 | src/contract/mod.rs | `if clean \|\| allow_dirty {` | `if clean {` | override | KILLED | contract::tests::dirty_or_unknown_builds_need_the_override |
@@ -431,9 +427,8 @@ table_types` runs, and the file is restored. Status is the result on this branch
 | N07 | src/contract/enums.rs | `check_unique(path, &resolved, errors);\n` | `\n` | uniqueness checked | KILLED | contract::enums::tests::conflicting_maps_are_refused | |
 | N08 | src/contract/enums.rs | `if resolved.remove(name).is_none() {` | `if resolved.remove(name).is_none() && false {` | unknown removal refused | KILLED | contract::enums::tests::conflicting_maps_are_refused |
 | N09 | src/contract/enums.rs | `if resolved.remove(name).is_none() {` | `if resolved.get(name).is_none() {` | removal removes | KILLED | contract::enums::tests::a_variant_adds_renames_and_removes |
-| N10 | src/contract/enums.rs | `resolved.retain(\|old, b\| b.value != m.value \|\| added.contains(old));` | `resolved.retain(\|_, _\| true);` | rename replaces the number's member | KILLED | contract::enums::tests::a_variant_adds_renames_and_removes |
-| N11 | src/contract/enums.rs | `resolved.retain(\|old, b\| b.value != m.value \|\| added.contains(old));` | `resolved.retain(\|_, b\| b.value != m.value);` | variant's own names kept for the duplicate check | KILLED | contract::enums::tests::conflicting_maps_are_refused |
-| N12 | src/contract/enums.rs | `if resolved.insert(name.clone(), m).is_some() {` | `if resolved.insert(name.clone(), m).is_some() && false {` | second number refused | KILLED | contract::enums::tests::conflicting_maps_are_refused |
+| N10 | src/contract/enums.rs | `resolved.retain(\|old, b\| added.contains(old) \|\| b.value != m.value);` | `resolved.retain(\|_, _\| true);` | rename replaces the number's member | KILLED | contract::enums::tests::a_variant_adds_renames_and_removes |
+| N11 | src/contract/enums.rs | `resolved.retain(\|old, b\| added.contains(old) \|\| b.value != m.value);` | `resolved.retain(\|_, b\| b.value != m.value);` | variant's own names kept for the duplicate check | KILLED | contract::enums::tests::conflicting_maps_are_refused |
 | N13 | src/contract/enums.rs | `added.insert(name.clone());` | `added.insert(String::new());` | added tracked | KILLED | contract::enums::tests::conflicting_maps_are_refused |
 | N14 | src/contract/enums.rs | `if !values.insert(m.value) {` | `if !values.insert(m.value) && false {` | number with two names refused | KILLED | contract::enums::tests::conflicting_maps_are_refused |
 | N15 | src/contract/enums.rs | `if !wires.insert(&m.wire) {` | `if !wires.insert(&m.wire) && false {` | duplicate wire refused | KILLED | contract::enums::tests::conflicting_maps_are_refused |
@@ -451,3 +446,12 @@ table_types` runs, and the file is restored. Status is the result on this branch
 | N27 | src/contract/snapshot.rs | `e.iter().map(\|(n, m)\| (n.clone(), m.value)).collect()` | `e.iter().map(\|(n, m)\| (n.clone(), m.value + 1)).collect()` | enum numbers in contract.json | KILLED | contract_json_carries_every_header_and_key_field enums_resolve_per_variant_with_wire_strings |
 | N28 | src/contract/previous.rs | `.all(\|(code, wire)\| new_wire.get(code) == Some(wire));` | `.all(\|_\| true);` | wire strings kept in a minor | KILLED | previous_contract_refusals | |
 | N29 | src/contract/previous.rs | `values && wires` | `values` | wire check joined | KILLED | previous_contract_refusals | |
+| F01 | src/main.rs | `#[command(name = "ingot", version = VERSION, about, long_about)]` | `#[command(name = "ingot", version, about, long_about)]` | --version prints the commit | KILLED | version_prints_the_commit_contract_mode_stamps |
+| WK1 | src/contract/refuse_model.rs | `return (!is_command)` | `return (false)` | command role needs a command | KILLED | every_multi_edit_refusal_has_a_triggering_model |
+| WK2 | src/contract/refuse_model.rs | `if is_command {\n        out.push` | `if false {\n        out.push` | typed role not on a command | KILLED | every_multi_edit_refusal_has_a_triggering_model |
+| WK3 | src/contract/refuse_model.rs | `if key.ty != ty {` | `if false {` | typed role type | KILLED | every_refusal_has_a_triggering_model |
+| WK4 | src/contract/refuse_model.rs | `if key.persist != rule.persist {` | `if false {` | typed role persistence | KILLED | every_refusal_has_a_triggering_model |
+| WK5 | src/contract/refuse_model.rs | `if key.survives_reset != rule.survives_reset {` | `if false {` | typed role survives reset | KILLED | every_refusal_has_a_triggering_model |
+| RK1 | src/contract/previous.rs | `roles_kept(prev, cur, errors);\n` | `\n` | role move checked | KILLED | a_well_known_role_may_not_move_in_a_minor | |
+| RK2 | src/contract/previous.rs | `if moved_to != path {` | `if false {` | role move refused | KILLED | a_well_known_role_may_not_move_in_a_minor |
+| RK3 | src/contract/previous.rs | `.map_or("no key", String::as_str);` | `.map_or(path.as_str(), String::as_str);` | dropped role refused | KILLED | a_well_known_role_may_not_move_in_a_minor |
