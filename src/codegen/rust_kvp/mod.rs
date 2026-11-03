@@ -18,6 +18,8 @@ struct KeyConst {
 /// Generate a single `dm.rs` file exposing the data model as a `no_std`
 /// struct with named accessor methods, backed by the same perfect-hash
 /// static-array storage strategy as the C backend.
+/// @version 1
+/// @req REQ-ING-RST-001
 pub fn generate(
     model: &DataModel,
     ns_id: u16,

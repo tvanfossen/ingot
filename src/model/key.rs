@@ -18,6 +18,10 @@ pub struct KeyEncoding {
 }
 
 impl KeyEncoding {
+    /// Pack the fields into the 32-bit key ID.
+    ///
+    /// @version 1
+    /// @req REQ-ING-KEY-001
     pub fn encode(&self) -> u32 {
         let mut val: u32 = 0;
         val |= (self.namespace as u32 & 0x3FF) << 22;
@@ -36,6 +40,10 @@ impl KeyEncoding {
         val
     }
 
+    /// Unpack a 32-bit key ID into its fields.
+    ///
+    /// @version 1
+    /// @req REQ-ING-KEY-001
     pub fn decode(val: u32) -> Self {
         Self {
             namespace: ((val >> 22) & 0x3FF) as u16,

@@ -84,6 +84,10 @@ pub enum ValidationError {
     },
 }
 
+/// Check one key and record every violation it has.
+///
+/// @version 1
+/// @req REQ-ING-VAL-001
 fn validate_key(
     errors: &mut Vec<ValidationError>,
     ns: &str,
@@ -153,6 +157,10 @@ fn validate_key(
     }
 }
 
+/// Check one class and each of its keys, recording every violation.
+///
+/// @version 1
+/// @req REQ-ING-VAL-001
 fn validate_class(
     errors: &mut Vec<ValidationError>,
     ns: &str,
@@ -215,6 +223,10 @@ fn validate_class(
     }
 }
 
+/// Validate the whole model.
+///
+/// @version 1
+/// @req REQ-ING-VAL-001
 pub fn validate(model: &DataModel) -> Result<(), Vec<ValidationError>> {
     let mut errors = Vec::new();
 

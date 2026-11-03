@@ -25,6 +25,8 @@ pub struct BoolStorage {
 }
 
 /// Collect boolean keys from the model, generate perfect hash and pack defaults.
+/// @version 1
+/// @req REQ-ING-GEN-004
 pub fn collect_boolean_storage(
     model: &DataModel,
     ns_id: u16,
@@ -61,6 +63,10 @@ pub fn collect_boolean_storage(
     Ok(Some(build_bool_storage(&keys_with_meta, &ph)))
 }
 
+/// Pack boolean defaults into uint32_t words at their perfect-hash positions.
+///
+/// @version 1
+/// @req REQ-ING-GEN-004
 fn build_bool_storage(keys_with_meta: &[(u32, &KeyDef)], ph: &PerfectHash) -> BoolStorage {
     let num_keys = keys_with_meta.len();
     let num_words = num_keys.div_ceil(32);
@@ -111,6 +117,10 @@ fn build_bool_storage(keys_with_meta: &[(u32, &KeyDef)], ph: &PerfectHash) -> Bo
     }
 }
 
+/// Smallest C integer type that holds every perfect-hash G value.
+///
+/// @version 1
+/// @req REQ-ING-GEN-004
 fn select_g_table_type(g: &[i32]) -> &'static str {
     let min = g.iter().copied().min().unwrap_or(0);
     let max = g.iter().copied().max().unwrap_or(0);

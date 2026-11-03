@@ -85,6 +85,10 @@ enum Target {
     Rust,
 }
 
+/// Parse the command line, set the log level and run generation, exiting 1 on error.
+///
+/// @version 1
+/// @req REQ-ING-CLI-001
 fn main() {
     let cli = Cli::parse();
 
@@ -118,6 +122,9 @@ fn main() {
 ///   4. `<exe_dir>/../../templates/`           (dev: target/debug/ingot → crate root)
 ///   5. `<cwd>/templates/`
 ///   6. `/usr/share/ingot/templates/`          (absolute fallback for non-FHS installs)
+///
+/// @version 1
+/// @req REQ-ING-CLI-002
 fn resolve_template_dir(
     explicit: Option<&std::path::Path>,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -178,6 +185,10 @@ fn resolve_template_dir(
     )
 }
 
+/// Load, filter, validate and generate the model the command line names.
+///
+/// @version 1
+/// @req REQ-ING-CLI-001
 fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     if cli.include_list.is_some() && cli.exclude_list.is_some() {
         return Err("--include-list and --exclude-list are mutually exclusive".into());
@@ -303,6 +314,8 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
 /// entry, replace `values` with the variant's values.
 ///
 /// Returns (key_defaults_overridden, enums_overridden).
+/// @version 1
+/// @req REQ-ING-CLI-004
 fn resolve_variant(model: &mut model::DataModel, variant: &str) -> (usize, usize) {
     let mut key_count = 0;
     for class in &mut model.classes {
@@ -328,6 +341,10 @@ fn resolve_variant(model: &mut model::DataModel, variant: &str) -> (usize, usize
     (key_count, enum_count)
 }
 
+/// Print the model's key count per storage type to stdout.
+///
+/// @version 1
+/// @req REQ-ING-CLI-005
 fn print_statistics(model: &model::DataModel) {
     use model::schema::DataType;
 
@@ -375,6 +392,10 @@ fn print_statistics(model: &model::DataModel) {
     println!("  read-write string: {rw_string_count}");
 }
 
+/// Expand model paths to TOML files; a directory contributes its .toml files in sorted order.
+///
+/// @version 1
+/// @req REQ-ING-CLI-003
 fn expand_to_toml_files(paths: &[PathBuf]) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
     let mut toml_files: Vec<PathBuf> = Vec::new();
     for path in paths {
@@ -401,6 +422,10 @@ fn expand_to_toml_files(paths: &[PathBuf]) -> Result<Vec<PathBuf>, Box<dyn std::
     Ok(toml_files)
 }
 
+/// Validate several namespace files and merge them into one model, keeping each class's namespace.
+///
+/// @version 1
+/// @req REQ-ING-CLI-003
 fn merge_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::error::Error>> {
     let mut merged_classes = Vec::new();
     let mut merged_enums = std::collections::BTreeMap::new();
@@ -464,6 +489,8 @@ fn merge_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::erro
 ///
 /// A single file is loaded directly. Multiple paths or directories are
 /// merged into one DataModel with per-class namespace info preserved.
+/// @version 1
+/// @req REQ-ING-CLI-003
 fn load_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::error::Error>> {
     let toml_files = expand_to_toml_files(paths)?;
 

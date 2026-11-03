@@ -33,6 +33,8 @@ pub struct PersistenceStorage {
 /// Collect all persistent keys from the model and build template context.
 ///
 /// Returns `None` if no keys are marked persistent.
+/// @version 1
+/// @req REQ-ING-GEN-007
 pub fn collect_persistence_storage(model: &DataModel, ns_id: u16) -> Option<PersistenceStorage> {
     let mut entries = Vec::new();
 
@@ -115,6 +117,8 @@ pub fn collect_persistence_storage(model: &DataModel, ns_id: u16) -> Option<Pers
 }
 
 /// Format a default value as a C literal for the persistence struct initializer.
+/// @version 1
+/// @req REQ-ING-GEN-007
 fn format_default(default: &Option<toml::Value>, data_type: DataType) -> String {
     match default {
         Some(toml::Value::Boolean(b)) => if *b { "true" } else { "false" }.to_string(),

@@ -70,6 +70,10 @@ const INT_TYPES: &[DataType] = &[
     DataType::Int32,
 ];
 
+/// Name of the Rust storage field that holds keys of `data_type`.
+///
+/// @version 1
+/// @req REQ-ING-RST-002
 fn field_name_for(data_type: DataType) -> &'static str {
     match data_type {
         DataType::Bool => "bool_values",
@@ -96,6 +100,8 @@ struct ResolvedKey<'a> {
 }
 
 /// Walk every class/key in the model, resolving names and the 32-bit encoding.
+/// @version 1
+/// @req REQ-ING-RST-002
 fn resolve_all_keys(model: &DataModel, ns_id: u16) -> Vec<ResolvedKey<'_>> {
     let mut out = Vec::new();
 
@@ -152,6 +158,8 @@ fn resolve_all_keys(model: &DataModel, ns_id: u16) -> Vec<ResolvedKey<'_>> {
 }
 
 /// Collect one perfect-hash-backed group per integer type present in the model.
+/// @version 1
+/// @req REQ-ING-RST-002
 pub fn collect_int_groups(
     model: &DataModel,
     ns_id: u16,
@@ -186,6 +194,8 @@ pub fn collect_int_groups(
 }
 
 /// Collect the single bool group, if any bool keys exist.
+/// @version 1
+/// @req REQ-ING-RST-002
 pub fn collect_bool_group(
     model: &DataModel,
     ns_id: u16,
@@ -208,6 +218,10 @@ pub fn collect_bool_group(
     Ok((Some(group), accessors))
 }
 
+/// Build one scalar storage group and its accessors in perfect-hash slot order.
+///
+/// @version 1
+/// @req REQ-ING-RST-002
 fn build_scalar_group(
     rust_type: &str,
     field_name: &str,
@@ -258,6 +272,10 @@ fn build_scalar_group(
     (group, accessors)
 }
 
+/// Join integers as a comma-separated list for a generated array.
+///
+/// @version 1
+/// @req REQ-ING-RST-002
 fn join_i32(values: &[i32]) -> String {
     values
         .iter()
@@ -266,6 +284,10 @@ fn join_i32(values: &[i32]) -> String {
         .join(", ")
 }
 
+/// Rust literal of an integer key's default (booleans as 0 or 1, missing as 0).
+///
+/// @version 1
+/// @req REQ-ING-RST-002
 fn format_int_default(default: &Option<toml::Value>) -> String {
     match default {
         Some(toml::Value::Integer(i)) => i.to_string(),
@@ -274,6 +296,10 @@ fn format_int_default(default: &Option<toml::Value>) -> String {
     }
 }
 
+/// Rust literal of a boolean key's default (non-zero integers count as true).
+///
+/// @version 1
+/// @req REQ-ING-RST-002
 fn format_bool_default(default: &Option<toml::Value>) -> String {
     let is_true = matches!(default, Some(toml::Value::Boolean(true)))
         || matches!(default, Some(toml::Value::Integer(i)) if *i != 0);
@@ -287,6 +313,8 @@ fn format_bool_default(default: &Option<toml::Value>) -> String {
 /// Collect string/binary keys, each backed by its own fixed-size field
 /// (max_size varies per key, so these can't share a uniform array the way
 /// scalar types do — no perfect hash needed since access is name-only).
+/// @version 1
+/// @req REQ-ING-RST-002
 pub fn collect_bytes_accessors(model: &DataModel, ns_id: u16) -> Vec<RustBytesAccessor> {
     let resolved = resolve_all_keys(model, ns_id);
 
@@ -315,6 +343,8 @@ pub fn collect_bytes_accessors(model: &DataModel, ns_id: u16) -> Vec<RustBytesAc
 
 /// Format a default string value as a Rust byte-string literal, escaping any
 /// bytes that aren't printable ASCII or the standard escape set.
+/// @version 1
+/// @req REQ-ING-RST-002
 fn format_bytes_default(default: &Option<toml::Value>) -> String {
     let s = match default {
         Some(toml::Value::String(s)) => s.clone(),

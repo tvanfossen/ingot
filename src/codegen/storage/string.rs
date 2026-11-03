@@ -37,6 +37,8 @@ pub struct StringEntry {
 }
 
 /// Collect string keys from the model, split into RO and RW groups.
+/// @version 1
+/// @req REQ-ING-GEN-006
 pub fn collect_string_storage(
     model: &DataModel,
     ns_id: u16,
@@ -88,6 +90,10 @@ pub fn collect_string_storage(
     Ok(Some(StringStorage { total_keys, ro, rw }))
 }
 
+/// Build one string storage group with its own perfect hash and fixed-size buffers.
+///
+/// @version 1
+/// @req REQ-ING-GEN-006
 fn build_string_group(keys: &[(u32, &KeyDef)]) -> Result<StringGroup, String> {
     let encoded_keys: Vec<u32> = keys.iter().map(|(k, _)| *k).collect();
     let ph = hash::generate_deterministic(&encoded_keys, 100)
@@ -136,6 +142,10 @@ fn build_string_group(keys: &[(u32, &KeyDef)]) -> Result<StringGroup, String> {
     })
 }
 
+/// Smallest C integer type that holds every perfect-hash G value.
+///
+/// @version 1
+/// @req REQ-ING-GEN-006
 fn select_g_table_type(g: &[i32]) -> &'static str {
     let min = g.iter().copied().min().unwrap_or(0);
     let max = g.iter().copied().max().unwrap_or(0);
@@ -150,6 +160,8 @@ fn select_g_table_type(g: &[i32]) -> &'static str {
 }
 
 /// Escape a string for use as a C string literal (with quotes).
+/// @version 1
+/// @req REQ-ING-GEN-006
 fn escape_c_string(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('"');

@@ -1,6 +1,10 @@
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
+/// Serde default for boolean fields that default to true (`helpers`).
+///
+/// @version 1
+/// @req REQ-ING-MOD-001
 fn default_true() -> bool {
     true
 }
@@ -135,6 +139,8 @@ impl DataType {
     /// Type code used in the 4-bit key encoding field.
     ///
     /// Ordering matches gen_udm_code: unsigned widths first, then signed.
+    /// @version 1
+    /// @req REQ-ING-MOD-002
     pub fn type_code(self) -> u8 {
         match self {
             DataType::Bool => 0,
@@ -151,6 +157,8 @@ impl DataType {
     }
 
     /// C type name for code generation.
+    /// @version 1
+    /// @req REQ-ING-MOD-002
     pub fn c_type(self) -> &'static str {
         match self {
             DataType::Bool => "bool",
@@ -170,6 +178,8 @@ impl DataType {
     /// `String`/`Binary` have no single scalar Rust type (they're generated
     /// as fixed-size `[u8; N]` byte arrays) — this returns a byte-slice
     /// placeholder for those two variants.
+    /// @version 1
+    /// @req REQ-ING-MOD-002
     pub fn rust_type(self) -> &'static str {
         match self {
             DataType::Bool => "bool",

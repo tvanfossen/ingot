@@ -22,6 +22,8 @@ pub struct PerfectHash {
 
 impl PerfectHash {
     /// Look up the storage index for a key.
+    /// @version 1
+    /// @req REQ-ING-HSH-002
     pub fn lookup(&self, key: u32) -> usize {
         if self.num_keys == 0 {
             return 0;
@@ -35,6 +37,8 @@ impl PerfectHash {
     }
 
     /// Verify that all keys map to unique indices in [0, num_keys).
+    /// @version 1
+    /// @req REQ-ING-HSH-002
     pub fn verify(&self, keys: &[u32]) -> bool {
         let mut seen = HashSet::new();
         for &key in keys {
@@ -56,6 +60,8 @@ impl PerfectHash {
 /// 4. If cyclic, retry with new seeds
 ///
 /// Returns `None` if generation fails after `max_iters` attempts.
+/// @version 1
+/// @req REQ-ING-HSH-002
 pub fn generate(keys: &[u32], max_iters: u32) -> Option<PerfectHash> {
     if keys.is_empty() {
         return Some(PerfectHash {
@@ -107,6 +113,8 @@ pub fn generate(keys: &[u32], max_iters: u32) -> Option<PerfectHash> {
 }
 
 /// Generate with specific seeds (for deterministic testing).
+/// @version 1
+/// @req REQ-ING-HSH-002
 pub fn generate_with_seeds(keys: &[u32], seed1: u32, seed2: u32) -> Option<PerfectHash> {
     if keys.is_empty() {
         return Some(PerfectHash {
@@ -161,6 +169,8 @@ const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 /// shortcuts match `generate` exactly.
 ///
 /// Returns `None` if no valid hash is found within `max_iters` attempts.
+/// @version 1
+/// @req REQ-ING-HSH-003
 pub fn generate_deterministic(keys: &[u32], max_iters: u32) -> Option<PerfectHash> {
     if keys.is_empty() {
         return Some(PerfectHash {
@@ -205,6 +215,8 @@ pub fn generate_deterministic(keys: &[u32], max_iters: u32) -> Option<PerfectHas
 /// Stable and entropy-free, so the derived seed depends only on the key set.
 /// The model's key ordering is itself deterministic, so identical input always
 /// hashes to the same value.
+/// @version 1
+/// @req REQ-ING-HSH-003
 fn fnv1a_keys(keys: &[u32]) -> u64 {
     let mut h = FNV_OFFSET_BASIS;
     for key in keys {
@@ -223,6 +235,8 @@ fn fnv1a_keys(keys: &[u32]) -> u64 {
 /// sequential DFS edge_id, G[u] + G[v] = edge_id.
 ///
 /// Returns None if the graph has cycles or self-loops.
+/// @version 1
+/// @req REQ-ING-HSH-002
 fn try_build(keys: &[u32], n: usize, seed1: u32, seed2: u32) -> Option<Vec<i32>> {
     // Adjacency list: each entry is (neighbor_vertex)
     let mut adj: Vec<Vec<usize>> = vec![vec![]; n];

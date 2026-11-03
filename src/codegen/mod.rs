@@ -10,6 +10,10 @@ use serde::Serialize;
 use std::path::Path;
 use tera::{Context, Tera};
 
+/// Write generated text to `path`, normalised to end in exactly one newline.
+///
+/// @version 1
+/// @req REQ-ING-GEN-001
 pub(crate) fn write_generated(path: impl AsRef<Path>, content: String) -> std::io::Result<()> {
     let normalized = format!("{}\n", content.trim_end_matches('\n'));
     std::fs::write(path, normalized)
@@ -61,6 +65,8 @@ struct DmIntTypeInfo {
 }
 
 /// Map integer storage suffix to API dispatch info.
+/// @version 1
+/// @req REQ-ING-GEN-011
 fn int_type_info(suffix: &str) -> DmIntTypeInfo {
     let (type_enum, c_type, val_field, wrapper) = match suffix {
         "UINT8" => ("DM_KEY_TYPE_UINT8", "uint8_t", "u8val", "UInt8"),
@@ -82,6 +88,8 @@ fn int_type_info(suffix: &str) -> DmIntTypeInfo {
 }
 
 /// Generate all C code from a parsed data model.
+/// @version 1
+/// @req REQ-ING-GEN-001
 pub fn generate(
     model: &DataModel,
     ns_id: u16,
@@ -326,6 +334,8 @@ pub fn generate(
 ///
 /// Emits nothing when no key carries `event = true` — a consumer with no
 /// event keys gets no C++ artifacts even with the flag on.
+/// @version 1
+/// @req REQ-ING-EVT-001
 fn generate_tinyfsm_events(
     tera: &Tera,
     version: &str,
@@ -365,6 +375,8 @@ fn generate_tinyfsm_events(
 /// The FSM event struct name mirrors the key #define with the `DM_KEY_`
 /// prefix swapped for `FSM_EVENT_`, matching the UDM generator's naming so
 /// ingot is a drop-in replacement.
+/// @version 1
+/// @req REQ-ING-EVT-001
 fn collect_event_keys(
     key_defs: &[KeyDefRenderable],
 ) -> (Vec<EventKeyRenderable>, Vec<EventGroupRenderable>) {
@@ -403,6 +415,8 @@ struct NamespaceDefRenderable {
 }
 
 /// Collect unique namespaces from the model (deduplicated, ordered).
+/// @version 1
+/// @req REQ-ING-GEN-003
 fn collect_namespaces(model: &DataModel, fallback_ns_id: u16) -> Vec<NamespaceDefRenderable> {
     let mut seen = std::collections::BTreeMap::new();
     for class in &model.classes {
@@ -427,11 +441,15 @@ fn collect_namespaces(model: &DataModel, fallback_ns_id: u16) -> Vec<NamespaceDe
 }
 
 /// Resolve the namespace ID for a class, using per-class override or model-level fallback.
+/// @version 1
+/// @req REQ-ING-KEY-002
 pub(crate) fn resolve_ns_id(class: &crate::model::schema::Class, fallback: u16) -> u16 {
     class.namespace_id.unwrap_or(fallback)
 }
 
 /// Resolve the namespace name for a class, using per-class override or model-level fallback.
+/// @version 1
+/// @req REQ-ING-KEY-002
 pub(crate) fn resolve_ns_name(class: &crate::model::schema::Class, model: &DataModel) -> String {
     class
         .namespace_name
@@ -441,11 +459,15 @@ pub(crate) fn resolve_ns_name(class: &crate::model::schema::Class, model: &DataM
 }
 
 /// Resolve the class index, using explicit class_index or positional fallback.
+/// @version 1
+/// @req REQ-ING-KEY-002
 pub(crate) fn resolve_class_idx(class: &crate::model::schema::Class, position: usize) -> u8 {
     class.class_index.unwrap_or(position as u8)
 }
 
 /// Build renderable key definitions from the model.
+/// @version 1
+/// @req REQ-ING-GEN-002
 fn collect_key_definitions(model: &DataModel, ns_id: u16) -> Vec<KeyDefRenderable> {
     let mut defs = Vec::new();
 
@@ -512,6 +534,8 @@ struct HelperEntry {
 }
 
 /// Collect helper entries for keys with helpers=true.
+/// @version 1
+/// @req REQ-ING-GEN-008
 fn collect_helpers(model: &DataModel, ns_id: u16) -> Vec<HelperEntry> {
     let mut helpers = Vec::new();
 
@@ -605,6 +629,8 @@ struct TestKeyEntry {
 }
 
 /// Collect test entries for every key in the model.
+/// @version 1
+/// @req REQ-ING-GEN-009
 fn collect_test_keys(model: &DataModel, ns_id: u16) -> Vec<TestKeyEntry> {
     let mut entries = Vec::new();
 
@@ -661,6 +687,8 @@ fn collect_test_keys(model: &DataModel, ns_id: u16) -> Vec<TestKeyEntry> {
 }
 
 /// Collect persistence test entries for persistent keys in the model.
+/// @version 1
+/// @req REQ-ING-GEN-009
 fn collect_persistence_test_entries(model: &DataModel, ns_id: u16) -> Vec<PersistenceTestEntry> {
     let mut entries = Vec::new();
 
@@ -719,6 +747,10 @@ fn collect_persistence_test_entries(model: &DataModel, ns_id: u16) -> Vec<Persis
     entries
 }
 
+/// C literal of a key's default for the generated Unity tests.
+///
+/// @version 1
+/// @req REQ-ING-GEN-009
 fn format_test_default(default: &Option<toml::Value>, data_type: DataType) -> String {
     match default {
         Some(toml::Value::Boolean(b)) => if *b { "true" } else { "false" }.to_string(),
@@ -733,6 +765,8 @@ fn format_test_default(default: &Option<toml::Value>, data_type: DataType) -> St
 }
 
 /// Generate a test value that's different from the default.
+/// @version 1
+/// @req REQ-ING-GEN-009
 fn format_test_value(data_type: DataType, default_c: &str) -> String {
     match data_type {
         DataType::Bool => {

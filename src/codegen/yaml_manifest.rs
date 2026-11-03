@@ -48,6 +48,8 @@ struct KeyTypeEntry {
 }
 
 /// Generate the dm_full.yaml manifest for downstream tool consumption.
+/// @version 1
+/// @req REQ-ING-MAN-001
 pub fn generate_yaml_manifest(
     model: &DataModel,
     ns_id: u16,
@@ -145,6 +147,10 @@ pub fn generate_yaml_manifest(
     Ok(())
 }
 
+/// YAML value of a key's default for dm_full.yaml.
+///
+/// @version 1
+/// @req REQ-ING-MAN-001
 fn convert_default(default: &Option<toml::Value>, data_type: DataType) -> serde_yaml::Value {
     match default {
         Some(toml::Value::Boolean(b)) => serde_yaml::Value::Bool(*b),

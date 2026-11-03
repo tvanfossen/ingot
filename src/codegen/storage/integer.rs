@@ -94,6 +94,8 @@ const INT_TYPES: &[TypeDesc] = &[
 ];
 
 /// Collect all integer keys from the model, grouped by type, with perfect hashes.
+/// @version 1
+/// @req REQ-ING-GEN-005
 pub fn collect_integer_storage(
     model: &DataModel,
     ns_id: u16,
@@ -140,6 +142,10 @@ pub fn collect_integer_storage(
     Ok(result)
 }
 
+/// Build the storage group of one integer type in perfect-hash slot order.
+///
+/// @version 1
+/// @req REQ-ING-GEN-005
 fn build_int_type_storage(
     desc: &TypeDesc,
     keys_with_meta: &[(u32, &KeyDef)],
@@ -179,6 +185,8 @@ fn build_int_type_storage(
 }
 
 /// Pick the smallest signed C integer type that can hold all G table values.
+/// @version 1
+/// @req REQ-ING-GEN-005
 fn select_g_table_type(g: &[i32]) -> &'static str {
     let min = g.iter().copied().min().unwrap_or(0);
     let max = g.iter().copied().max().unwrap_or(0);
@@ -192,6 +200,10 @@ fn select_g_table_type(g: &[i32]) -> &'static str {
     }
 }
 
+/// Join integers as a comma-separated C initialiser.
+///
+/// @version 1
+/// @req REQ-ING-GEN-005
 fn format_i32_array(values: &[i32]) -> String {
     values
         .iter()
@@ -200,6 +212,10 @@ fn format_i32_array(values: &[i32]) -> String {
         .join(", ")
 }
 
+/// C literal of an integer key's default (booleans as 1 or 0).
+///
+/// @version 1
+/// @req REQ-ING-GEN-005
 fn format_c_value(val: &toml::Value, _data_type: DataType) -> String {
     match val {
         toml::Value::Integer(i) => i.to_string(),

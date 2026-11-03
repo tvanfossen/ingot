@@ -24,12 +24,18 @@ pub struct KeyList {
 }
 
 impl KeyList {
+    /// Number of name and value entries in the list.
+    ///
+    /// @version 1
+    /// @req REQ-ING-FLT-001
     pub fn len(&self) -> usize {
         self.names.len() + self.values.len()
     }
 }
 
 /// Normalize a define name for fuzzy matching: uppercase + strip underscores.
+/// @version 1
+/// @req REQ-ING-FLT-001
 fn normalize(s: &str) -> String {
     s.to_uppercase().replace('_', "")
 }
@@ -37,6 +43,8 @@ fn normalize(s: &str) -> String {
 /// Load a YAML list file (array of strings/ints) into a KeyList.
 /// Entries can be define names (`BATTERY_STATUS_VOLTAGE`) or
 /// hex key values (`0x05C00041` or integer literals).
+/// @version 1
+/// @req REQ-ING-FLT-001
 pub fn load_key_list(path: &Path) -> Result<KeyList, Box<dyn std::error::Error>> {
     let content = std::fs::read_to_string(path)?;
     let items: Vec<serde_yaml::Value> = serde_yaml::from_str(&content)?;
@@ -63,6 +71,8 @@ pub fn load_key_list(path: &Path) -> Result<KeyList, Box<dyn std::error::Error>>
 }
 
 /// Try to parse a "0x..." hex string into a u32.
+/// @version 1
+/// @req REQ-ING-FLT-001
 fn parse_hex(s: &str) -> Option<u32> {
     let s = s.trim();
     if let Some(hex) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
@@ -73,6 +83,8 @@ fn parse_hex(s: &str) -> Option<u32> {
 }
 
 /// Construct the bare define name for a key: `{NAMESPACE}_{CLASS}_{KEY}`.
+/// @version 1
+/// @req REQ-ING-FLT-001
 fn define_name(ns: &str, class: &str, key: &str) -> String {
     format!(
         "{}_{}_{}",
@@ -86,6 +98,8 @@ fn define_name(ns: &str, class: &str, key: &str) -> String {
 ///
 /// Normalized matching strips underscores so that TOML snake_case IDs
 /// (e.g. `STATE_OF_CHARGE`) match YAML-era names (`STATEOFCHARGE`).
+/// @version 1
+/// @req REQ-ING-FLT-001
 fn matches(list: &KeyList, name: &str, encoded: Option<u32>) -> bool {
     list.names.contains(name)
         || list.names.contains(&format!("DM_KEY_{name}"))
@@ -94,6 +108,8 @@ fn matches(list: &KeyList, name: &str, encoded: Option<u32>) -> bool {
 }
 
 /// Filter the model to only include keys present in the include list.
+/// @version 1
+/// @req REQ-ING-FLT-001
 pub fn apply_include_list(model: &mut DataModel, include: &KeyList) {
     let fallback_ns = model.meta.id.clone();
     for class in &mut model.classes {
@@ -106,6 +122,8 @@ pub fn apply_include_list(model: &mut DataModel, include: &KeyList) {
 }
 
 /// Remove keys present in the exclude list from the model.
+/// @version 1
+/// @req REQ-ING-FLT-001
 pub fn apply_exclude_list(model: &mut DataModel, exclude: &KeyList) {
     let fallback_ns = model.meta.id.clone();
     for class in &mut model.classes {
@@ -118,6 +136,8 @@ pub fn apply_exclude_list(model: &mut DataModel, exclude: &KeyList) {
 }
 
 /// Mark keys present in the persistent list as persistent.
+/// @version 1
+/// @req REQ-ING-FLT-002
 pub fn apply_persistent_keys(model: &mut DataModel, persistent: &KeyList) {
     let fallback_ns = model.meta.id.clone();
     for class in &mut model.classes {
@@ -139,6 +159,10 @@ pub struct PropertyOverrides {
 }
 
 impl PropertyOverrides {
+    /// Number of override entries.
+    ///
+    /// @version 1
+    /// @req REQ-ING-FLT-003
     pub fn len(&self) -> usize {
         self.overrides.len()
     }
@@ -151,6 +175,8 @@ impl PropertyOverrides {
 /// KEY_DEFINE_NAME:
 ///   default_value: <value>
 /// ```
+/// @version 1
+/// @req REQ-ING-FLT-003
 pub fn load_property_overrides(
     path: &Path,
 ) -> Result<PropertyOverrides, Box<dyn std::error::Error>> {
@@ -169,6 +195,8 @@ pub fn load_property_overrides(
 }
 
 /// Convert a serde_yaml::Value to a toml::Value for use as key default.
+/// @version 1
+/// @req REQ-ING-FLT-003
 fn yaml_value_to_toml(v: &serde_yaml::Value) -> toml::Value {
     match v {
         serde_yaml::Value::Bool(b) => toml::Value::Boolean(*b),
@@ -191,6 +219,8 @@ fn yaml_value_to_toml(v: &serde_yaml::Value) -> toml::Value {
 /// For each key whose normalized define name matches an override entry,
 /// replace the key's default value with the override value.
 /// Returns the number of overrides applied.
+/// @version 1
+/// @req REQ-ING-FLT-003
 pub fn apply_property_overrides(model: &mut DataModel, overrides: &PropertyOverrides) -> usize {
     let fallback_ns = model.meta.id.clone();
     let mut count = 0;
