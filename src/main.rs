@@ -17,8 +17,12 @@ mod model;
 #[command(name = "ingot", version, about, long_about)]
 struct Cli {
     /// Path to data model TOML file(s) or directory of TOML files (repeatable)
-    #[arg(short, long, required = true)]
+    #[arg(short, long, required_unless_present = "table_types")]
     model: Vec<PathBuf>,
+
+    /// Write only dmt_types.h, the model-independent table-interface header, to --output
+    #[arg(long, conflicts_with = "model")]
+    table_types: bool,
 
     /// Output directory for generated code
     #[arg(short, long, default_value = "generated")]
@@ -57,7 +61,7 @@ struct Cli {
     #[arg(long)]
     variant: Option<String>,
 
-    /// Templates directory (overrides INGOT_TEMPLATES_DIR and all auto-search paths)
+    /// Templates directory replacing the templates built into ingot (for template development)
     #[arg(long, env = "INGOT_TEMPLATES_DIR")]
     templates: Option<PathBuf>,
 
@@ -84,7 +88,8 @@ enum Target {
 
 /// Parse the command line, set the log level and run generation, exiting 1 on error.
 ///
-/// @version 1
+/// v2: runs through dispatch, which also handles --table-types.
+/// @version 2
 /// @req REQ-ING-CLI-001
 fn main() {
     let cli = Cli::parse();
@@ -104,94 +109,35 @@ fn main() {
     log::info!("Output: {}", cli.output.display());
     log::info!("Target: {:?}", cli.target);
 
-    if let Err(e) = run(&cli) {
+    if let Err(e) = dispatch(&cli) {
         log::error!("{e}");
         std::process::exit(1);
     }
 }
 
-/// Find the templates/ directory.
-///
-/// Search order:
-///   1. Explicit path from `--templates` / `INGOT_TEMPLATES_DIR` (if provided)
-///   2. `<exe_dir>/templates/`
-///   3. `<exe_dir>/../share/ingot/templates/`  (FHS install: /usr/bin → /usr/share/ingot)
-///   4. `<exe_dir>/../../templates/`           (dev: target/debug/ingot → crate root)
-///   5. `<cwd>/templates/`
-///   6. `/usr/share/ingot/templates/`          (absolute fallback for non-FHS installs)
+/// Load the templates and run the mode the command line selects.
 ///
 /// @version 1
+/// @req REQ-ING-CLI-001
 /// @req REQ-ING-CLI-002
-fn resolve_template_dir(
-    explicit: Option<&std::path::Path>,
-) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    if let Some(p) = explicit {
-        if p.is_dir() {
-            return Ok(p.to_path_buf());
-        }
-        return Err(format!(
-            "Specified templates directory does not exist: {}",
-            p.display()
-        )
-        .into());
+/// @req REQ-ING-TIV-001
+fn dispatch(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
+    let tera = codegen::templates::load(cli.templates.as_deref())?;
+    if cli.table_types {
+        return codegen::tables::write_table_types(&tera, &cli.output);
     }
-
-    if let Ok(exe) = std::env::current_exe() {
-        let exe_dir = exe.parent().unwrap_or(std::path::Path::new("."));
-
-        // 2. next to the executable
-        let c = exe_dir.join("templates");
-        if c.is_dir() {
-            return Ok(c);
-        }
-
-        // 3. FHS: <prefix>/bin/../share/ingot/templates → <prefix>/share/ingot/templates
-        let c = exe_dir.join("../share/ingot/templates");
-        if c.is_dir() {
-            return Ok(c.canonicalize().unwrap_or(c));
-        }
-
-        // 4. development layout: target/debug/ingot → ../../templates
-        if let Some(c) = exe_dir
-            .parent()
-            .and_then(|p| p.parent())
-            .map(|p| p.join("templates"))
-        {
-            if c.is_dir() {
-                return Ok(c);
-            }
-        }
-    }
-
-    // 5. CWD
-    let cwd = std::env::current_dir()?;
-    let c = cwd.join("templates");
-    if c.is_dir() {
-        return Ok(c);
-    }
-
-    // 6. absolute system fallback
-    let c = std::path::Path::new("/usr/share/ingot/templates");
-    if c.is_dir() {
-        return Ok(c.to_path_buf());
-    }
-
-    Err(
-        "Could not find templates/ directory. Use --templates <DIR> or set INGOT_TEMPLATES_DIR."
-            .into(),
-    )
+    run(cli, &tera)
 }
 
 /// Load, filter, validate and generate the model the command line names.
 ///
-/// @version 1
+/// v2: renders with the templates `dispatch` loaded.
+/// @version 2
 /// @req REQ-ING-CLI-001
-fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
+fn run(cli: &Cli, tera: &tera::Tera) -> Result<(), Box<dyn std::error::Error>> {
     if cli.include_list.is_some() && cli.exclude_list.is_some() {
         return Err("--include-list and --exclude-list are mutually exclusive".into());
     }
-
-    let template_dir = resolve_template_dir(cli.templates.as_deref())?;
 
     let mut data_model = load_models(&cli.model)?;
 
@@ -275,7 +221,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
         if cli.no_events {
             log::warn!("--no-events has no effect for --target rust (C-only concept)");
         }
-        codegen::rust_kvp::generate(&data_model, ns_id, &cli.output, &template_dir)?;
+        codegen::rust_kvp::generate(&data_model, ns_id, &cli.output, tera)?;
         log::info!("Rust code generation complete → {}", cli.output.display());
         return Ok(());
     }
@@ -294,7 +240,7 @@ fn run(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
         &data_model,
         ns_id,
         &cli.output,
-        &template_dir,
+        tera,
         &target_config,
         cli.no_events,
         cli.emit_tinyfsm,

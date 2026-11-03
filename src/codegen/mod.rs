@@ -1,7 +1,9 @@
 pub mod enums;
 pub mod rust_kvp;
 pub mod storage;
+pub mod tables;
 pub mod target;
+pub mod templates;
 pub mod yaml_manifest;
 
 use crate::model::key::{define_stem, KeyEncoding};
@@ -106,25 +108,19 @@ fn int_type_info(suffix: &str) -> DmIntTypeInfo {
 ///
 /// v2: the Unity test collectors no longer take the namespace ID they did not use.
 /// v3: neither does the helper collector.
-/// @version 3
+/// v4: renders with the templates the caller loaded (embedded unless --templates).
+/// @version 4
 /// @req REQ-ING-GEN-001
 pub fn generate(
     model: &DataModel,
     ns_id: u16,
     output_dir: &Path,
-    template_dir: &Path,
+    tera: &Tera,
     target: &target::TargetConfig,
     no_events: bool,
     emit_tinyfsm: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(output_dir)?;
-
-    let tera = Tera::new(
-        template_dir
-            .join("*")
-            .to_str()
-            .ok_or("invalid template path")?,
-    )?;
 
     let version = env!("CARGO_PKG_VERSION");
 
@@ -144,7 +140,7 @@ pub fn generate(
     // Generate C++/tinyfsm event artifacts (opt-in, additive — see --emit-tinyfsm).
     // Off by default so C99-only consumers and their output are untouched.
     if emit_tinyfsm {
-        generate_tinyfsm_events(&tera, version, &key_defs, output_dir)?;
+        generate_tinyfsm_events(tera, version, &key_defs, output_dir)?;
     }
 
     // Generate jenkins_hash.h and jenkins_hash.c
@@ -360,9 +356,11 @@ const EVENT_KEY_TEMPLATES: [&str; 4] = [
 
 /// Render the template `name` and write the result to `output_dir/name`.
 ///
-/// @version 1
+/// v2: crate-visible, so the table-interface outputs render through it too.
+/// @version 2
 /// @req REQ-ING-GEN-001
-fn render_template(
+/// @req REQ-ING-TIV-001
+pub(crate) fn render_template(
     tera: &Tera,
     name: &str,
     ctx: &Context,

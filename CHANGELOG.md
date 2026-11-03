@@ -25,6 +25,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `dm_event_count`. The consumer supplies both templates, so the list names
   no consumer type and can drive compile-time registration or dispatch
   tables.
+- `--table-types` writes `dmt_types.h`, the table-interface (TIV 1.0)
+  header for an external key-value store core: type codes, persistence
+  classes, roles, flags, sizing constants and the key, principal, uid-cap
+  and command table layouts. Its bytes depend only on the TIV.
+
+### Changed
+- Templates are compiled into the binary, so an ingot build always
+  generates the same output wherever it runs. `--templates` /
+  `INGOT_TEMPLATES_DIR` still replaces them with a directory; the search
+  next to the executable, in the working directory and under
+  `/usr/share/ingot` is gone, and packages no longer install `templates/`.
+
+### Removed
+- The `rand` dependency and the unused entropy-seeded perfect-hash
+  generator; code generation only uses seeds derived from the key set.
 
 ### Fixed
 - `--target rust`: generic by-key setters reject writes to keys marked

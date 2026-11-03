@@ -109,8 +109,13 @@ is fired after successful set operations.
 Emit C++ tinyfsm event types and a dispatch wrapper for event keys. C targets only.
 .TP
 .BI \-\-templates " " dir
-Use templates from the specified directory. Also configurable through
+Use the templates in the specified directory instead of the templates built
+into ingot, for template development. Also configurable through
 \fBINGOT_TEMPLATES_DIR\fR.
+.TP
+.B \-\-table\-types
+Write only dmt_types.h, the model-independent table-interface header, to the
+output directory.
 .TP
 .BI \-\-include\-list " " file
 YAML file listing key define names to include (whitelist).
@@ -278,11 +283,12 @@ ingot -m device.toml -vv
 .fi
 .RE
 .SH ENVIRONMENT
+.B INGOT_TEMPLATES_DIR
+replaces the templates built into
 .B ingot
-looks for its Tera template files in a
-.I templates/
-directory relative to the executable, then relative to the current working
-directory.
+with the files in that directory, as
+.B \-\-templates
+does.
 .SH SEE ALSO
 The full user guide is available at
 .I docs/user\-guide.md

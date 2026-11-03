@@ -76,7 +76,6 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item target\release\ingot.exe -Destination dist\
-          Copy-Item -Recurse templates -Destination dist\
           Copy-Item README.md -Destination dist\ -ErrorAction SilentlyContinue
           Copy-Item LICENSE -Destination dist\ -ErrorAction SilentlyContinue
           Compress-Archive -Path dist\* -DestinationPath ingot-windows-x86_64.zip
@@ -113,7 +112,6 @@ jobs:
         run: |
           mkdir -p AppDir/usr/bin AppDir/usr/share/ingot AppDir/usr/share/man/man1
           cp target/release/ingot AppDir/usr/bin/
-          cp -r templates AppDir/usr/share/ingot/
           cp docs/ingot.1 AppDir/usr/share/man/man1/
 
       - name: Create desktop entry and icon

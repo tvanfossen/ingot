@@ -31,10 +31,16 @@ Output & Target
 +------------------------+----------------+--------------------------------------------------+
 | ``--emit-tinyfsm``     | off            | Emit C++/tinyfsm event types and dispatch        |
 +------------------------+----------------+--------------------------------------------------+
-| ``--templates <DIR>``  | auto           | Override template directory                      |
+| ``--templates <DIR>``  | built in       | Replace the built-in templates with a directory  |
++------------------------+----------------+--------------------------------------------------+
+| ``--table-types``      | off            | Write only ``dmt_types.h`` (no model)            |
 +------------------------+----------------+--------------------------------------------------+
 
-``--templates`` also accepts the ``INGOT_TEMPLATES_DIR`` environment variable.
+The templates are compiled into the binary, so a given ingot build always
+generates the same output. ``--templates`` (or the ``INGOT_TEMPLATES_DIR``
+environment variable) replaces them with a directory, for template development.
+``--table-types`` writes ``dmt_types.h``, the table-interface header, which does
+not depend on any model.
 ``--emit-tinyfsm`` applies only to C targets. It emits additive C++ headers and
 source for consumers using tinyfsm.
 

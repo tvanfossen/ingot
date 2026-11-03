@@ -65,7 +65,7 @@ docs/                  - User guide and manpage
 ## Key Architecture Decisions
 
 - **Input format**: Kaitai-inspired TOML
-- **Templating**: Tera (Jinja2-like, runtime templates)
+- **Templating**: Tera (Jinja2-like), templates compiled into the binary (`src/codegen/templates.rs`); `--templates` replaces them for template development
 - **Perfect hash**: Pure Rust implementation (CHD algorithm, 2-seed Jenkins)
 - **Target abstraction**: TargetConfig struct with per-platform settings
 - **No dynamic allocation in generated C**: all storage is static arrays
