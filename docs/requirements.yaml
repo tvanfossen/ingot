@@ -16,15 +16,28 @@ requirements:
       A valid model generates and exits 0; an invalid model logs each validation error and exits 1;
       --include-list with --exclude-list is refused.
   REQ-ING-CLI-002:
-    name: Template directory resolution
+    name: Embedded templates
     subsystem: CLI
     description: >-
-      The templates directory comes from --templates or INGOT_TEMPLATES_DIR when given (an error
-      if it does not exist), otherwise from the documented search order next to the executable,
-      the FHS share path, the development layout, the working directory and /usr/share/ingot.
+      Every template is compiled into the binary, so the ingot commit alone determines the
+      output (table-interface R-T5). --templates or INGOT_TEMPLATES_DIR replaces them with a
+      directory for template development; a directory that does not exist is an error.
     acceptance_criteria: >-
-      An explicit missing path is a clear error; an explicit or environment path outside the
-      working directory is used.
+      Generation works from a directory with no templates/; every file in templates/ is
+      embedded; an explicit missing path is a clear error; an explicit or environment path is
+      used instead of the embedded set.
+  REQ-ING-TIV-001:
+    name: Fixed table-interface header
+    subsystem: Table interface
+    description: >-
+      ingot emits dmt_types.h, the TIV 1.0 header frozen in the table-interface specification
+      section 2 (type codes, persistence classes, roles, principal kinds, flags, sizing
+      constants, the rights macro, the dmt_key_t, dmt_principal_t, dmt_uid_caps_t and
+      dmt_command_t layouts and the well-known role list). Its bytes depend only on the TIV, never
+      on a model; --table-types writes it with no model.
+    acceptance_criteria: >-
+      The header compiles as C99 with -Wall -Wextra -pedantic -Werror; a C check pins every
+      frozen value, struct size and field offset; two runs give identical bytes.
   REQ-ING-CLI-003:
     name: Multi-file model loading
     subsystem: CLI
