@@ -1,4 +1,5 @@
 use super::select_g_table_type;
+use crate::codegen::join_list;
 use crate::hash::{self, PerfectHash};
 use crate::model::schema::{DataModel, DataType, KeyDef};
 use serde::Serialize;
@@ -145,7 +146,8 @@ pub fn collect_integer_storage(
 
 /// Build the storage group of one integer type in perfect-hash slot order.
 ///
-/// @version 1
+/// v2: the G table is joined by the shared codegen::join_list.
+/// @version 2
 /// @req REQ-ING-GEN-005
 fn build_int_type_storage(
     desc: &TypeDesc,
@@ -180,21 +182,9 @@ fn build_int_type_storage(
         seed2: ph.seed2,
         g_size: ph.g_table.len(),
         g_c_type: g_c_type.to_string(),
-        g_table_str: format_i32_array(&ph.g_table),
+        g_table_str: join_list(&ph.g_table),
         init_table_str: init_values.join(", "),
     }
-}
-
-/// Join integers as a comma-separated C initialiser.
-///
-/// @version 1
-/// @req REQ-ING-GEN-005
-fn format_i32_array(values: &[i32]) -> String {
-    values
-        .iter()
-        .map(|v| v.to_string())
-        .collect::<Vec<_>>()
-        .join(", ")
 }
 
 /// C literal of an integer key's default (booleans as 1 or 0).

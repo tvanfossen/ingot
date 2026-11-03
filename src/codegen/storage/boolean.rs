@@ -1,4 +1,5 @@
 use super::select_g_table_type;
+use crate::codegen::join_list;
 use crate::hash::{self, PerfectHash};
 use crate::model::key::KeyEncoding;
 use crate::model::schema::{DataModel, DataType, KeyDef};
@@ -66,7 +67,8 @@ pub fn collect_boolean_storage(
 
 /// Pack boolean defaults into uint32_t words at their perfect-hash positions.
 ///
-/// @version 1
+/// v2: the G table is joined by the shared codegen::join_list.
+/// @version 2
 /// @req REQ-ING-GEN-004
 fn build_bool_storage(keys_with_meta: &[(u32, &KeyDef)], ph: &PerfectHash) -> BoolStorage {
     let num_keys = keys_with_meta.len();
@@ -108,12 +110,7 @@ fn build_bool_storage(keys_with_meta: &[(u32, &KeyDef)], ph: &PerfectHash) -> Bo
         seed2: ph.seed2,
         g_size: ph.g_table.len(),
         g_c_type: g_c_type.to_string(),
-        g_table_str: ph
-            .g_table
-            .iter()
-            .map(|v| v.to_string())
-            .collect::<Vec<_>>()
-            .join(", "),
+        g_table_str: join_list(&ph.g_table),
         init_table_str,
     }
 }

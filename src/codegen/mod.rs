@@ -19,6 +19,21 @@ pub(crate) fn write_generated(path: impl AsRef<Path>, content: String) -> std::i
     std::fs::write(path, normalized)
 }
 
+/// Join values as `a, b, c`, the element list of a generated C or Rust array initialiser.
+///
+/// @version 1
+/// @req REQ-ING-GEN-004
+/// @req REQ-ING-GEN-005
+/// @req REQ-ING-GEN-006
+/// @req REQ-ING-RST-002
+pub(crate) fn join_list<T: std::fmt::Display>(values: &[T]) -> String {
+    values
+        .iter()
+        .map(|v| v.to_string())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 /// A key definition ready for template rendering.
 #[derive(Debug, Serialize)]
 pub struct KeyDefRenderable {
@@ -822,5 +837,21 @@ fn format_test_value(data_type: DataType, default_c: &str) -> String {
                 "-7".to_string()
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn join_list_separates_with_comma_space() {
+        assert_eq!(join_list(&[0, -1, 127]), "0, -1, 127");
+    }
+
+    #[test]
+    fn join_list_of_one_and_of_none() {
+        assert_eq!(join_list(&[42]), "42");
+        assert_eq!(join_list::<i32>(&[]), "");
     }
 }

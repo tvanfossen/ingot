@@ -1,4 +1,5 @@
 use super::select_g_table_type;
+use crate::codegen::join_list;
 use crate::hash;
 use crate::model::key::KeyEncoding;
 use crate::model::schema::{DataModel, DataType, KeyDef};
@@ -93,7 +94,8 @@ pub fn collect_string_storage(
 
 /// Build one string storage group with its own perfect hash and fixed-size buffers.
 ///
-/// @version 1
+/// v2: the G table is joined by the shared codegen::join_list.
+/// @version 2
 /// @req REQ-ING-GEN-006
 fn build_string_group(keys: &[(u32, &KeyDef)]) -> Result<StringGroup, String> {
     let encoded_keys: Vec<u32> = keys.iter().map(|(k, _)| *k).collect();
@@ -133,12 +135,7 @@ fn build_string_group(keys: &[(u32, &KeyDef)]) -> Result<StringGroup, String> {
         seed2: ph.seed2,
         g_size: ph.g_table.len(),
         g_c_type: g_c_type.to_string(),
-        g_table_str: ph
-            .g_table
-            .iter()
-            .map(|v| v.to_string())
-            .collect::<Vec<_>>()
-            .join(", "),
+        g_table_str: join_list(&ph.g_table),
         entries,
     })
 }

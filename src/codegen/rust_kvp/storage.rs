@@ -4,7 +4,7 @@ use crate::model::schema::{DataModel, DataType, KeyDef};
 use serde::Serialize;
 
 use super::enums;
-use crate::codegen::{resolve_class_idx, resolve_ns_id};
+use crate::codegen::{join_list, resolve_class_idx, resolve_ns_id};
 
 /// One group of same-typed integer/bool keys sharing a perfect hash table.
 #[derive(Debug, Serialize)]
@@ -220,7 +220,8 @@ pub fn collect_bool_group(
 
 /// Build one scalar storage group and its accessors in perfect-hash slot order.
 ///
-/// @version 1
+/// v2: the G table is joined by the shared codegen::join_list.
+/// @version 2
 /// @req REQ-ING-RST-002
 fn build_scalar_group(
     rust_type: &str,
@@ -260,7 +261,7 @@ fn build_scalar_group(
         seed1: ph.seed1,
         seed2: ph.seed2,
         g_size: ph.g_table.len(),
-        g_table_str: join_i32(&ph.g_table),
+        g_table_str: join_list(&ph.g_table),
         default_table_str: defaults.join(", "),
         keys_table_str: key_order
             .iter()
@@ -270,18 +271,6 @@ fn build_scalar_group(
     };
 
     (group, accessors)
-}
-
-/// Join integers as a comma-separated list for a generated array.
-///
-/// @version 1
-/// @req REQ-ING-RST-002
-fn join_i32(values: &[i32]) -> String {
-    values
-        .iter()
-        .map(|v| v.to_string())
-        .collect::<Vec<_>>()
-        .join(", ")
 }
 
 /// Rust literal of an integer key's default (booleans as 0 or 1, missing as 0).
