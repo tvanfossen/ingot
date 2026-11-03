@@ -521,7 +521,7 @@ requirements:
     acceptance_criteria: >-
       A variant's add, rename and remove appear in contract.json; tables and digests are
       unchanged by enum maps; a conflicting map or a changed wire string in a minor is refused.
-  REQ-ING-G2-001:
+  REQ-ING-RNG-001:
     name: Units, ranges, discrete sets, sentinels and scale
     subsystem: Generated outputs (G2)
     description: >-
