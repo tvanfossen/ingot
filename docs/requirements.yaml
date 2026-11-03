@@ -358,3 +358,132 @@ requirements:
       version prints a dry run.
     acceptance_criteria: >-
       A bump changes Cargo.toml and the man page version and date only.
+  REQ-ING-TIV-002:
+    name: Contract-mode model input
+    subsystem: Table interface
+    description: >-
+      --contract reads contract.toml (contract version, bounds, reserved IDs, principals, per-uid
+      caps) and the namespace files in its namespace_dir, in the schema of the table-interface
+      specification section 7. Unknown fields are errors, and every namespace_id, class_index
+      and key_index is explicit (no positional IDs).
+    acceptance_criteria: >-
+      The generic test model loads; a missing index or an unknown field is an error naming the file.
+  REQ-ING-TIV-003:
+    name: Resolved key table
+    subsystem: Table interface
+    description: >-
+      Each key resolves to its encoded ID (flag bits zero), type code, size, persistence class
+      and interval from the class default or its override, survives-reset (always in an MFG
+      namespace), secret and alias flags, transport mask derived from type and secrecy, role,
+      write rate and introduced-in minor; dmt_keys is sorted by ID.
+    acceptance_criteria: >-
+      The generic model's keys appear sorted with the documented field values.
+  REQ-ING-TIV-004:
+    name: Variant-resolved default values
+    subsystem: Table interface
+    description: >-
+      A key's default for the selected variant (defaults.<variant>, else default) is encoded into
+      dmt_default_blob in the specification's value encoding (little-endian scalars, one-byte
+      bool, IEEE-754 float32, string and binary bytes); struct keys have none.
+    acceptance_criteria: >-
+      Two variants give different blobs for keys with per-variant defaults and equal ones otherwise.
+  REQ-ING-TIV-005:
+    name: Command-type expansion
+    subsystem: Table interface
+    description: >-
+      Each command declares its keys' indices, persistence class, owner, payload, result,
+      edit and dedupe sizes once; ingot generates the command, result and dedupe keys in that one
+      class and a dmt_commands row for it.
+    acceptance_criteria: >-
+      A command yields three keys sharing one persistence class and a row naming them.
+  REQ-ING-TIV-006:
+    name: Principals and resolved rights
+    subsystem: Table interface
+    description: >-
+      Principals (uid or token sub-consumer, kind, flags, heartbeat, caps, resync limits) are
+      sorted by (kind, uid, token); rights per key come from (namespace, class) grants overridden
+      by key grants, read on a secret only for its readers, packed in the specification's bitmap
+      layout; user names are emitted for UNIX token-0 principals only.
+    acceptance_criteria: >-
+      The generic model's rights rows match its grants bit for bit.
+  REQ-ING-TIV-007:
+    name: Rates, queue bounds and budgets
+    subsystem: Table interface
+    description: >-
+      Write rates "<n>/s|min|h|day" become writes per day with a token-bucket burst; each
+      principal's queue bound is computed in integer arithmetic from its readable keys' rates and
+      its latency budget; staging and in-process budgets are checked against their lower bounds.
+    acceptance_criteria: >-
+      Hand-computed queue bounds match; a budget below its lower bound is refused.
+  REQ-ING-TIV-008:
+    name: KSET v1 handshake digests
+    subsystem: Table interface
+    description: >-
+      For every principal and every minor 0..contract minor, the SHA-256 KSET v1 digest of the
+      (key ID, type) pairs it may read or write as of that minor, per docs/handshake-digest.md of
+      the keystore.
+    acceptance_criteria: >-
+      Golden vectors V0-V5 reproduce; the generic model's 1.0 digests reappear unchanged in 1.1.
+  REQ-ING-TIV-009:
+    name: Generated store tables
+    subsystem: Table interface
+    description: >-
+      Contract mode writes dmt_types.h, dmt_tables.h and dmt_tables.c (constant data, no heap,
+      sorted arrays, version and provenance defines, the dmt_tiv_major_1 link symbol) and
+      contract.json, deterministically for the same input, variant and ingot commit.
+    acceptance_criteria: >-
+      The tables compile as strict C99 and link with a check that walks them; two runs are
+      byte-identical.
+  REQ-ING-TIV-010:
+    name: Model refusals
+    subsystem: Table interface
+    description: >-
+      Contract mode refuses, as errors, the structural refusals of the specification section 8:
+      duplicate namespace IDs or encoded IDs, ID 0, read_only or thread_safe keys, live keys on
+      reserved IDs, persistent keys without a rate, deferred keys without an interval, struct keys
+      without max_size, bad aliases, introduced-in later than the contract, bad defaults,
+      well-known role errors, duplicate or unheartbeated principals, and budget violations.
+    acceptance_criteria: >-
+      Each refusal has a model that triggers it and the generic model triggers none.
+  REQ-ING-TIV-011:
+    name: Rights refusals
+    subsystem: Table interface
+    description: >-
+      Contract mode refuses secrets reachable over UART or granted to non-readers, struct keys in
+      UART or in-process subsets, aliases whose rights differ from their target's, UART writes to
+      reset, MFG or trace-enable keys, heartbeat keys writable by another principal or shared,
+      writes to core-written well-known keys, a trace-enable command without exactly one writer,
+      RESET_REQUEST or TRACE_ENABLE not owned by the core (and core ownership anywhere else), a
+      principal owner without read on its command and write on its result, and any write on a
+      dedupe key or on the result of a core-answered command (keystore REQ-KS-CMD-003).
+    acceptance_criteria: >-
+      Each refusal has a model that triggers it.
+  REQ-ING-TIV-012:
+    name: Previous-contract checks and release review
+    subsystem: Table interface
+    description: >-
+      With --previous-contract, a minor must be additive (no key removed or changed, no rights,
+      persistence, secret, survives-reset, size, interval, alias or enum change, no principal
+      removed or changed, new keys at the new version) and a major must reserve every removed
+      ID and never reuse one; new principals with sensitive grants are listed in
+      release-review.txt.
+    acceptance_criteria: >-
+      1.1 passes against 1.0 and 2.0 against 1.1; the 2.0 change labelled 1.2 is refused.
+  REQ-ING-TIV-013:
+    name: Build provenance
+    subsystem: Table interface
+    description: >-
+      The tables state the ingot version and the commit it was built from, and the model hash;
+      contract mode refuses a build from a dirty tree or unknown commit unless
+      --allow-dirty-ingot is given, which marks the commit -dirty.
+    acceptance_criteria: >-
+      A dirty commit string is refused without the flag and accepted with it.
+  REQ-ING-TIV-014:
+    name: Generic test model
+    subsystem: Table interface
+    description: >-
+      examples/contract holds a product-neutral model at contract 1.0, 1.1 and 2.0 that
+      exercises every type, persistence class, principal kind and refusal-relevant feature, for
+      the keystore's conformance and handshake suites.
+    acceptance_criteria: >-
+      All three versions generate; 1.1 passes against 1.0 and 2.0 against 1.1.
