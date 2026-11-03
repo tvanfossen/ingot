@@ -268,3 +268,103 @@ fn error_groups_resolve_their_wire_base_per_variant() {
     assert_eq!(key, serde_json::json!({"group": "product", "bit": 1}));
     let _ = fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn rights_list_only_granted_keys_with_their_access() {
+    let dir = unique_dir("ks_rights");
+    let gen = dir.join("gen");
+    generate_ok("v1_0", &gen, &[]);
+    let body = json(&gen, "keyspace.sku_a.json");
+    let of = |name: &str| {
+        body["rights"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["principal"] == name)
+            .unwrap()
+            .clone()
+    };
+    let tool = of("tool");
+    assert!(
+        !any(&tool["keys"], |k| k["key"] == "drive.settings.mode"),
+        "no rights, no entry"
+    );
+    assert!(any(&of("integrator")["keys"], |k| k["key"]
+        == "core.command.factory_reset"
+        && k["access"] == "r"));
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_gzip_header_carries_no_time_and_a_run_without_a_variant_is_base() {
+    let dir = unique_dir("ks_base");
+    let out = dir.join("out");
+    let contract =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/contract/no_unix/contract.toml");
+    let args = [
+        "--contract",
+        contract.to_str().unwrap(),
+        "--output",
+        out.to_str().unwrap(),
+        "--allow-dirty-ingot",
+    ];
+    let (ok, stderr) = run_ingot(&args);
+    assert!(ok, "{stderr}");
+    let gz = file(&out, "keyspace.base.json.gz");
+    assert_eq!(&gz[4..8], &[0, 0, 0, 0], "gzip mtime is 0");
+    assert_eq!(json(&out, "keyspace.base.head.json")["sku"], "");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_refusal_in_another_variant_refuses_the_run() {
+    // error_dock_jam exists on sku_b only; a grant naming it is fine for sku_b and refused for
+    // sku_a, so generating sku_b is refused too
+    let dir = unique_dir("ks_other");
+    let case = dir.join("model");
+    let grant = "  { key = \"net.health.integrator_hb\", access = \"rw\" },";
+    let both = "  { key = \"net.health.integrator_hb\", access = \"rw\" },\n  { key = \"drive.state.error_dock_jam\", access = \"rw\" },";
+    edited_copy("v1_0", &case, &[("contract.toml", grant, both)]);
+    let (ok, stderr) = generate(
+        &case.join("contract.toml"),
+        &case.join("out"),
+        &["--variant", "sku_b"],
+    );
+    assert!(
+        !ok && stderr.contains(
+            "variant sku_a: principal integrator: grant on unknown key drive.state.error_dock_jam"
+        ),
+        "{stderr}"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_body_one_mqtt_message_cannot_carry_is_refused() {
+    use sha2::{Digest, Sha256};
+    // 256 KB of hex (incompressible to under the 96 KB a 128 KB base64 message holds)
+    let mut block = Sha256::digest(b"seed").to_vec();
+    let mut doc = String::new();
+    while doc.len() < 256 * 1024 {
+        block = Sha256::digest(&block).to_vec();
+        doc.extend(block.iter().map(|b| format!("{b:02x}")));
+    }
+    let dir = unique_dir("ks_big");
+    let case = dir.join("model");
+    let with_doc = format!("id = \"label\"\ndoc = \"{doc}\"");
+    edited_copy(
+        "v1_0",
+        &case,
+        &[("ns/drive.toml", "id = \"label\"", &with_doc)],
+    );
+    let (ok, stderr) = generate(&case.join("contract.toml"), &case.join("out"), &[]);
+    assert!(
+        !ok && stderr.contains("over one 131072-byte MQTT message as base64"),
+        "{stderr}"
+    );
+    assert!(
+        !case.join("out/dmt_tables.c").exists(),
+        "nothing is generated"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
