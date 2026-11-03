@@ -442,7 +442,10 @@ requirements:
       duplicate namespace IDs or encoded IDs, ID 0, read_only or thread_safe keys, live keys on
       reserved IDs, persistent keys without a rate, deferred keys without an interval, struct keys
       without max_size, bad aliases, introduced-in later than the contract, bad defaults,
-      well-known role errors, duplicate or unheartbeated principals, and budget violations.
+      well-known role errors, duplicate or unheartbeated principals, and budget violations; and
+      the sizes the keystore reads well-known keys with: DIAG_SUBSCRIBERS max_size at least
+      4 + 20 per principal, DIAG_KEYSTORE_VERSION at least 30, DIAG_CONTRACT_VERSION at least 17,
+      and the TRACE_ENABLE command's payload_max at least 118 (its signed envelope).
     acceptance_criteria: >-
       Each refusal has a model that triggers it and the generic model triggers none.
   REQ-ING-TIV-011:
