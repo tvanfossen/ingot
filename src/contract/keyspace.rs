@@ -13,7 +13,8 @@ pub const SCHEMA_VERSION: &str = "1.0";
 
 /// The SKU-resolved declaration of one variant's tables.
 ///
-/// @version 1
+/// v2: the error groups.
+/// @version 2
 /// @req REQ-ING-KSP-001
 pub fn resolved(tables: &Tables, commit: &str) -> Value {
     let mut doc = header(tables, commit);
@@ -25,27 +26,40 @@ pub fn resolved(tables: &Tables, commit: &str) -> Value {
     );
     doc.insert("commands".into(), commands(tables));
     doc.insert("rights".into(), rights(tables));
+    doc.insert(
+        "error_groups".into(),
+        error_groups(tables, &[], &|_| json!(true)),
+    );
     Value::Object(doc)
 }
 
 /// The all-variants declaration: the base model plus, per enum, what each variant changes.
 ///
-/// @version 1
+/// v2: the error groups.
+/// @version 2
 /// @req REQ-ING-KSP-001
 pub fn combined(base: &Tables, variants: &[Tables], commit: &str) -> Value {
     let mut doc = header(base, commit);
-    let present = |path: &str| {
-        let by: Map<String, Value> = variants
-            .iter()
-            .map(|t| (t.variant.clone(), json!(t.key_index(path).is_some())))
-            .collect();
-        Value::Object(by)
-    };
+    let present = |path: &str| presence(variants, path);
     doc.insert("namespaces".into(), namespaces(base, &present));
     doc.insert("enums".into(), json!(enum_overrides(base, variants)));
     doc.insert("commands".into(), commands(base));
     doc.insert("rights".into(), rights(base));
+    let groups = error_groups(base, variants, &present);
+    doc.insert("error_groups".into(), groups);
     Value::Object(doc)
+}
+
+/// Whether the key at `path` exists, by variant.
+///
+/// @version 1
+/// @req REQ-ING-PRS-001
+fn presence(variants: &[Tables], path: &str) -> Value {
+    let by: Map<String, Value> = variants
+        .iter()
+        .map(|t| (t.variant.clone(), json!(t.key_index(path).is_some())))
+        .collect();
+    Value::Object(by)
 }
 
 /// The fields every keyspace file starts with.
@@ -293,4 +307,53 @@ pub fn head(tables: &Tables, body: &[u8], gz_len: usize) -> Value {
     json!({"name": tables.name, "major": tables.version.major, "minor": tables.version.minor,
            "patch": tables.patch, "sku": tables.variant, "hash": hash, "size": body.len(),
            "gz_size": gz_len, "schema_version": SCHEMA_VERSION})
+}
+
+/// The error groups (R24) with their bits; in the all-variants file, `overrides.<variant>`
+/// holds a variant's own wire base, and each bit its presence by variant.
+///
+/// @version 1
+/// @req REQ-ING-KSP-001
+/// @req REQ-ING-ERR-001
+fn error_groups(tables: &Tables, variants: &[Tables], present: &dyn Fn(&str) -> Value) -> Value {
+    let list: Vec<Value> = tables
+        .error_groups
+        .iter()
+        .map(|g| {
+            let bits = group_bits(tables, &g.id, present);
+            let overrides: Map<String, Value> = variants
+                .iter()
+                .filter_map(|t| {
+                    let base = t.error_groups.iter().find(|v| v.id == g.id)?.wire_base;
+                    (base != g.wire_base).then(|| (t.variant.clone(), json!({"wire_base": base})))
+                })
+                .collect();
+            json!({"id": g.id, "width": g.width, "wire_base": g.wire_base, "writer": g.writer,
+                   "reserved_bits": g.reserved_bits, "publish_max_bit": g.publish_max_bit,
+                   "shadow": g.shadow, "bits": bits, "overrides": overrides})
+        })
+        .collect();
+    json!(list)
+}
+
+/// The bits of group `id`, by bit: the key and its presence.
+///
+/// @version 1
+/// @req REQ-ING-KSP-001
+/// @req REQ-ING-ERR-001
+fn group_bits(tables: &Tables, id: &str, present: &dyn Fn(&str) -> Value) -> Vec<Value> {
+    let mut bits: Vec<(u8, &str)> = tables
+        .keys
+        .iter()
+        .filter_map(|k| {
+            k.error
+                .as_ref()
+                .filter(|e| e.group == id)
+                .map(|e| (e.bit, k.path.as_str()))
+        })
+        .collect();
+    bits.sort();
+    bits.into_iter()
+        .map(|(bit, key)| json!({"bit": bit, "key": key, "present": present(key)}))
+        .collect()
 }

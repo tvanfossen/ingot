@@ -2,7 +2,7 @@
 //! entry of the namespace files must name one of them.
 
 use super::keys::Errors;
-use super::schema::NamespaceFile;
+use super::schema::{ClassDef, NamespaceFile};
 
 /// Refuse an undeclared or missing `--variant`. A model that declares no variants accepts any.
 ///
@@ -41,10 +41,13 @@ pub fn check_entries(declared: &[String], namespaces: &[NamespaceFile], errors: 
     }
 }
 
-/// Every (where, variant) a namespace file names: per-variant defaults and enum variants.
+/// Every (where, variant) a namespace file names: per-variant defaults, enum variants and the
+/// variants keys and commands are limited to.
 ///
-/// @version 1
+/// v2: key and command `variants` lists.
+/// @version 2
 /// @req REQ-ING-TIV-015
+/// @req REQ-ING-PRS-001
 fn uses(namespaces: &[NamespaceFile]) -> Vec<(String, String)> {
     let mut out = Vec::new();
     for ns in namespaces {
@@ -53,11 +56,29 @@ fn uses(namespaces: &[NamespaceFile]) -> Vec<(String, String)> {
             out.extend(def.variants.keys().map(|v| (path.clone(), v.clone())));
         }
         for class in &ns.classes {
-            for key in &class.keys {
-                let path = format!("{}.{}.{}", ns.meta.id, class.id, key.id);
-                out.extend(key.defaults.keys().map(|v| (path.clone(), v.clone())));
-            }
+            class_uses(&ns.meta.id, class, &mut out);
         }
     }
     out
+}
+
+/// The (where, variant) pairs of one class: per-variant defaults and key and command limits.
+///
+/// @version 1
+/// @req REQ-ING-TIV-015
+/// @req REQ-ING-PRS-001
+fn class_uses(ns: &str, class: &ClassDef, out: &mut Vec<(String, String)>) {
+    let path = |id: &str| format!("{ns}.{}.{id}", class.id);
+    for key in &class.keys {
+        let named = key.defaults.keys().chain(key.variants.iter().flatten());
+        out.extend(named.map(|v| (path(&key.id), v.clone())));
+    }
+    for cmd in &class.commands {
+        out.extend(
+            cmd.variants
+                .iter()
+                .flatten()
+                .map(|v| (path(&cmd.id), v.clone())),
+        );
+    }
 }

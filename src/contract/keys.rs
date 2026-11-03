@@ -2,7 +2,9 @@
 
 use super::enums::ResolvedEnum;
 use super::ranges::{self, Range, Units};
-use super::schema::{ClassDef, CommandDef, KeyDef, KeyType, NamespaceFile, Payload, Persist, Role};
+use super::schema::{
+    ClassDef, CommandDef, ErrorRef, KeyDef, KeyType, NamespaceFile, Payload, Persist, Role,
+};
 use super::types::{
     wk_index, Version, CMD_HEADER_BYTES, DEDUPE_ENTRY_BYTES, KF_ALIAS, KF_CMD, KF_CMD_DEDUPE,
     KF_CMD_RESULT, KF_ENUM, KF_MFG, KF_SECRET, KF_SURVIVES_RESET, RESULT_HEADER_BYTES, X_INPROC,
@@ -55,6 +57,8 @@ pub struct Key {
     pub allowed: Option<Vec<i64>>,
     pub unset: Option<i64>,
     pub scale: f64,
+    /// The error group and bit of an error key (R24).
+    pub error: Option<ErrorRef>,
 }
 
 impl Key {
@@ -145,7 +149,8 @@ impl ClassCtx<'_> {
     ///
     /// v2: no range, allowed set or sentinel, scale 1.
     /// v3: no enum name.
-    /// @version 3
+    /// v4: no error group.
+    /// @version 4
     /// @req REQ-ING-TIV-003
     fn base(&self, name: &str, index: u16, ty: KeyType, introduced: Version) -> Key {
         Key {
@@ -177,6 +182,7 @@ impl ClassCtx<'_> {
             allowed: None,
             unset: None,
             scale: 1.0,
+            error: None,
         }
     }
 }
@@ -243,7 +249,9 @@ pub fn declared_key(ctx: &ClassCtx, def: &KeyDef, errors: &mut Errors) -> Key {
 
 /// Copy the declared attributes that need no resolution onto `key`.
 ///
-/// @version 1
+/// v2: the error group and bit.
+/// @version 2
+/// @req REQ-ING-ERR-001
 /// @req REQ-ING-TIV-003
 fn copy_attributes(key: &mut Key, def: &KeyDef) {
     key.persist = def.persistence.unwrap_or(key.persist);
@@ -256,6 +264,7 @@ fn copy_attributes(key: &mut Key, def: &KeyDef) {
     key.declared_thread_safe = def.thread_safe;
     key.doc.clone_from(&def.doc);
     key.unit.clone_from(&def.unit);
+    key.error.clone_from(&def.error);
 }
 
 /// One generated key of a command type: name, index, type, part, max_size.

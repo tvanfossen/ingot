@@ -22,6 +22,23 @@ inproc_snapshot_bytes = 4096
 [[reserved]]
 id = 0x00C20480   # drive.state index 9 (bool): retired before 1.0
 
+# -- error groups (R24): one bool STATE key per error, published as "e<wire_base + bit>" ----
+[[error_groups]]
+id = "product"
+width = 32
+wire_base = 0
+writer = "integrator"
+reserved_bits = [0]                  # bit 0 is never an error
+shadow = "state.errors"
+
+[[error_groups]]
+id = "dock"
+width = 32
+wire_base = 32
+wire_bases = { sku_b = 50 }          # sku_b numbers its dock errors from 50
+writer = "integrator"
+shadow = "state.errors"
+
 [[reserved]]
 id = 0x00C20028   # drive.state.speed (int16): alias removed in 2.0
 

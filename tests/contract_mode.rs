@@ -301,7 +301,7 @@ fn contract_json_carries_every_header_and_key_field() {
         "persist": "deferred", "deferred_ms": 5000, "rate_per_day": 86400, "rate_burst": 4,
         "max_size": 4, "secret": false, "survives_reset": false, "mfg": false, "alias_of": null,
         "enum": null, "enum_wire": null, "command": null, "wk": null, "doc": null, "unit": null,
-        "range": null, "allowed": null, "unset": null, "scale": 1.0})
+        "range": null, "allowed": null, "unset": null, "scale": 1.0, "error": null})
     );
     let mode = key_json(&gen, "drive.settings.mode");
     assert_eq!(

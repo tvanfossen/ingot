@@ -204,3 +204,67 @@ fn keyspace_files_are_deterministic_and_small() {
     );
     let _ = fs::remove_dir_all(&dir);
 }
+
+/// @brief Whether the contract.json in `gen` has a key at `path`.
+/// @version 1
+fn has_key(gen: &Path, path: &str) -> bool {
+    any(&contract_json(gen)["keys"], |k| k["path"] == path)
+}
+
+#[test]
+fn a_key_limited_to_a_variant_exists_only_there() {
+    let dir = unique_dir("ks_presence");
+    let (a, b) = (dir.join("a"), dir.join("b"));
+    generate_ok("v1_0", &a, &[]);
+    generate_ok("v1_0", &b, &["--variant", "sku_b"]);
+    let jam = "drive.state.error_dock_jam";
+    assert!(!has_key(&a, jam) && has_key(&b, jam));
+    let all = json(&a, "keyspace.json");
+    let drive = all["namespaces"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|n| n["name"] == "drive")
+        .unwrap();
+    let keys = drive["classes"][1]["keys"].as_array().unwrap();
+    let declared = keys.iter().find(|k| k["name"] == jam).unwrap();
+    assert_eq!(
+        declared["present"],
+        serde_json::json!({"sku_a": false, "sku_b": true})
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn error_groups_resolve_their_wire_base_per_variant() {
+    let dir = unique_dir("ks_errors");
+    let (a, b) = (dir.join("a"), dir.join("b"));
+    generate_ok("v1_0", &a, &[]);
+    generate_ok("v1_0", &b, &["--variant", "sku_b"]);
+    let dock = |gen: &Path| contract_json(gen)["error_groups"][1].clone();
+    assert_eq!(
+        (dock(&a)["id"].clone(), dock(&a)["wire_base"].clone()),
+        ("dock".into(), 32.into())
+    );
+    assert_eq!(dock(&b)["wire_base"], 50);
+    let all = json(&a, "keyspace.json");
+    let groups = all["error_groups"].as_array().unwrap();
+    assert_eq!(
+        groups[0]["bits"][0],
+        serde_json::json!({"bit": 1, "key": "drive.state.error_overcurrent", "present": {"sku_a": true, "sku_b": true}})
+    );
+    assert_eq!(
+        groups[1]["overrides"],
+        serde_json::json!({"sku_b": {"wire_base": 50}})
+    );
+    assert_eq!(groups[0]["reserved_bits"], serde_json::json!([0]));
+    let key = contract_json(&a)["keys"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|k| k["path"] == "drive.state.error_overcurrent")
+        .unwrap()["error"]
+        .clone();
+    assert_eq!(key, serde_json::json!({"group": "product", "bit": 1}));
+    let _ = fs::remove_dir_all(&dir);
+}

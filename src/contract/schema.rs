@@ -16,6 +16,8 @@ pub struct ContractFile {
     pub principals: Vec<PrincipalDef>,
     #[serde(default)]
     pub uid_caps: Vec<UidCapsDef>,
+    #[serde(default)]
+    pub error_groups: Vec<ErrorGroupDef>,
 }
 
 /// `[contract]`: name, version and where the namespace files are.
@@ -317,6 +319,10 @@ pub struct KeyDef {
     pub unset: Option<i64>,
     /// Wire to display factor.
     pub scale: Option<f64>,
+    /// The variants the key exists on; absent: every variant.
+    pub variants: Option<Vec<String>>,
+    /// The error group and bit of a one-bool-per-error STATE key (R24).
+    pub error: Option<ErrorRef>,
     #[serde(default)]
     pub read_only: bool,
     #[serde(default)]
@@ -355,4 +361,36 @@ pub struct CommandDef {
     pub write_rate: Option<String>,
     pub wk: Option<String>,
     pub doc: Option<String>,
+    /// The variants the command exists on; absent: every variant.
+    pub variants: Option<Vec<String>>,
+}
+
+/// `error = { group, bit }` on an error key.
+#[derive(Debug, Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ErrorRef {
+    pub group: String,
+    pub bit: u8,
+}
+
+/// `[[error_groups]]`: one composed error word (R24).
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ErrorGroupDef {
+    pub id: String,
+    /// Bits in the composed word: 8, 16, 32 or 64.
+    pub width: u8,
+    /// Wire id of bit 0 ("e<wire_base + bit>"); `wire_bases` overrides it per variant.
+    pub wire_base: u32,
+    #[serde(default)]
+    pub wire_bases: BTreeMap<String, u32>,
+    /// The only principal that may write the group's keys.
+    pub writer: String,
+    /// Positions never used or retired; never reused.
+    #[serde(default)]
+    pub reserved_bits: Vec<u8>,
+    /// The highest bit the full table publishes (default: width - 1).
+    pub publish_max_bit: Option<u8>,
+    /// The reported field the reporter composes.
+    pub shadow: Option<String>,
 }

@@ -4,10 +4,11 @@
 use super::bounds::queue_bound;
 use super::digest::digests;
 use super::enums::ResolvedEnum;
+use super::error_groups::ErrorGroup;
 use super::model::hex;
 use super::model::Tables;
 use super::ranges::Range;
-use super::schema::{Kind, UnitDef};
+use super::schema::{ErrorRef, Kind, UnitDef};
 use super::types::WK_RULES;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -24,6 +25,9 @@ pub struct Snapshot {
     /// The unit vocabulary; absent in snapshots from before it existed.
     #[serde(default)]
     pub units: BTreeMap<String, UnitDef>,
+    /// The error groups as this variant resolves them; absent in older snapshots.
+    #[serde(default)]
+    pub error_groups: Vec<ErrorGroup>,
     pub model_hash: String,
     pub ingot: IngotJson,
     pub keys: Vec<KeyJson>,
@@ -76,7 +80,14 @@ pub struct KeyJson {
     pub wk: Option<String>,
     pub doc: Option<String>,
     pub unit: Option<String>,
-    /// Range, allowed set, sentinel default and scale; absent in older snapshots.
+    /// Range, allowed set, sentinel default, scale and error bit; absent in older snapshots.
+    #[serde(flatten)]
+    pub limits: Limits,
+}
+
+/// The G2 limits of a key in contract.json (written flat, beside the other key fields).
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct Limits {
     #[serde(default)]
     pub range: Option<Range>,
     #[serde(default)]
@@ -85,6 +96,26 @@ pub struct KeyJson {
     pub unset: Option<i64>,
     #[serde(default = "one")]
     pub scale: f64,
+    /// The error group and bit (R24).
+    #[serde(default)]
+    pub error: Option<ErrorRef>,
+}
+
+impl Limits {
+    /// The limits of key `k`.
+    ///
+    /// @version 1
+    /// @req REQ-ING-RNG-001
+    /// @req REQ-ING-ERR-001
+    fn of(k: &super::keys::Key) -> Self {
+        Limits {
+            range: k.range,
+            allowed: k.allowed.clone(),
+            unset: k.unset,
+            scale: k.scale,
+            error: k.error.clone(),
+        }
+    }
 }
 
 /// Serde default of a scale: 1.
@@ -148,7 +179,9 @@ fn access_name(bits: u8) -> Option<String> {
 ///
 /// v2: the declared variants.
 /// v3: the unit vocabulary; principals from principals_json.
-/// @version 3
+/// v4: the error groups.
+/// @version 4
+/// @req REQ-ING-ERR-001
 /// @req REQ-ING-TIV-015
 /// @req REQ-ING-RNG-001
 /// @req REQ-ING-TIV-009
@@ -159,6 +192,7 @@ pub fn snapshot(tables: &Tables, commit: &str) -> Snapshot {
         variant: tables.variant.clone(),
         variants: tables.variants.clone(),
         units: tables.units.clone().unwrap_or_default(),
+        error_groups: tables.error_groups.clone(),
         model_hash: tables.model_hash.clone(),
         ingot: IngotJson {
             version: env!("CARGO_PKG_VERSION").to_string(),
@@ -208,7 +242,9 @@ fn commands_json(tables: &Tables) -> Vec<CommandJson> {
 /// v3: the enum is the variant-resolved one, with its wire strings.
 /// v4: persistence names from Persist::name.
 /// v5: range, allowed set, sentinel and scale.
-/// @version 5
+/// v6: the error group and bit.
+/// @version 6
+/// @req REQ-ING-ERR-001
 /// @req REQ-ING-TIV-009
 /// @req REQ-ING-TIV-016
 /// @req REQ-ING-RNG-001
@@ -233,10 +269,7 @@ fn key_json(k: &super::keys::Key) -> KeyJson {
         wk: k.wk.map(|w| WK_RULES[w].name.to_string()),
         doc: k.doc.clone(),
         unit: k.unit.clone(),
-        range: k.range,
-        allowed: k.allowed.clone(),
-        unset: k.unset,
-        scale: k.scale,
+        limits: Limits::of(k),
     }
 }
 

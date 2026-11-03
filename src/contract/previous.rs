@@ -76,7 +76,8 @@ fn removed_ids_reserved(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
 ///
 /// v2: well-known roles stay on their keys.
 /// v3: units, scale, sentinels and ranges (widen only), and the unit vocabulary.
-/// @version 3
+/// v4: the error groups.
+/// @version 4
 /// @req REQ-ING-TIV-012
 fn minor_additive(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     let cur_keys: BTreeMap<&str, &KeyJson> =
@@ -99,6 +100,7 @@ fn minor_additive(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     rights_unchanged(prev, cur, &old_paths, errors);
     roles_kept(prev, cur, errors);
     units_kept(prev, cur, errors);
+    error_groups_kept(prev, cur, errors);
 }
 
 /// Every unit token of `prev` keeps its quantity and meaning.
@@ -167,7 +169,8 @@ fn new_keys_at_this_version(
 /// may not change.
 ///
 /// v2: no separate type comparison; the type is part of the ID.
-/// @version 2
+/// v3: the error group and bit.
+/// @version 3
 /// @req REQ-ING-TIV-012
 fn key_unchanged(old: &KeyJson, new: &KeyJson, errors: &mut Errors) {
     let same = old.id == new.id
@@ -179,10 +182,11 @@ fn key_unchanged(old: &KeyJson, new: &KeyJson, errors: &mut Errors) {
         && (old.alias_of.is_none() || old.alias_of == new.alias_of)
         && old.command == new.command
         && new.max_size >= old.max_size
+        && old.limits.error == new.limits.error
         && enum_kept(old, new);
     if !same {
         errors.push(format!(
-            "{}: ID, type, introduced_in, persistence, secret, survives-reset, interval, alias, \
+            "{}: ID, type, introduced_in, persistence, secret, survives-reset, interval, alias, error bit, \
              command, enum values or a smaller max_size changed in a minor",
             old.path
         ));
@@ -192,10 +196,13 @@ fn key_unchanged(old: &KeyJson, new: &KeyJson, errors: &mut Errors) {
 /// An existing key keeps its unit, scale and sentinel, and accepts every value it accepted
 /// before (a range or allowed set may only widen).
 ///
-/// @version 1
+/// v2: the limits are KeyJson::limits.
+/// @version 2
 /// @req REQ-ING-RNG-001
 fn limits_kept(old: &KeyJson, new: &KeyJson, errors: &mut Errors) {
-    let same = old.unit == new.unit && old.scale == new.scale && old.unset == new.unset;
+    let same = old.unit == new.unit
+        && old.limits.scale == new.limits.scale
+        && old.limits.unset == new.limits.unset;
     if !(same && still_accepted(old, new)) {
         errors.push(format!(
             "{}: unit, scale or unset changed, or its range or allowed set narrowed, in a minor",
@@ -206,23 +213,25 @@ fn limits_kept(old: &KeyJson, new: &KeyJson, errors: &mut Errors) {
 
 /// Whether `new` accepts every value `old` did (an unlimited key accepts everything).
 ///
-/// @version 1
+/// v2: the limits are KeyJson::limits.
+/// @version 2
 /// @req REQ-ING-RNG-001
 fn still_accepted(old: &KeyJson, new: &KeyJson) -> bool {
-    let accepts = |v: i64| match (&new.range, &new.allowed) {
+    let accepts = |v: i64| match (&new.limits.range, &new.limits.allowed) {
         (Some(r), _) => r.contains(v),
         (None, Some(a)) => a.contains(&v),
         (None, None) => true,
     };
-    match (&old.range, &old.allowed) {
+    match (&old.limits.range, &old.limits.allowed) {
         (Some(r), _) => {
-            new.range.is_none() && new.allowed.is_none()
+            new.limits.range.is_none() && new.limits.allowed.is_none()
                 || new
+                    .limits
                     .range
                     .is_some_and(|n| n.contains(r.min) && n.contains(r.max) && r.step % n.step == 0)
         }
         (None, Some(a)) => a.iter().all(|v| accepts(*v)),
-        (None, None) => new.range.is_none() && new.allowed.is_none(),
+        (None, None) => new.limits.range.is_none() && new.limits.allowed.is_none(),
     }
 }
 
@@ -330,4 +339,38 @@ fn sensitive(key: &KeyJson, access: &str) -> bool {
         .as_deref()
         .is_some_and(|w| SENSITIVE_ROLES.contains(&w));
     (key.secret && access.contains('r')) || (writes && (reset || key.mfg))
+}
+
+/// Every previous error group keeps its width, wire base, writer and published range, and its
+/// reserved bits only grow.
+///
+/// @version 1
+/// @req REQ-ING-ERR-001
+fn error_groups_kept(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
+    for old in &prev.error_groups {
+        let kept = cur.error_groups.iter().any(|new| {
+            (
+                &new.id,
+                new.width,
+                new.wire_base,
+                &new.writer,
+                new.publish_max_bit,
+            ) == (
+                &old.id,
+                old.width,
+                old.wire_base,
+                &old.writer,
+                old.publish_max_bit,
+            ) && old
+                .reserved_bits
+                .iter()
+                .all(|b| new.reserved_bits.contains(b))
+        });
+        if !kept {
+            errors.push(format!(
+                "error group {} was removed or changed in a minor",
+                old.id
+            ));
+        }
+    }
 }

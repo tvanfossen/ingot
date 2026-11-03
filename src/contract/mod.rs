@@ -8,6 +8,7 @@ pub mod bounds;
 pub mod digest;
 pub mod emit;
 pub mod enums;
+pub mod error_groups;
 pub mod keys;
 pub mod keyspace;
 pub mod keyspace_out;
@@ -58,7 +59,9 @@ pub fn provenance(commit: &str, allow_dirty: bool) -> Result<String, String> {
 ///
 /// v2: `--variant` checked against the declared variants; every variant (and the base) is
 /// resolved for the all-variants keyspace.
-/// @version 2
+/// v3: error groups checked.
+/// @version 3
+/// @req REQ-ING-ERR-001
 /// @req REQ-ING-TIV-009
 /// @req REQ-ING-TIV-010
 /// @req REQ-ING-TIV-011
@@ -72,6 +75,7 @@ pub fn generate(opts: &Options, tera: &Tera) -> Result<(), Box<dyn std::error::E
     refuse_model::check(&tables, &mut errors);
     refuse_rights::check(&tables, &mut errors);
     bounds::check(&tables, &mut errors);
+    error_groups::check(&tables, &mut errors);
     let snapshot = snapshot::snapshot(&tables, &commit);
     let review = match opts.previous {
         Some(path) => Some(previous::compare(

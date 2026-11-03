@@ -1,5 +1,6 @@
 //! Load a contract-mode model and resolve it into the content of the generated tables.
 
+use super::error_groups::{self, ErrorGroup};
 use super::keys::{command_keys, declared_key, ClassCtx, Errors, Key};
 use super::ranges::Units;
 use super::rights::{self, Principal};
@@ -44,6 +45,8 @@ pub struct Tables {
     pub variants: Vec<String>,
     /// The unit vocabulary, when the model declares one.
     pub units: Option<Units>,
+    /// The error groups, resolved for the variant (R24).
+    pub error_groups: Vec<ErrorGroup>,
     pub model_hash: String,
     pub keys: Vec<Key>,
     pub reserved: Vec<u32>,
@@ -69,7 +72,9 @@ struct Loaded {
 /// v3: the unit vocabulary is recorded.
 /// v4: whether `--variant` names a declared variant is the caller's check
 /// (variants::check_selected), so the base can be resolved too.
-/// @version 4
+/// v5: the error groups, resolved for the variant.
+/// @version 5
+/// @req REQ-ING-ERR-001
 /// @req REQ-ING-TIV-015
 /// @req REQ-ING-TIV-002
 /// @req REQ-ING-TIV-003
@@ -97,6 +102,7 @@ pub fn build(contract_path: &Path, variant: Option<&str>) -> Result<(Tables, Err
         variant: variant.unwrap_or_default().to_string(),
         variants: meta.variants,
         units: loaded.units,
+        error_groups: error_groups::resolve(&loaded.contract.error_groups, variant),
         model_hash: model_hash(&loaded.files, variant.unwrap_or_default()),
         keys,
         reserved,
@@ -277,7 +283,9 @@ pub fn hex(bytes: &[u8]) -> String {
 ///
 /// v2: each namespace's enums are resolved once, for the variant.
 /// v3: keys see the unit vocabulary.
-/// @version 3
+/// v4: keys and commands limited to other variants are left out.
+/// @version 4
+/// @req REQ-ING-PRS-001
 /// @req REQ-ING-TIV-003
 /// @req REQ-ING-TIV-005
 /// @req REQ-ING-TIV-016
@@ -299,17 +307,43 @@ fn collect_keys(
                 variant,
                 default_burst: loaded.contract.bounds.default_rate_burst,
             };
-            keys.extend(class.keys.iter().map(|def| declared_key(&ctx, def, errors)));
-            for def in &class.commands {
-                let three = command_keys(&ctx, def, errors);
-                commands.push(command_row(def, &three));
-                keys.extend(three);
-            }
+            class_keys(&ctx, (&mut keys, &mut commands), errors);
         }
     }
     keys.sort_by_key(|k| k.id);
     commands.sort_by_key(|c| c.keys[0]);
     (keys, commands)
+}
+
+/// The keys and commands of one class that exist on the context's variant.
+///
+/// @version 1
+/// @req REQ-ING-TIV-003
+/// @req REQ-ING-PRS-001
+fn class_keys(
+    ctx: &ClassCtx,
+    (keys, commands): (&mut Vec<Key>, &mut Vec<Command>),
+    errors: &mut Errors,
+) {
+    let here = |only: &Option<Vec<String>>| present_on(only.as_deref(), ctx.variant);
+    let declared = ctx.class.keys.iter().filter(|d| here(&d.variants));
+    keys.extend(declared.map(|def| declared_key(ctx, def, errors)));
+    for def in ctx.class.commands.iter().filter(|d| here(&d.variants)) {
+        let three = command_keys(ctx, def, errors);
+        commands.push(command_row(def, &three));
+        keys.extend(three);
+    }
+}
+
+/// Whether a key or command limited to `only` exists on `variant` (the base has every one).
+///
+/// @version 1
+/// @req REQ-ING-PRS-001
+fn present_on(only: Option<&[String]>, variant: Option<&str>) -> bool {
+    match (only, variant) {
+        (Some(list), Some(v)) => list.iter().any(|x| x == v),
+        _ => true,
+    }
 }
 
 /// The `dmt_commands` row of a command type.

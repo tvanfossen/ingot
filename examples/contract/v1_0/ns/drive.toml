@@ -92,10 +92,20 @@ default = "idle"
 
 [[classes.keys]]
 id = "error_overcurrent"
+error = { group = "product", bit = 1 }
 key_index = 4
 type = "bool"
 introduced_in = "1.0"
 doc = "Error key: set and cleared by the integrator."
+
+[[classes.keys]]
+id = "error_dock_jam"
+key_index = 6
+type = "bool"
+introduced_in = "1.0"
+variants = ["sku_b"]                 # exists on sku_b only
+error = { group = "dock", bit = 0 }
+doc = "Dock error of sku_b (wire id e50)."
 
 [[classes]]
 id = "map"
