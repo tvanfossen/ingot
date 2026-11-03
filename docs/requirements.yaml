@@ -1,0 +1,347 @@
+# Requirements catalog for this fork of ingot (clew-guard). Fork-only file: not part of upstream.
+# Every `@req REQ-ING-...` tag in source resolves to an entry here (cross_reference: true).
+# Id pattern: ^REQ-ING-[A-Z]+-[0-9]{3}$ (.clew.yaml). HAND-EDITED: add the entry before the code.
+# Schema is clew-guard's: a mapping keyed by id; `name` is required.
+
+requirements:
+  # -- command line -----------------------------------------------------------------------------
+  REQ-ING-CLI-001:
+    name: Command-line generation run
+    subsystem: CLI
+    description: >-
+      ingot parses its command line, sets the log level from -v, loads, filters, validates and
+      generates the named model for the selected target, and exits with status 1 after logging
+      the error when any step fails.
+    acceptance_criteria: >-
+      A valid model generates and exits 0; an invalid model logs each validation error and exits 1;
+      --include-list with --exclude-list is refused.
+  REQ-ING-CLI-002:
+    name: Template directory resolution
+    subsystem: CLI
+    description: >-
+      The templates directory comes from --templates or INGOT_TEMPLATES_DIR when given (an error
+      if it does not exist), otherwise from the documented search order next to the executable,
+      the FHS share path, the development layout, the working directory and /usr/share/ingot.
+    acceptance_criteria: >-
+      An explicit missing path is a clear error; an explicit or environment path outside the
+      working directory is used.
+  REQ-ING-CLI-003:
+    name: Multi-file model loading
+    subsystem: CLI
+    description: >-
+      --model accepts files and directories (a directory contributes its .toml files in sorted
+      order); several files are validated individually and merged into one model in which every
+      class keeps its file's namespace name and ID and enum references are namespace-qualified.
+    acceptance_criteria: >-
+      A directory of namespace files generates keys under each file's namespace; an empty
+      directory is an error.
+  REQ-ING-CLI-004:
+    name: Per-variant resolution
+    subsystem: CLI
+    description: >-
+      --variant replaces each key's default with its per-variant default and merges per-variant
+      enum values over the base values before validation and generation.
+    acceptance_criteria: >-
+      A key with defaults.<variant> generates that value only when --variant names it.
+  REQ-ING-CLI-005:
+    name: Model statistics report
+    subsystem: CLI
+    description: >-
+      Every run prints the model's key count per storage type (bool, each integer width,
+      read-only and read-write strings) to stdout.
+    acceptance_criteria: >-
+      The printed counts equal the number of keys of each type in the model.
+
+  # -- model ------------------------------------------------------------------------------------
+  REQ-ING-MOD-001:
+    name: TOML model schema
+    subsystem: Model
+    description: >-
+      A model file is parsed from Kaitai-inspired TOML into meta, named enums with per-variant
+      values, and classes of keys with type, defaults, enum reference, max_size and the
+      read_only, thread_safe, persistent, event and helpers flags (helpers defaults to true).
+    acceptance_criteria: >-
+      The shipped examples parse with the documented field values.
+  REQ-ING-MOD-002:
+    name: Data types and their codes
+    subsystem: Model
+    description: >-
+      Each data type has a unique 4-bit type code (unsigned widths, then signed, string 8,
+      binary 9, 7 reserved for float) and a C and Rust type name for code generation.
+    acceptance_criteria: >-
+      Type codes are unique and below 16; the C and Rust names match the documented table.
+  REQ-ING-KEY-001:
+    name: 32-bit key encoding
+    subsystem: Model
+    description: >-
+      A key ID packs namespace (bits 31-22), class (21-17), index (16-7), type code (6-3),
+      thread-safe (2), derived (1) and read-only (0); decoding is the exact inverse.
+    acceptance_criteria: >-
+      Round trip is lossless; all-ones fields encode to 0xFFFFFFFF; all-zero fields to 0.
+  REQ-ING-KEY-002:
+    name: Key position resolution
+    subsystem: Model
+    description: >-
+      A key's namespace ID, class index and key index come from the explicit namespace_id,
+      class_index and key_index when set, otherwise from the model-level namespace ID and the
+      class's and key's declaration position.
+    acceptance_criteria: >-
+      Explicit indices appear in the encoded ID; omitted ones follow declaration order.
+  REQ-ING-VAL-001:
+    name: Model validation
+    subsystem: Model
+    description: >-
+      Before generation the model is checked for class and key count limits, duplicate class
+      and key ids and indices per namespace, index and namespace ID ranges, string and binary
+      keys without max_size, undefined enum references, and read-only persistent keys; every
+      violation is reported.
+    acceptance_criteria: >-
+      Each violation class produces its own error; the shipped examples validate.
+  REQ-ING-FLT-001:
+    name: Include and exclude key lists
+    subsystem: Model
+    description: >-
+      --include-list keeps only the keys named in a YAML list and --exclude-list removes them;
+      entries match the bare or DM_KEY_-prefixed define name, or the name with underscores
+      removed.
+    acceptance_criteria: >-
+      An include list of one key leaves one key; an exclude list removes exactly the named keys.
+  REQ-ING-FLT-002:
+    name: Persistent key list
+    subsystem: Model
+    description: >-
+      --persistent-keys marks every key named in a YAML list as persistent.
+    acceptance_criteria: >-
+      Listed keys become persistent and no other key changes.
+  REQ-ING-FLT-003:
+    name: Property override list
+    subsystem: Model
+    description: >-
+      --property-override-list replaces the default of each key named in a YAML mapping with its
+      default_value, matching names with underscores removed.
+    acceptance_criteria: >-
+      Integer, string and boolean overrides apply and the applied count is reported.
+
+  # -- C generation -----------------------------------------------------------------------------
+  REQ-ING-GEN-001:
+    name: C output generation
+    subsystem: C target
+    description: >-
+      For a C target ingot renders every C output of the model into the output directory, each
+      file ending in exactly one newline, and logs what it generated.
+    acceptance_criteria: >-
+      Generating twice from the same input gives byte-identical output.
+  REQ-ING-GEN-002:
+    name: Key definitions header
+    subsystem: C target
+    description: >-
+      key_definitions.h defines DM_KEY_<NAMESPACE>_<CLASS>_<KEY> as the encoded ID of every key.
+    acceptance_criteria: >-
+      Each define equals the key's encoding.
+  REQ-ING-GEN-003:
+    name: Namespace definitions header
+    subsystem: C target
+    description: >-
+      dm_namespace_definitions.h lists every namespace of the model once with its namespace ID.
+    acceptance_criteria: >-
+      A multi-namespace model lists each namespace exactly once.
+  REQ-ING-GEN-004:
+    name: Boolean storage
+    subsystem: C target
+    description: >-
+      Boolean keys are stored as packed bits in uint32_t words at perfect-hash positions, with
+      their defaults set in the initial words and the smallest G-table type that fits.
+    acceptance_criteria: >-
+      The generated Unity tests read every boolean default back.
+  REQ-ING-GEN-005:
+    name: Integer storage
+    subsystem: C target
+    description: >-
+      Integer keys are stored per width and signedness in perfect-hash order with their defaults
+      and the smallest G-table type that fits.
+    acceptance_criteria: >-
+      The generated Unity tests read every integer default back and round-trip a set value.
+  REQ-ING-GEN-006:
+    name: String storage
+    subsystem: C target
+    description: >-
+      String keys are stored in read-only and read-write groups, each with its own perfect hash,
+      fixed-size buffers from max_size, and C-escaped defaults.
+    acceptance_criteria: >-
+      The generated Unity tests read every string default back, including escaped characters.
+  REQ-ING-GEN-007:
+    name: Persistence storage
+    subsystem: C target
+    description: >-
+      Persistent keys are collected into one persistence struct with typed fields and C literal
+      defaults, with load and save hooks.
+    acceptance_criteria: >-
+      The generated persistence tests save and restore every persistent key.
+  REQ-ING-GEN-008:
+    name: Typed helpers
+    subsystem: C target
+    description: >-
+      Keys with helpers = true get typed get and set helpers (getter only for read-only keys),
+      enum-typed when the key references an enum.
+    acceptance_criteria: >-
+      A helper exists for every helpers = true key and none for read-only setters.
+  REQ-ING-GEN-009:
+    name: Generated Unity tests
+    subsystem: C target
+    description: >-
+      ingot emits test_dm.c and a CMakeLists.txt that check every key's default, a set and get
+      with a value different from the default, read-only refusal and persistence round trips.
+    acceptance_criteria: >-
+      The generated tests pass for every example model, with and without events.
+  REQ-ING-GEN-010:
+    name: C enum types
+    subsystem: C target
+    description: >-
+      Every named enum generates one typedef enum in dm_enums.h, named from its namespace and
+      enum name, with members sorted by value, shared by every key that references it.
+    acceptance_criteria: >-
+      The battery example's enums generate with members in value order.
+  REQ-ING-GEN-011:
+    name: API dispatch per integer type
+    subsystem: C target
+    description: >-
+      dm.h and dm.c dispatch get and set by key type to the matching integer storage functions
+      and value fields.
+    acceptance_criteria: >-
+      Every integer width present in the model has a dispatch entry.
+  REQ-ING-TGT-001:
+    name: Target platform settings
+    subsystem: C target
+    description: >-
+      Each C target (STM32, ESP32 Xtensa and RISC-V, 8-bit MCU, 64-bit Linux) has fixed pointer
+      width, alignment, inline size and mutex settings used by the templates.
+    acceptance_criteria: >-
+      Linux64 uses a pthread mutex, ESP a FreeRTOS mutex, STM32 and 8-bit none.
+  REQ-ING-MAN-001:
+    name: dm_full.yaml manifest
+    subsystem: C target
+    description: >-
+      Every C generation writes dm_full.yaml listing namespaces, classes and keys with define
+      name, encoded ID, type, max size, default and enum values, for downstream tools.
+    acceptance_criteria: >-
+      Manifest key IDs equal the encoded IDs and defaults match the key types.
+  REQ-ING-EVT-001:
+    name: tinyfsm event structs and dispatch
+    subsystem: C target
+    description: >-
+      With --emit-tinyfsm, every event = true key gets an empty tinyfsm::Event struct grouped by
+      namespace and class, and send_tinyfsm_event_by_key() dispatches a key ID to its event
+      through a consumer-provided seam; nothing is emitted without the flag or without event keys.
+    acceptance_criteria: >-
+      The generated wrapper compiles, links and runs against real tinyfsm.
+  REQ-ING-EVT-002:
+    name: Has-event predicate
+    subsystem: C target
+    description: >-
+      With --emit-tinyfsm, dm_key_has_event(key) is true for exactly the keys that have an event
+      struct, generated from the same list as the dispatch switch.
+    acceptance_criteria: >-
+      True for an event key, false for a non-event key and for a non-key ID.
+  REQ-ING-EVT-003:
+    name: Event type list
+    subsystem: C target
+    description: >-
+      With --emit-tinyfsm, dm_event_list<KE, L> pairs every event key with its event struct in
+      model order and dm_event_count gives its length; the consumer supplies both templates.
+    acceptance_criteria: >-
+      The list instantiates against tinyfsm with the right size and only tinyfsm events.
+
+  # -- Rust target ------------------------------------------------------------------------------
+  REQ-ING-RST-001:
+    name: no_std Rust module
+    subsystem: Rust target
+    description: >-
+      --target rust renders a single no_std Rust module with static storage and encoded-key
+      access instead of C output.
+    acceptance_criteria: >-
+      The generated module compiles and its tests pass for every example model.
+  REQ-ING-RST-002:
+    name: Rust static storage
+    subsystem: Rust target
+    description: >-
+      Rust storage holds each scalar type in a perfect-hash-ordered array with its defaults, and
+      strings and binaries as fixed-size byte arrays, with by-key accessors that reject writes to
+      read-only keys.
+    acceptance_criteria: >-
+      Defaults read back and by-key writes to read-only keys are refused.
+  REQ-ING-RST-003:
+    name: Rust enum types
+    subsystem: Rust target
+    description: >-
+      Each named enum generates one Rust enum with the smallest repr that holds its values,
+      named in PascalCase from its namespace, and enum-typed accessors for keys that use it.
+    acceptance_criteria: >-
+      The battery example's enums generate with the smallest fitting repr.
+
+  # -- perfect hash -----------------------------------------------------------------------------
+  REQ-ING-HSH-001:
+    name: Jenkins hash
+    subsystem: Hash
+    description: >-
+      Key IDs hash with the final() mix of Jenkins lookup3, matching the reference implementation
+      the generated C uses.
+    acceptance_criteria: >-
+      Outputs match the reference values; different keys or seeds give different hashes.
+  REQ-ING-HSH-002:
+    name: Perfect hash construction
+    subsystem: Hash
+    description: >-
+      A minimal perfect hash (CHM, two seeds) maps every key of a set to a distinct slot, and
+      lookup and verify use the same two hashes.
+    acceptance_criteria: >-
+      Generated hashes verify for small, medium and large key sets, deduplicating input.
+  REQ-ING-HSH-003:
+    name: Deterministic seeds
+    subsystem: Hash
+    description: >-
+      Perfect-hash seeds derive from the key set (FNV-1a), so the same keys always give the same
+      tables.
+    acceptance_criteria: >-
+      Two runs on the same key set give identical seeds and tables.
+
+  # -- repository tooling -----------------------------------------------------------------------
+  REQ-ING-POL-001:
+    name: Commit message policy
+    subsystem: Tooling
+    description: >-
+      The commit-msg hook rejects a commit without a valid Signed-off-by trailer, or with a
+      parsed trailer naming an AI tool or vendor.
+    acceptance_criteria: >-
+      Signed commits pass; unsigned commits and AI trailers are rejected.
+  REQ-ING-POL-002:
+    name: Agent hook-bypass guard
+    subsystem: Tooling
+    description: >-
+      The agent PreToolUse guard denies shell commands that run git commit with --no-verify,
+      -n or a core.hooksPath override, through wrappers and nested shells.
+    acceptance_criteria: >-
+      Bypass forms are denied and ordinary commits are allowed.
+  REQ-ING-ROM-001:
+    name: ROM estimate of generated C
+    subsystem: Tooling
+    description: >-
+      scripts/estimate_rom.py compiles every generated .c file (except the test harness) and
+      reports .text, .rodata and .data sizes per file and in total.
+    acceptance_criteria: >-
+      A generated directory produces a per-file and total report; a missing directory exits 1.
+  REQ-ING-TSK-001:
+    name: Development tasks
+    subsystem: Tooling
+    description: >-
+      invoke tasks run the checks, build, tests (Rust, generated C in both event modes, and the
+      C++ tinyfsm fixture), coverage, clean and example generation.
+    acceptance_criteria: >-
+      invoke test runs every suite and fails when any fails.
+  REQ-ING-TSK-002:
+    name: Version bump
+    subsystem: Tooling
+    description: >-
+      invoke bump-version rewrites the crate version in every file that embeds it, and with no
+      version prints a dry run.
+    acceptance_criteria: >-
+      A bump changes Cargo.toml and the man page version and date only.
