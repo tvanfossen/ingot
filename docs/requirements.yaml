@@ -534,3 +534,17 @@ requirements:
     acceptance_criteria: >-
       The generic model declares them; each malformed form is refused; widening passes and
       narrowing is refused against the previous contract.
+  REQ-ING-KSP-001:
+    name: Keyspace declaration files
+    subsystem: Generated outputs (G2)
+    description: >-
+      Contract mode writes keyspace.json (every variant: base values plus per-variant enum
+      overrides and per-key presence), keyspace.<variant>.json (resolved for the variant), its
+      deterministic gzip and a head file (name, version, SKU, SHA-256 of the body, sizes), and
+      keyspace.schema.json. They declare keys only: identity, type, role, unit and limits, rate,
+      persistence, secrecy, enum, doc, commands and rights; no values, and no property naming a
+      UI, layout or endpoint. A body that one MQTT message cannot carry as base64 is refused.
+    acceptance_criteria: >-
+      The head's hash and sizes match the body; the gzip decompresses to it; two runs are
+      byte-identical; no property matches the trust pattern; the generic model's body is under
+      the 64 KB image budget.
