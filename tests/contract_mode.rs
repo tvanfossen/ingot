@@ -1,80 +1,84 @@
 //! Integration tests for contract mode (`--contract`): the generic test model at 1.0, 1.1 and
-//! 2.0, the generated tables compiled and walked in C, determinism, variants, and one model edit
-//! per refusal.
+//! 2.0, the generated tables compiled and walked in C, determinism, variants, rights, bounds,
+//! digests and every contract.json field. Refusals are in contract_refusals.rs.
 
+mod common;
+
+use common::*;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
-/// @brief Fresh, uniquely-named temp directory for one test.
-/// @version 1
-fn unique_dir(tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("ingot_contract_{tag}_{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(&dir).expect("create temp dir");
-    dir
-}
-
-/// @brief Path of a version of the generic model, e.g. `v1_0`.
-/// @version 1
-fn model(version: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("examples/contract")
-        .join(version)
-}
-
-/// @brief Copy directory `from` into `to`, recursively.
-/// @version 1
-fn copy_dir(from: &Path, to: &Path) {
-    fs::create_dir_all(to).unwrap();
-    for entry in fs::read_dir(from).unwrap() {
-        let entry = entry.unwrap();
-        let target = to.join(entry.file_name());
-        if entry.path().is_dir() {
-            copy_dir(&entry.path(), &target);
-        } else {
-            fs::copy(entry.path(), target).unwrap();
-        }
-    }
-}
-
-/// @brief Run contract mode on `contract` into `out` (variant sku_a unless `extra` names one);
-/// returns (success, stderr).
-/// @version 1
-fn generate(contract: &Path, out: &Path, extra: &[&str]) -> (bool, String) {
-    let mut args = vec![
-        "--contract",
-        contract.to_str().unwrap(),
-        "--output",
-        out.to_str().unwrap(),
-        "--allow-dirty-ingot",
-    ];
-    if !extra.contains(&"--variant") {
-        args.extend(["--variant", "sku_a"]);
-    }
-    args.extend_from_slice(extra);
-    let result = Command::new(env!("CARGO_BIN_EXE_ingot"))
-        .args(&args)
-        .output()
-        .expect("spawn ingot");
-    (
-        result.status.success(),
-        String::from_utf8_lossy(&result.stderr).into_owned(),
-    )
-}
-
-/// @brief Generate `version` of the generic model into `out`, asserting success.
-/// @version 1
-fn generate_ok(version: &str, out: &Path, extra: &[&str]) {
-    let (ok, stderr) = generate(&model(version).join("contract.toml"), out, extra);
-    assert!(ok, "{version} must generate:\n{stderr}");
-}
-
-/// @brief Compile the generated tables with the C walker and run it.
-/// @version 1
+/// @brief Compile the generated tables with the C walker and the value checks, run both, and
+/// cross-check the C digests, model hash and ingot provenance against contract.json.
+/// v3: the ingot version and commit too.
+/// v4: each principal's digests in minor order; the checks moved into helpers.
+/// @version 4
 fn compile_and_walk(gen: &Path) {
-    let check = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/dmt/check_tables.c");
-    let exe = gen.join("check_tables");
+    for program in ["check_tables", "check_values"] {
+        run_c_check(gen, program);
+    }
+    let json = contract_json(gen);
+    check_provenance(
+        &fs::read_to_string(gen.join("dmt_tables.h")).unwrap(),
+        &json,
+    );
+    check_digest_rows(
+        &fs::read_to_string(gen.join("dmt_tables.c")).unwrap(),
+        &json,
+    );
+}
+
+/// @brief dmt_tables.h carries contract.json's model hash, ingot version and ingot commit.
+/// @version 1
+fn check_provenance(h: &str, json: &serde_json::Value) {
+    assert!(
+        h.contains(&format!("\"{}\"", json["model_hash"].as_str().unwrap())),
+        "model hash"
+    );
+    let commit = json["ingot"]["commit"].as_str().unwrap();
+    assert!(!commit.is_empty(), "contract.json names the ingot commit");
+    assert!(h.contains(&format!("DMT_INGOT_COMMIT          \"{commit}\"")));
+    let version = json["ingot"]["version"].as_str().unwrap();
+    assert!(h.contains(&format!("DMT_INGOT_VERSION         \"{version}\"")));
+}
+
+/// @brief Each principal's dmt_digest row in dmt_tables.c is its contract.json digests, in
+/// minor order.
+/// @version 1
+fn check_digest_rows(c: &str, json: &serde_json::Value) {
+    for p in json["principals"].as_array().unwrap() {
+        let rows: Vec<String> = p["digests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|d| c_bytes(d.as_str().unwrap()))
+            .collect();
+        assert!(
+            c.contains(&format!("{{ {} }}", rows.join(",\n      "))),
+            "{}: dmt_digest row is not its digests in minor order",
+            p["name"]
+        );
+    }
+}
+
+/// @brief The C initialiser the tables use for the bytes of a lower-case hex string.
+/// @version 1
+fn c_bytes(hex: &str) -> String {
+    let bytes: Vec<String> = (0..hex.len())
+        .step_by(2)
+        .map(|i| format!("0x{}U", &hex[i..i + 2]))
+        .collect();
+    format!("{{ {} }}", bytes.join(", "))
+}
+
+/// @brief Build `tests/fixtures/dmt/<program>.c` with the generated tables in `gen`, and run it.
+/// @version 1
+fn run_c_check(gen: &Path, program: &str) {
+    let check = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/dmt")
+        .join(format!("{program}.c"));
+    let exe = gen.join(program);
     let include = format!("-I{}", gen.display());
     let tables = gen.join("dmt_tables.c");
     let out = Command::new("cc")
@@ -98,37 +102,8 @@ fn compile_and_walk(gen: &Path) {
     );
     assert!(
         Command::new(&exe).status().unwrap().success(),
-        "table walker failed"
+        "{program} failed"
     );
-}
-
-/// @brief The parsed contract.json in `gen`.
-/// @version 1
-fn contract_json(gen: &Path) -> serde_json::Value {
-    serde_json::from_str(&fs::read_to_string(gen.join("contract.json")).unwrap()).unwrap()
-}
-
-/// @brief The contract.json entry of principal `name`.
-/// @version 1
-fn principal(gen: &Path, name: &str) -> serde_json::Value {
-    contract_json(gen)["principals"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|p| p["name"] == name)
-        .unwrap_or_else(|| panic!("principal {name}"))
-        .clone()
-}
-
-/// @brief The digests of principal `name` in a generated contract.json.
-/// @version 1
-fn digests(gen: &Path, name: &str) -> Vec<String> {
-    principal(gen, name)["digests"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|d| d.as_str().unwrap().to_string())
-        .collect()
 }
 
 #[test]
@@ -249,197 +224,6 @@ fn contract_mode_refuses_a_template_directory() {
     let _ = fs::remove_dir_all(&dir);
 }
 
-/// @brief Replace `from` with `to` in `file`, asserting `from` occurs exactly once.
-/// @version 1
-fn edit(file: &Path, from: &str, to: &str) {
-    let text = fs::read_to_string(file).unwrap();
-    assert_eq!(
-        text.matches(from).count(),
-        1,
-        "{}: '{from}' must occur once",
-        file.display()
-    );
-    fs::write(file, text.replacen(from, to, 1)).unwrap();
-}
-
-/// One refusal case: model version, file, text to replace, replacement, expected message.
-type Case = (
-    &'static str,
-    &'static str,
-    &'static str,
-    &'static str,
-    &'static str,
-);
-
-/// Edits of the generic model that each trigger one refusal.
-const CASES: &[Case] = &[
-    ("v1_0", "ns/core.toml", "key_index = 0\ntype = \"bool\"", "type = \"bool\"", "missing field `key_index`"),
-    ("v1_0", "ns/drive.toml", "unit = \"mm/s\"", "units = \"mm/s\"", "unknown field"),
-    ("v1_0", "ns/net.toml", "namespace_id = 4", "namespace_id = 3", "share namespace_id"),
-    ("v1_0", "ns/drive.toml", "key_index = 4", "key_index = 2", "encode to the same ID"),
-    ("v1_0", "ns/core.toml", "namespace_id = 1", "namespace_id = 0", "ID 0"),
-    ("v1_0", "ns/drive.toml", "id = \"enabled\"", "id = \"enabled\"\nread_only = true", "read_only and thread_safe"),
-    ("v1_0", "ns/drive.toml", "key_index = 4", "key_index = 9", "is reserved"),
-    ("v1_0", "ns/drive.toml", "write_rate = \"1/min\"\ndefault = 100", "default = 100", "needs a write_rate"),
-    ("v1_0", "ns/drive.toml", "deferred_ms = 5000", "deferred_ms = 0", "deferred_ms > 0"),
-    ("v1_0", "ns/drive.toml", "max_size = 65536\n", "", "needs max_size"),
-    ("v1_0", "ns/drive.toml", "id = \"enabled\"", "id = \"enabled\"\nalias_of = \"drive.state.nope\"", "alias_of must name"),
-    ("v1_0", "ns/drive.toml", "introduced_in = \"1.0\"\nwrite_rate = \"10/s\"", "introduced_in = \"1.1\"\nwrite_rate = \"10/s\"", "later than the contract"),
-    ("v1_0", "ns/drive.toml", "default = 100", "default = 70000", "out of range"),
-    ("v1_0", "ns/core.toml", "wk = \"SECRETS_FALLBACK\"", "", "SECRETS_FALLBACK is not mapped"),
-    ("v1_0", "ns/core.toml", "type = \"uint32\"\nintroduced_in = \"1.0\"\npersistence = \"deferred\"", "type = \"uint16\"\nintroduced_in = \"1.0\"\npersistence = \"deferred\"", "type and class role"),
-    ("v1_0", "ns/mfg.toml", "mfg = true", "mfg = false", "MFG namespace"),
-    ("v1_0", "ns/core.toml", "payload_max = 118", "payload_max = 0", "payload_max > 0"),
-    ("v1_0", "ns/core.toml", "payload_max = 118", "payload_max = 117", "payload_max >= 118"),
-    ("v1_0", "ns/core.toml", "max_size = 512", "max_size = 163", "DIAG_SUBSCRIBERS needs max_size >= 164"),
-    ("v1_0", "ns/core.toml", "max_size = 32\nintroduced_in = \"1.0\"\nwk = \"DIAG_KEYSTORE_VERSION\"", "max_size = 29\nintroduced_in = \"1.0\"\nwk = \"DIAG_KEYSTORE_VERSION\"", "DIAG_KEYSTORE_VERSION needs max_size >= 30"),
-    ("v1_0", "ns/core.toml", "max_size = 32\nintroduced_in = \"1.0\"\nwk = \"DIAG_CONTRACT_VERSION\"", "max_size = 16\nintroduced_in = \"1.0\"\nwk = \"DIAG_CONTRACT_VERSION\"", "DIAG_CONTRACT_VERSION needs max_size >= 17"),
-    ("v1_0", "contract.toml", "uid = 2003\nkind", "uid = 2001\nkind", "(kind, uid, token)"),
-    ("v1_0", "contract.toml", "heartbeat_window_ms = 2000", "heartbeat_window_ms = 0", "watchdog_required needs"),
-    ("v1_0", "contract.toml", "staging_total_bytes = 262144", "staging_total_bytes = 1000", "staging_total_bytes"),
-    ("v1_0", "contract.toml", "inproc_snapshot_bytes = 4096", "inproc_snapshot_bytes = 10", "inproc_snapshot_bytes"),
-    ("v1_0", "contract.toml", "uid = 2003\ninflight_fd", "uid = 2999\ninflight_fd", "uid_caps must list"),
-    ("v1_0", "contract.toml", "{ key = \"drive.state.speed\", access = \"rw\" },", "{ namespace = \"net\", class = \"credentials\", access = \"w\" },", "may not have rights on a secret"),
-    ("v1_0", "contract.toml", "{ key = \"net.health.iotd_hb\", access = \"rw\" },", "{ key = \"net.health.iotd_hb\", access = \"rw\" },\n  { key = \"net.credentials.wifi_psk\", access = \"r\" },", "not on the secret's reader list"),
-    ("v1_0", "contract.toml", "{ namespace = \"drive\", class = \"state\", access = \"r\" },\n]", "{ namespace = \"drive\", class = \"state\", access = \"r\" },\n  { namespace = \"drive\", class = \"map\", access = \"r\" },\n]", "may not have rights on a struct"),
-    ("v1_1", "contract.toml", "  { key = \"drive.state.velocity\", access = \"rw\" },\n", "", "different rights on the alias"),
-    ("v1_0", "contract.toml", "{ key = \"drive.state.speed\", access = \"rw\" },", "{ key = \"drive.state.speed\", access = \"rw\" },\n  { namespace = \"mfg\", access = \"w\" },", "UART principal mcu may not write"),
-    ("v1_0", "contract.toml", "{ key = \"net.health.iotd_hb\", access = \"rw\" },", "{ key = \"net.health.iotd_hb\", access = \"rw\" },\n  { key = \"net.health.integrator_hb\", access = \"w\" },", "heartbeat of integrator"),
-    ("v1_0", "contract.toml", "{ namespace = \"core\", class = \"diag\", access = \"r\" },\n]", "{ namespace = \"core\", class = \"diag\", access = \"rw\" },\n]", "written only by the core"),
-    ("v1_0", "contract.toml", "{ key = \"net.health.iotd_hb\", access = \"rw\" },", "{ key = \"net.health.iotd_hb\", access = \"rw\" },\n  { key = \"core.command.trace_enable\", access = \"w\" },", "exactly one writer"),
-    ("v1_0", "contract.toml", "{ key = \"core.command.pre_reset_result\", access = \"rw\" },", "{ key = \"core.command.pre_reset_result\", access = \"r\" },", "owner integrator needs"),
-    ("v1_0", "ns/core.toml", "owner = \"core\"\ndedupe_ring = 4\nwrite_rate = \"1/day\"\nwk = \"RESET_REQUEST\"", "owner = \"integrator\"\ndedupe_ring = 4\nwrite_rate = \"1/day\"\nwk = \"RESET_REQUEST\"", "must be answered by the core"),
-    ("v1_0", "ns/core.toml", "owner = \"integrator\"", "owner = \"core\"", "is only for RESET_REQUEST and TRACE_ENABLE"),
-    ("v1_0", "contract.toml", "{ key = \"drive.command.map_edit_result\", access = \"rw\" },", "{ key = \"drive.command.map_edit_result\", access = \"rw\" },\n  { key = \"drive.command.map_edit_dedupe\", access = \"w\" },", "no principal may write a dedupe key"),
-    ("v1_0", "contract.toml", "{ key = \"core.command.pre_reset_result\", access = \"rw\" },", "{ key = \"core.command.pre_reset_result\", access = \"rw\" },\n  { key = \"core.command.factory_reset_result\", access = \"w\" },", "answered by the core"),
-    ("v1_0", "contract.toml", "name = \"tool\"", "name = \"core\"", "is reserved"),
-    ("v1_0", "contract.toml", "{ key = \"net.health.iotd_hb\", access = \"rw\" },", "{ key = \"net.health.iotd_hb\", access = \"rw\" },\n  { key = \"drive.state.nope\", access = \"r\" },", "grant on unknown key"),
-    ("v1_0", "ns/core.toml", "wk = \"SECRETS_FALLBACK\"", "wk = \"NOPE\"", "unknown well-known role"),
-    ("v1_0", "ns/net.toml", "readers = [\"iotd.net\"]", "readers = [\"nobody\"]", "a reader is not a principal"),
-    ("v1_0", "ns/drive.toml", "enum = \"mode\"", "enum = \"nope\"", "undefined enum"),
-    ("v1_0", "ns/drive.toml", "write_rate = \"10/s\"", "write_rate = \"10/week\"", "write rate"),
-    ("v1_0", "ns/drive.toml", "unit = \"mm/s\"", "unit = \"mm/s\"\nmax_size = 4", "max_size on a scalar"),
-    ("v1_0", "ns/drive.toml", "key_index = 4", "key_index = 2000", "exceeds 1023"),
-    ("v1_0", "ns/drive.toml", "class_index = 2", "class_index = 1", "out of range or reused"),
-];
-
-#[test]
-fn every_refusal_has_a_triggering_model() {
-    let dir = unique_dir("refusals");
-    for (i, (version, file, from, to, expected)) in CASES.iter().enumerate() {
-        let case = dir.join(format!("case{i}"));
-        copy_dir(&model(version), &case);
-        edit(&case.join(file), from, to);
-        let (ok, stderr) = generate(&case.join("contract.toml"), &case.join("out"), &[]);
-        assert!(!ok, "case {i} ({expected}) must be refused");
-        assert!(
-            stderr.contains(expected),
-            "case {i}: expected '{expected}' in:\n{stderr}"
-        );
-        assert!(
-            !case.join("out/dmt_tables.c").exists(),
-            "case {i}: nothing is generated"
-        );
-    }
-    let _ = fs::remove_dir_all(&dir);
-}
-
-/// Edits of 1.1 (checked against 1.0) or 2.0 (against 1.1) that the previous-contract checks refuse.
-const PREVIOUS_CASES: &[(&str, &str, &str, &str, &str, &str)] = &[
-    (
-        "v1_1",
-        "v1_0",
-        "ns/drive.toml",
-        "persistence = \"deferred\"\ndeferred_ms = 5000",
-        "persistence = \"durable\"\ndeferred_ms = 5000",
-        "changed in a minor",
-    ),
-    (
-        "v1_1",
-        "v1_0",
-        "contract.toml",
-        "flags = [\"trace_reader\"]",
-        "flags = []",
-        "principal tool was removed or its uid",
-    ),
-    (
-        "v1_1",
-        "v1_0",
-        "contract.toml",
-        "  { namespace = \"drive\", class = \"state\", access = \"r\" },\n]",
-        "]",
-        "rights on existing keys changed",
-    ),
-    (
-        "v1_1",
-        "v1_0",
-        "ns/drive.toml",
-        "key_index = 5\ntype = \"int16\"\nintroduced_in = \"1.1\"",
-        "key_index = 5\ntype = \"int16\"\nintroduced_in = \"1.0\"",
-        "a new key must have introduced_in 1.1",
-    ),
-    (
-        "v1_1",
-        "v1_0",
-        "ns/drive.toml",
-        "eco = 1\n",
-        "",
-        "changed in a minor",
-    ),
-    (
-        "v2_0",
-        "v1_1",
-        "contract.toml",
-        "[[reserved]]\nid = 0x00C201C0",
-        "",
-        "was removed but its ID",
-    ),
-];
-
-/// @brief Assert `contract` is refused against the contract.json in `previous_out`, with a log
-/// containing `expected`.
-/// @version 1
-fn refused_against(contract: &Path, previous_out: &Path, expected: &str) {
-    let previous = previous_out.join("contract.json");
-    let out = previous_out.with_extension("out");
-    let args = ["--previous-contract", previous.to_str().unwrap()];
-    let (ok, stderr) = generate(contract, &out, &args);
-    assert!(!ok, "'{expected}' must be refused");
-    assert!(
-        stderr.contains(expected),
-        "expected '{expected}' in:\n{stderr}"
-    );
-}
-
-#[test]
-fn previous_contract_refusals() {
-    let dir = unique_dir("previous");
-    for (i, (version, prev, file, from, to, expected)) in PREVIOUS_CASES.iter().enumerate() {
-        let (case, prev_out) = (dir.join(format!("case{i}")), dir.join(format!("prev{i}")));
-        generate_ok(prev, &prev_out, &[]);
-        copy_dir(&model(version), &case);
-        edit(&case.join(file), from, to);
-        refused_against(&case.join("contract.toml"), &prev_out, expected);
-    }
-    let older = dir.join("older");
-    generate_ok("v1_1", &older, &[]);
-    refused_against(
-        &model("v1_0").join("contract.toml"),
-        &older,
-        "older than the previous",
-    );
-    let _ = fs::remove_dir_all(&dir);
-}
-
-/// @brief The rights cell of principal `name` on key `path` in a contract.json ("" for none).
-/// @version 1
-fn right(gen: &Path, name: &str, path: &str) -> String {
-    contract_json(gen)["rights"][name][path]
-        .as_str()
-        .unwrap_or("")
-        .to_string()
-}
-
 #[test]
 fn rights_are_resolved() {
     let dir = unique_dir("rights");
@@ -460,6 +244,25 @@ fn rights_are_resolved() {
 }
 
 #[test]
+fn the_last_key_grant_wins_and_none_removes() {
+    let dir = unique_dir("override");
+    let model_dir = dir.join("model");
+    copy_dir(&model("v1_0"), &model_dir);
+    edit(
+        &model_dir.join("contract.toml"),
+        "  { key = \"net.health.iotd_hb\", access = \"rw\" },\n]",
+        "  { key = \"net.health.iotd_hb\", access = \"rw\" },\n  { key = \"drive.state.odometer\", access = \"rw\" },\n  { key = \"drive.state.odometer\", access = \"none\" },\n  { key = \"drive.state.enabled\", access = \"none\" },\n  { key = \"drive.state.enabled\", access = \"rw\" },\n]",
+    );
+    let gen = dir.join("gen");
+    let (ok, stderr) = generate(&model_dir.join("contract.toml"), &gen, &[]);
+    assert!(ok, "{stderr}");
+    assert_eq!(right(&gen, "iotd", "drive.state.odometer"), "");
+    assert_eq!(right(&gen, "iotd", "drive.state.enabled"), "rw");
+    assert_eq!(right(&gen, "iotd", "drive.state.label"), "r");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn queue_bound_is_computed_from_rates_and_latency() {
     // ceil(200 * 1_127_550 writes/day * 50_000 ms / (100 * 86_400_000)) = 1306
     let dir = unique_dir("bound");
@@ -474,5 +277,341 @@ fn queue_bound_is_computed_from_rates_and_latency() {
     let (ok, stderr) = generate(&model_dir.join("contract.toml"), &out, &[]);
     assert!(ok, "{stderr}");
     assert_eq!(principal(&out, "integrator")["queue_bound"], 1306);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn contract_json_carries_every_header_and_key_field() {
+    let dir = unique_dir("json");
+    let gen = dir.join("gen");
+    generate_ok("v1_0", &gen, &[]);
+    let json = contract_json(&gen);
+    assert_eq!(json["tiv"], "1.0");
+    assert_eq!(
+        json["contract"],
+        serde_json::json!({"name": "generic", "major": 1, "minor": 0, "patch": 0})
+    );
+    assert_eq!(json["variant"], "sku_a");
+    assert_eq!(json["ingot"]["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(json["reserved"], serde_json::json!([0, 0x00C2_0480]));
+    assert_eq!(
+        key_json(&gen, "drive.state.odometer"),
+        serde_json::json!({
+        "path": "drive.state.odometer", "id": 0x00C2_0098, "type": "uint32", "introduced_in": "1.0",
+        "persist": "deferred", "deferred_ms": 5000, "rate_per_day": 86400, "rate_burst": 4,
+        "max_size": 4, "secret": false, "survives_reset": false, "mfg": false, "alias_of": null,
+        "enum": null, "command": null, "wk": null, "doc": null, "unit": null})
+    );
+    let mode = key_json(&gen, "drive.settings.mode");
+    assert_eq!(
+        mode["enum"],
+        serde_json::json!({"eco": 1, "off": 0, "sport": 2})
+    );
+    assert_eq!(key_json(&gen, "drive.settings.speed_limit")["unit"], "mm/s");
+    assert_eq!(
+        key_json(&gen, "drive.state.error_overcurrent")["doc"],
+        "Error key: set and cleared by the integrator."
+    );
+    // the state class's default interval applies to its deferred key only
+    assert_eq!(key_json(&gen, "drive.state.enabled")["deferred_ms"], 0);
+    let serial = key_json(&gen, "mfg.identity.serial");
+    assert!(serial["mfg"] == true && serial["survives_reset"] == true);
+    let reset = key_json(&gen, "core.command.factory_reset_dedupe");
+    assert_eq!(reset["command"], "core.command.factory_reset");
+    assert_eq!(
+        key_json(&gen, "core.diag.corruption")["wk"],
+        "DIAG_CORRUPTION"
+    );
+    assert_eq!(key_json(&gen, "net.credentials.wifi_psk")["secret"], true);
+    assert_eq!(
+        key_json(&gen, "core.command.trace_enable")["doc"],
+        "Signed trace-enable envelope; the core verifies it."
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn contract_json_carries_every_principal_command_and_rights_field() {
+    let dir = unique_dir("json_principals");
+    let gen = dir.join("gen");
+    generate_ok("v1_0", &gen, &[]);
+    let json = contract_json(&gen);
+    let integrator = principal(&gen, "integrator");
+    assert_eq!(
+        (integrator["uid"].clone(), integrator["token"].clone()),
+        (2001.into(), 0.into())
+    );
+    assert_eq!(
+        (integrator["kind"].clone(), integrator["flags"].clone()),
+        ("unix".into(), 1.into())
+    );
+    assert_eq!(integrator["introduced_in"], "1.0");
+    assert_eq!(
+        (
+            integrator["queue_bound"].clone(),
+            integrator["latency_budget_ms"].clone()
+        ),
+        (16.into(), 50.into())
+    );
+    assert_eq!(principal(&gen, "mcu")["kind"], "uart");
+    assert_eq!(principal(&gen, "inproc")["kind"], "inproc");
+    assert_eq!(
+        json["commands"][0],
+        serde_json::json!({
+        "path": "core.command.factory_reset", "persist": "durable", "owner": "core"})
+    );
+    assert_eq!(json["commands"][2]["persist"], "none");
+    assert_eq!(right(&gen, "iotd", "drive.settings.mode"), "rw");
+    assert_eq!(right(&gen, "iotd.net", "net.credentials.cloud_token"), "rw");
+    assert_eq!(right(&gen, "iotd.cloud", "core.command.trace_enable"), "rw");
+    assert_eq!(right(&gen, "iotd.net", "net.credentials.wifi_psk"), "rw");
+    assert_eq!(right(&gen, "mcu", "drive.settings.mode"), "r");
+    assert_eq!(
+        right(&gen, "iotd.map", "drive.command.map_edit_result"),
+        "rw"
+    );
+    assert_eq!(right(&gen, "integrator", "core.command.factory_reset"), "r");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn digests_match_the_independent_oracle() {
+    // KSET v1 computed independently (canonical bytes built with printf, hashed with coreutils
+    // sha256sum) over tool's six core.diag keys as of minor 0, then the same set plus a
+    // write-only grant on drive.settings.mode.
+    let dir = unique_dir("oracle");
+    let (gen, model_dir, wgen) = (dir.join("gen"), dir.join("model"), dir.join("wgen"));
+    generate_ok("v1_0", &gen, &[]);
+    assert_eq!(
+        digests(&gen, "tool"),
+        ["d8372d65196f5a652b4f5b832d5df47a874210de6d3f0d11170580c0f1f9f0a6"]
+    );
+    copy_dir(&model("v1_0"), &model_dir);
+    edit(
+        &model_dir.join("contract.toml"),
+        "  { namespace = \"core\", class = \"diag\", access = \"r\" },\n]\n\n# -- a peer MCU",
+        "  { namespace = \"core\", class = \"diag\", access = \"r\" },\n  { key = \"drive.settings.mode\", access = \"w\" },\n]\n\n# -- a peer MCU",
+    );
+    let (ok, stderr) = generate(&model_dir.join("contract.toml"), &wgen, &[]);
+    assert!(ok, "{stderr}");
+    assert_eq!(
+        digests(&wgen, "tool"),
+        ["49f5c6c57c3c0f9c73a642e2ba7244ba41074f6658ebaf4e3ac2715e61a9f2c7"]
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// @brief One model-hash input entry: `path 0x00 u64le(len) bytes` of `dir/rel`.
+/// @version 1
+fn hash_entry(dir: &Path, rel: &str) -> Vec<u8> {
+    let bytes = fs::read(dir.join(rel)).unwrap();
+    let mut entry = rel.as_bytes().to_vec();
+    entry.push(0);
+    entry.extend((bytes.len() as u64).to_le_bytes());
+    entry.extend(bytes);
+    entry
+}
+
+/// @brief Independent model hash: SHA-256 over `path 0x00 u64le(len) bytes` for each input in
+/// byte order of its path relative to `dir`, then `0x00 variant`.
+/// @version 1
+fn oracle_model_hash(dir: &Path, rel_paths: &[&str], variant: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut sorted = rel_paths.to_vec();
+    sorted.sort_unstable();
+    let mut input: Vec<u8> = sorted.iter().flat_map(|rel| hash_entry(dir, rel)).collect();
+    input.push(0);
+    input.extend(variant.as_bytes());
+    Sha256::digest(&input)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
+#[test]
+fn the_model_hash_covers_every_input_in_path_order() {
+    // The namespace directory sorts before contract.toml, so path order is not read order; a
+    // non-.toml file in it is not an input.
+    let dir = unique_dir("model_hash");
+    let model_dir = dir.join("model");
+    copy_dir(&model("v1_0"), &model_dir);
+    fs::rename(model_dir.join("ns"), model_dir.join("a_ns")).unwrap();
+    edit(
+        &model_dir.join("contract.toml"),
+        "namespace_dir = \"ns\"",
+        "namespace_dir = \"a_ns\"",
+    );
+    fs::write(model_dir.join("a_ns/README.md"), "not an input").unwrap();
+    let gen = dir.join("gen");
+    let (ok, stderr) = generate(
+        &model_dir.join("contract.toml"),
+        &gen,
+        &["--variant", "sku_b"],
+    );
+    assert!(ok, "{stderr}");
+    let inputs = [
+        "contract.toml",
+        "a_ns/core.toml",
+        "a_ns/drive.toml",
+        "a_ns/mfg.toml",
+        "a_ns/net.toml",
+    ];
+    assert_eq!(
+        contract_json(&gen)["model_hash"],
+        oracle_model_hash(&model_dir, &inputs, "sku_b")
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// The generic 1.0 model's factory-reset command, uid-2001 caps and in-process principal, each
+/// moved elsewhere in its file by `declaration_order_does_not_change_the_tables`.
+const FACTORY_RESET: &str = "[[classes.commands]]\nid = \"factory_reset\"\ncmd_index = 0\nresult_index = 1\ndedupe_index = 2\nintroduced_in = \"1.0\"\npersistence = \"durable\"\nowner = \"core\"\ndedupe_ring = 4\nwrite_rate = \"1/day\"\nwk = \"RESET_REQUEST\"\n\n";
+const CAPS_2001: &str =
+    "[[uid_caps]]\nuid = 2001\ninflight_fd = 4\ninflight_bytes = 1048576\nopen_fds = 16\n\n";
+const INPROC: &str = "# -- an in-process consumer (compile-time role 10) ---------------------------------------------\n[[principals]]\nname = \"inproc\"\nuid = 10\nkind = \"inproc\"\nlatency_budget_ms = 50\nresync_k = 3\nresync_t_ms = 60000\nstaging_bound_bytes = 8192\nintroduced_in = \"1.0\"\ngrants = [\n  { namespace = \"drive\", class = \"settings\", access = \"r\" },\n  { namespace = \"drive\", class = \"state\", access = \"r\" },\n]\n\n";
+
+/// @brief Remove `block` from `file` and append it at the end.
+/// @version 1
+fn move_to_end(file: &Path, block: &str) {
+    edit(file, block, "");
+    fs::write(file, fs::read_to_string(file).unwrap() + "\n" + block).unwrap();
+}
+
+#[test]
+fn declaration_order_does_not_change_the_tables() {
+    let dir = unique_dir("order");
+    let (base, model_dir, gen) = (dir.join("base"), dir.join("model"), dir.join("gen"));
+    generate_ok("v1_0", &base, &[]);
+    copy_dir(&model("v1_0"), &model_dir);
+    let (contract, core) = (
+        model_dir.join("contract.toml"),
+        model_dir.join("ns/core.toml"),
+    );
+    move_to_end(&core, FACTORY_RESET);
+    move_to_end(&contract, CAPS_2001);
+    edit(&contract, INPROC, "");
+    edit(
+        &contract,
+        "# -- integrator",
+        &format!("{INPROC}# -- integrator"),
+    );
+    let (ok, stderr) = generate(&contract, &gen, &[]);
+    assert!(ok, "{stderr}");
+    assert_eq!(
+        fs::read_to_string(base.join("dmt_tables.c")).unwrap(),
+        fs::read_to_string(gen.join("dmt_tables.c")).unwrap(),
+        "principals, commands and uid caps are sorted, not taken in declaration order"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn without_an_in_process_principal_the_in_process_budgets_are_zero() {
+    let dir = unique_dir("no_inproc");
+    let (model_dir, gen) = (dir.join("model"), dir.join("gen"));
+    copy_dir(&model("v1_0"), &model_dir);
+    edit(&model_dir.join("contract.toml"), INPROC, "");
+    let (ok, stderr) = generate(&model_dir.join("contract.toml"), &gen, &[]);
+    assert!(ok, "{stderr}");
+    let h = fs::read_to_string(gen.join("dmt_tables.h")).unwrap();
+    assert!(h.contains("#define DMT_INPROC_QUEUE_BYTES    0u"), "{h}");
+    assert!(h.contains("#define DMT_INPROC_SNAPSHOT_BYTES 0u"), "{h}");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_model_without_uid_caps_or_defaults_still_compiles() {
+    let dir = unique_dir("no_unix");
+    let gen = dir.join("gen");
+    let contract =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/contract/no_unix/contract.toml");
+    let (ok, stderr) = generate(&contract, &gen, &[]);
+    assert!(ok, "{stderr}");
+    let h = fs::read_to_string(gen.join("dmt_tables.h")).unwrap();
+    assert!(h.contains("#define DMT_NUM_UID_CAPS          0"), "{h}");
+    assert!(h.contains("#define DMT_DEFAULT_BLOB_LEN      0"), "{h}");
+    run_c_check(&gen, "check_tables");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn flags_and_scope_grants_combine_and_secrets_keep_their_readers() {
+    let dir = unique_dir("combine");
+    let (model_dir, gen) = (dir.join("model"), dir.join("gen"));
+    copy_dir(&model("v1_0"), &model_dir);
+    let contract = model_dir.join("contract.toml");
+    edit(
+        &contract,
+        "flags = [\"token_issuer\"]",
+        "flags = [\"token_issuer\", \"trace_reader\"]",
+    );
+    edit(
+        &contract,
+        "  { namespace = \"core\", class = \"diag\", access = \"r\" },\n]\n\n# -- a peer MCU",
+        "  { namespace = \"core\", class = \"diag\", access = \"r\" },\n  { namespace = \"drive\", access = \"r\" },\n  { namespace = \"drive\", class = \"settings\", access = \"w\" },\n  { namespace = \"net\", class = \"credentials\", access = \"r\" },\n]\n\n# -- a peer MCU",
+    );
+    let (ok, stderr) = generate(&contract, &gen, &[]);
+    assert!(ok, "{stderr}");
+    assert_eq!(principal(&gen, "iotd")["flags"], 0x04 | 0x02);
+    assert_eq!(right(&gen, "tool", "drive.settings.mode"), "rw");
+    assert_eq!(right(&gen, "tool", "drive.state.odometer"), "r");
+    assert_eq!(
+        right(&gen, "tool", "net.credentials.wifi_psk"),
+        "",
+        "not a reader"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn write_only_keys_count_in_neither_the_queue_bound_nor_the_snapshot() {
+    // in-process principal with read on drive.settings and drive.state except speed (write
+    // only): 3 x 1440 + 86400 writes/day readable; ceil(200 * 90720 * 50000 / 8.64e9) = 105.
+    let dir = unique_dir("write_only");
+    let (model_dir, gen) = (dir.join("model"), dir.join("gen"));
+    copy_dir(&model("v1_0"), &model_dir);
+    let contract = model_dir.join("contract.toml");
+    edit(
+        &contract,
+        "latency_budget_ms = 50\nresync_k = 3\nresync_t_ms = 60000\nstaging_bound_bytes = 8192",
+        "latency_budget_ms = 50000\nresync_k = 3\nresync_t_ms = 60000\nstaging_bound_bytes = 8192",
+    );
+    edit(
+        &contract,
+        "  { namespace = \"drive\", class = \"state\", access = \"r\" },\n]\n\n[[uid_caps]]",
+        "  { namespace = \"drive\", class = \"state\", access = \"r\" },\n  { key = \"drive.state.speed\", access = \"w\" },\n]\n\n[[uid_caps]]",
+    );
+    let (ok, stderr) = generate(&contract, &gen, &[]);
+    assert!(ok, "{stderr}");
+    assert_eq!(principal(&gen, "inproc")["queue_bound"], 105);
+    // the snapshot floor drops by speed's 2 bytes, from 47 to 45
+    edit(
+        &contract,
+        "inproc_snapshot_bytes = 4096",
+        "inproc_snapshot_bytes = 44",
+    );
+    let (ok, stderr) = generate(&contract, &dir.join("refused"), &[]);
+    assert!(
+        !ok && stderr.contains("inproc_snapshot_bytes 44 is below its lower bound 45"),
+        "{stderr}"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn c_strings_are_escaped() {
+    let dir = unique_dir("escape");
+    let (model_dir, gen) = (dir.join("model"), dir.join("gen"));
+    copy_dir(&model("v1_0"), &model_dir);
+    edit(
+        &model_dir.join("contract.toml"),
+        "name = \"generic\"",
+        "name = \"ge\\\"ne\\\\ric\"",
+    );
+    let (ok, stderr) = generate(&model_dir.join("contract.toml"), &gen, &[]);
+    assert!(ok, "{stderr}");
+    let h = fs::read_to_string(gen.join("dmt_tables.h")).unwrap();
+    assert!(h.contains("\"ge\\\"ne\\\\ric\""), "{h}");
+    run_c_check(&gen, "check_tables");
     let _ = fs::remove_dir_all(&dir);
 }

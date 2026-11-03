@@ -47,6 +47,7 @@ defaults = { sku_b = 0.75 }
 id = "state"
 class_index = 1
 role = "state"
+deferred_ms = 5000   # class default interval: odometer uses it, the other keys are not deferred
 
 [[classes.keys]]
 id = "speed"
@@ -62,7 +63,6 @@ key_index = 1
 type = "uint32"
 introduced_in = "1.0"
 persistence = "deferred"
-deferred_ms = 5000
 write_rate = "1/s"
 
 [[classes.keys]]

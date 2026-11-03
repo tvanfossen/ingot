@@ -90,13 +90,15 @@ pub fn resolve(
 
 /// The rights of principal `p` on key `k`.
 ///
-/// @version 1
+/// v2: no separate key-grant exclusion from the scope fold: a key grant has no namespace
+/// (check_grants refuses one with both), so scope_matches never matches it.
+/// @version 2
 /// @req REQ-ING-TIV-006
 /// @req REQ-ING-TIV-011
 fn cell(p: &Principal, grants: &[Grant], k: &Key, errors: &mut Errors) -> u8 {
     let mut bits = grants
         .iter()
-        .filter(|g| g.key.is_none() && scope_matches(g, &k.path))
+        .filter(|g| scope_matches(g, &k.path))
         .fold(0, |acc, g| acc | access_bits(g.access));
     if let Some(g) = grants
         .iter()
@@ -140,9 +142,12 @@ fn access_bits(access: Access) -> u8 {
     }
 }
 
-/// Refuse grants that name nothing or both a key and a scope.
+/// Refuse grants that name nothing, a class without its namespace, both a key and a scope,
+/// or a key or scope that no key has.
 ///
-/// @version 1
+/// v2: a class-only grant and a grant whose scope covers no key are refused (both matched
+/// nothing in silence); the per-grant check moved into grant_error.
+/// @version 2
 /// @req REQ-ING-TIV-002
 pub fn check_grants(
     principals: &[Principal],
@@ -151,19 +156,29 @@ pub fn check_grants(
     errors: &mut Errors,
 ) {
     for (p, list) in principals.iter().zip(grants) {
-        for g in list {
-            let scoped = g.namespace.is_some() || g.class.is_some();
-            match (&g.key, scoped) {
-                (Some(_), true) | (None, false) => errors.push(format!(
-                    "principal {}: a grant names either a key or a namespace (and class)",
-                    p.name
-                )),
-                (Some(path), false) if !keys.iter().any(|k| &k.path == path) => {
-                    errors.push(format!("principal {}: grant on unknown key {path}", p.name))
-                }
-                _ => {}
-            }
+        for why in list.iter().filter_map(|g| grant_error(g, keys)) {
+            errors.push(format!("principal {}: {why}", p.name));
         }
+    }
+}
+
+/// Why grant `g` is refused, if it is.
+///
+/// @version 1
+/// @req REQ-ING-TIV-002
+fn grant_error(g: &Grant, keys: &[Key]) -> Option<String> {
+    match (&g.key, &g.namespace, &g.class) {
+        (Some(path), None, None) => {
+            (!keys.iter().any(|k| &k.path == path)).then(|| format!("grant on unknown key {path}"))
+        }
+        (None, Some(ns), class) => (!keys.iter().any(|k| scope_matches(g, &k.path))).then(|| {
+            format!(
+                "grant on {ns}{}{} covers no key",
+                if class.is_some() { "." } else { "" },
+                class.as_deref().unwrap_or("")
+            )
+        }),
+        _ => Some("a grant names either a key or a namespace (and class)".to_string()),
     }
 }
 

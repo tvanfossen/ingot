@@ -43,16 +43,17 @@ fn encode_bool(value: &toml::Value) -> Result<Vec<u8>, String> {
         .ok_or_else(|| format!("default {value} is not a boolean"))
 }
 
-/// IEEE-754 binary32 little-endian from a finite TOML float or integer.
+/// IEEE-754 binary32 little-endian from a TOML float or integer that is finite as float32.
 ///
-/// @version 1
+/// v2: one finiteness check: a non-finite f64 is non-finite as f32 too.
+/// @version 2
 /// @req REQ-ING-TIV-004
 fn encode_float(value: &toml::Value) -> Result<Vec<u8>, String> {
     let number = value
         .as_float()
         .or_else(|| value.as_integer().map(|i| i as f64));
     match number {
-        Some(f) if f.is_finite() && (f as f32).is_finite() => Ok((f as f32).to_le_bytes().to_vec()),
+        Some(f) if (f as f32).is_finite() => Ok((f as f32).to_le_bytes().to_vec()),
         _ => Err(format!("default {value} is not a finite float32")),
     }
 }
@@ -181,6 +182,36 @@ mod tests {
     }
 
     #[test]
+    fn every_integer_type_takes_its_full_range_at_its_width() {
+        let v = |i| Value::Integer(i);
+        let cases: [(KeyType, i64, i64, usize); 6] = [
+            (KeyType::Uint8, 0, 0xFF, 1),
+            (KeyType::Int8, -0x80, 0x7F, 1),
+            (KeyType::Uint16, 0, 0xFFFF, 2),
+            (KeyType::Int16, -0x8000, 0x7FFF, 2),
+            (KeyType::Uint32, 0, 0xFFFF_FFFF, 4),
+            (KeyType::Int32, -0x8000_0000, 0x7FFF_FFFF, 4),
+        ];
+        for (ty, min, max, width) in cases {
+            let at = |n: i64| encode_default(ty, &v(n), 4, None);
+            assert_eq!(
+                at(max),
+                Ok(max.to_le_bytes()[..width].to_vec()),
+                "{ty:?} max"
+            );
+            assert_eq!(
+                at(min),
+                Ok(min.to_le_bytes()[..width].to_vec()),
+                "{ty:?} min"
+            );
+            assert!(
+                at(max + 1).is_err() && at(min - 1).is_err(),
+                "{ty:?} out of range"
+            );
+        }
+    }
+
+    #[test]
     fn buffers_encode_their_bytes() {
         let s = Value::String("ab".into());
         assert_eq!(
@@ -204,6 +235,8 @@ mod tests {
         assert!(encode_default(KeyType::Float32, &Value::Float(1e300), 4, None).is_err());
         assert!(encode_default(KeyType::Bool, &v(1), 1, None).is_err());
         assert!(encode_default(KeyType::Struct, &v(0), 8, None).is_err());
+        let wide = Value::Array(vec![Value::Integer(256)]);
+        assert!(encode_default(KeyType::Binary, &wide, 4, None).is_err());
         let enums = BTreeMap::from([("off".to_string(), 0), ("on".to_string(), 1)]);
         assert!(encode_default(KeyType::Uint8, &v(2), 1, Some(&enums)).is_err());
         assert_eq!(
@@ -218,6 +251,7 @@ mod tests {
         assert_eq!(parse_rate("2/min"), Ok(2_880));
         assert_eq!(parse_rate("3/h"), Ok(72));
         assert_eq!(parse_rate("5/day"), Ok(5));
+        assert_eq!(parse_rate(" 10 /s"), Ok(864_000), "spaces around the count");
         assert!(parse_rate("1/week").is_err());
         assert!(parse_rate("x/s").is_err());
         assert!(parse_rate("50000/s").is_err(), "4.32e9 per day exceeds u32");

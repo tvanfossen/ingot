@@ -118,13 +118,14 @@ fn new_keys_at_this_version(
     }
 }
 
-/// An existing key keeps its ID, type, version and every attribute a minor may not change.
+/// An existing key keeps its ID (which encodes its type), version and every attribute a minor
+/// may not change.
 ///
-/// @version 1
+/// v2: no separate type comparison; the type is part of the ID.
+/// @version 2
 /// @req REQ-ING-TIV-012
 fn key_unchanged(old: &KeyJson, new: &KeyJson, errors: &mut Errors) {
     let same = old.id == new.id
-        && old.ty == new.ty
         && old.introduced_in == new.introduced_in
         && old.persist == new.persist
         && old.secret == new.secret

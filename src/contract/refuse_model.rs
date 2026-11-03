@@ -28,10 +28,12 @@ pub fn check(tables: &Tables, errors: &mut Errors) {
 
 /// Namespace IDs and names unique and in range; class indices unique per namespace, in range.
 ///
-/// @version 1
+/// v2: namespace names unique too (grants name namespaces); class checks in class_indices.
+/// @version 2
 /// @req REQ-ING-TIV-010
 fn layout(tables: &Tables, errors: &mut Errors) {
     let mut ids = BTreeMap::new();
+    let mut names = BTreeSet::new();
     for ns in &tables.layout {
         if ns.id > MAX_NAMESPACE_ID {
             errors.push(format!(
@@ -45,14 +47,25 @@ fn layout(tables: &Tables, errors: &mut Errors) {
                 ns.name, ns.id
             ));
         }
-        let mut seen = BTreeSet::new();
-        for (class, index) in &ns.classes {
-            if *index > MAX_CLASS_INDEX || !seen.insert(*index) {
-                errors.push(format!(
-                    "{}.{class}: class_index {index} out of range or reused",
-                    ns.name
-                ));
-            }
+        if !names.insert(&ns.name) {
+            errors.push(format!("namespace {} is declared by two files", ns.name));
+        }
+        class_indices(ns, errors);
+    }
+}
+
+/// Class indices of one namespace unique and in range.
+///
+/// @version 1
+/// @req REQ-ING-TIV-010
+fn class_indices(ns: &super::model::NsLayout, errors: &mut Errors) {
+    let mut seen = BTreeSet::new();
+    for (class, index) in &ns.classes {
+        if *index > MAX_CLASS_INDEX || !seen.insert(*index) {
+            errors.push(format!(
+                "{}.{class}: class_index {index} out of range or reused",
+                ns.name
+            ));
         }
     }
 }

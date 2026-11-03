@@ -88,9 +88,11 @@ fn uart_writes(tables: &Tables, p: usize, errors: &mut Errors) {
     }
 }
 
-/// A heartbeat key belongs to one principal, which is its only writer (R-V4).
+/// A heartbeat key belongs to one principal, which is its only writer (R-V4). Two principals
+/// sharing a heartbeat cannot both be its only writer, so the writer check refuses that too.
 ///
-/// @version 1
+/// v2: no separate owner count: it was implied by the writer check.
+/// @version 2
 /// @req REQ-ING-TIV-011
 fn heartbeats(tables: &Tables, errors: &mut Errors) {
     for (p, principal) in tables.principals.iter().enumerate() {
@@ -101,15 +103,10 @@ fn heartbeats(tables: &Tables, errors: &mut Errors) {
         else {
             continue;
         };
-        let owners = tables
-            .principals
-            .iter()
-            .filter(|q| q.heartbeat == principal.heartbeat)
-            .count();
         let writers: Vec<usize> = (0..tables.principals.len())
             .filter(|&q| tables.writes(q, k))
             .collect();
-        if owners > 1 || writers != [p] {
+        if writers != [p] {
             errors.push(format!(
                 "{}: heartbeat of {} must be written by it alone and by no other principal",
                 tables.keys[k].path, principal.name

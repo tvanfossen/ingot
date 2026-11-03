@@ -186,7 +186,8 @@ fn commands_json(tables: &Tables) -> Vec<CommandJson> {
 
 /// One key of the snapshot.
 ///
-/// @version 1
+/// v2: deferred_ms is the effective interval (0 for non-deferred keys).
+/// @version 2
 /// @req REQ-ING-TIV-009
 fn key_json(k: &super::keys::Key) -> KeyJson {
     KeyJson {
@@ -195,7 +196,7 @@ fn key_json(k: &super::keys::Key) -> KeyJson {
         ty: k.ty.name().to_string(),
         introduced_in: k.introduced.to_string(),
         persist: persist_name(k.persist),
-        deferred_ms: k.deferred_ms,
+        deferred_ms: k.effective_deferred_ms(),
         rate_per_day: k.rate_per_day,
         rate_burst: k.rate_burst,
         max_size: k.max_size,

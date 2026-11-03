@@ -79,6 +79,19 @@ impl Key {
             _ => X_UNIX | X_INPROC | X_UART,
         }
     }
+
+    /// The key's deferred interval, 0 unless it is a deferred key (a class default interval
+    /// does not apply to the class's non-deferred keys).
+    ///
+    /// @version 1
+    /// @req REQ-ING-TIV-003
+    pub fn effective_deferred_ms(&self) -> u32 {
+        if self.persist == Persist::Deferred {
+            self.deferred_ms
+        } else {
+            0
+        }
+    }
 }
 
 /// Where a key is declared, and the inputs its resolution shares.

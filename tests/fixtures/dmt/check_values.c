@@ -1,0 +1,202 @@
+/* Pins the generated tables of examples/contract (variant sku_a) field by field, with values
+ * derived by hand from the model: every column of dmt_keys, dmt_principals, dmt_commands and
+ * dmt_uid_caps, the defaults blob, reserved IDs, well-known roles, rights cells and the header
+ * defines. Built by tests/contract_mode.rs against the 1.0, 1.1 and 2.0 outputs. */
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
+
+#include "dmt_tables.h"
+
+static int bad;
+
+#define EXPECT(cond) do { if (!(cond)) { bad++; } } while (0)
+
+/**
+ * @brief   Index of key `id` in dmt_keys, or DMT_NUM_KEYS when absent.
+ * @version 1
+ * @return  the index
+ */
+static size_t key_at(uint32_t id)
+{
+    size_t i;
+    for (i = 0u; i < DMT_NUM_KEYS && dmt_keys[i].id != id; i++) {
+    }
+    return i;
+}
+
+/**
+ * @brief   Check every column of key `id`.
+ * @version 1
+ */
+static void key(uint32_t id, uint32_t max, uint32_t rate, uint32_t burst, uint32_t deferred,
+                uint16_t flags, uint16_t minor, uint8_t type, uint8_t persist, uint8_t role,
+                uint8_t xport)
+{
+    size_t i = key_at(id);
+    EXPECT(i < DMT_NUM_KEYS);
+    if (i < DMT_NUM_KEYS) {
+        const dmt_key_t *k = &dmt_keys[i];
+        EXPECT(k->max_size == max && k->rate_per_day == rate && k->rate_burst == burst);
+        EXPECT(k->deferred_ms == deferred && k->flags == flags && k->introduced_in == minor);
+        EXPECT(k->type == type && k->persist == persist && k->role == role && k->xport == xport);
+    }
+}
+
+/**
+ * @brief   Check key `id`'s default bytes (and that it has no alias unless `alias` is set).
+ * @version 1
+ */
+static void value(uint32_t id, const void *bytes, uint32_t len, uint32_t alias)
+{
+    size_t i = key_at(id);
+    EXPECT(i < DMT_NUM_KEYS);
+    if (i < DMT_NUM_KEYS) {
+        const dmt_key_t *k = &dmt_keys[i];
+        EXPECT(k->default_len == len && k->alias_target == alias);
+        EXPECT(len == 0u || memcmp(&dmt_default_blob[k->default_off], bytes, len) == 0);
+    }
+}
+
+/**
+ * @brief   Rights bits of principal `p` on key `id`.
+ * @version 1
+ * @return  the DMT_RIGHT_* bits
+ */
+static unsigned rights(size_t p, uint32_t id)
+{
+    return DMT_RIGHTS(dmt_rights[p], key_at(id));
+}
+
+/**
+ * @brief   Check one principal row and its name.
+ * @version 1
+ */
+static void principal(size_t p, uint32_t uid, uint16_t token, uint8_t kind, uint8_t flags,
+                      uint32_t hb, uint32_t window, uint32_t latency, const char *name)
+{
+    const dmt_principal_t *q = &dmt_principals[p];
+    EXPECT(q->uid == uid && q->token == token && q->kind == kind && q->flags == flags);
+    EXPECT(q->heartbeat_key == hb && q->heartbeat_window_ms == window);
+    EXPECT(q->latency_budget_ms == latency && q->queue_bound == 16u && q->reserved0 == 0u);
+    EXPECT(name == NULL ? dmt_principal_names[p] == NULL
+                        : (dmt_principal_names[p] != NULL && strcmp(dmt_principal_names[p], name) == 0));
+}
+
+/**
+ * @brief   Check one command row.
+ * @version 1
+ */
+static void command(size_t c, const uint32_t keys[3], uint32_t payload, uint32_t result, uint16_t edits,
+                    uint16_t ring, uint16_t owner, uint8_t persist)
+{
+    const dmt_command_t *r = &dmt_commands[c];
+    EXPECT(r->cmd_key == keys[0] && r->result_key == keys[1] && r->dedupe_key == keys[2]);
+    EXPECT(r->max_payload_bytes == payload && r->max_result_bytes == result);
+    EXPECT(r->max_edits == edits && r->dedupe_ring == ring && r->owner_principal == owner);
+    EXPECT(r->persist == persist && r->reserved0 == 0u);
+}
+
+/**
+ * @brief   Values every version of the generic model shares.
+ *          v2: the enum key drive.settings.mode (KF_ENUM) and the contract patch.
+ * @version 2
+ */
+static void common(void)
+{
+    static const uint8_t mode[] = { 1 };
+    static const uint8_t serial[] = { 'u', 'n', 's', 'e', 't' };
+    EXPECT(strcmp(DMT_CONTRACT_NAME, "generic") == 0 && strcmp(DMT_VARIANT, "sku_a") == 0);
+    EXPECT(DMT_CONTRACT_PATCH == 0);
+    EXPECT(DMT_STAGING_TOTAL_BYTES == 262144u && DMT_INPROC_QUEUE_BYTES == 8192u);
+    EXPECT(DMT_INPROC_SNAPSHOT_BYTES == 4096u && DMT_NUM_UID_CAPS == 3);
+    key(0x00400000u, 1u, 0u, 0u, 0u, 0x0000u, 0u, DMT_T_BOOL, DMT_P_NONE, DMT_R_DIAG, 0x07u);
+    key(0x00400098u, 4u, 24u, 4u, 30000u, 0x0000u, 0u, DMT_T_U32, DMT_P_DEFERRED, DMT_R_DIAG, 0x07u);
+    key(0x004002C8u, 512u, 0u, 0u, 0u, 0x0000u, 0u, DMT_T_BINARY, DMT_P_NONE, DMT_R_DIAG, 0x07u);
+    key(0x00420018u, 4u, 24u, 4u, 0u, 0x0002u, 0u, DMT_T_U32, DMT_P_DURABLE, DMT_R_CONFIG, 0x07u);
+    key(0x00440048u, 8u, 1u, 4u, 0u, 0x0010u, 0u, DMT_T_BINARY, DMT_P_DURABLE, DMT_R_COMMAND, 0x07u);
+    key(0x004400C8u, 12u, 1u, 4u, 0u, 0x0020u, 0u, DMT_T_BINARY, DMT_P_DURABLE, DMT_R_COMMAND, 0x07u);
+    key(0x00440148u, 256u, 1u, 4u, 0u, 0x0040u, 0u, DMT_T_BINARY, DMT_P_DURABLE, DMT_R_COMMAND, 0x07u);
+    key(0x00440348u, 126u, 0u, 0u, 0u, 0x0010u, 0u, DMT_T_BINARY, DMT_P_NONE, DMT_R_COMMAND, 0x07u);
+    key(0x00800040u, 64u, 1u, 4u, 0u, 0x0082u, 0u, DMT_T_STRING, DMT_P_DURABLE, DMT_R_CONFIG, 0x07u);
+    key(0x00C20098u, 4u, 86400u, 4u, 5000u, 0x0000u, 0u, DMT_T_U32, DMT_P_DEFERRED, DMT_R_STATE, 0x07u);
+    key(0x00C40050u, 65536u, 0u, 0u, 0u, 0x0000u, 0u, DMT_T_STRUCT, DMT_P_NONE, DMT_R_STATE, 0x01u);
+    key(0x00C60050u, 32776u, 1440u, 4u, 0u, 0x0010u, 0u, DMT_T_STRUCT, DMT_P_DURABLE, DMT_R_COMMAND, 0x01u);
+    key(0x00C600C8u, 268u, 1440u, 4u, 0u, 0x0020u, 0u, DMT_T_BINARY, DMT_P_DURABLE, DMT_R_COMMAND, 0x07u);
+    key(0x00C60148u, 512u, 1440u, 4u, 0u, 0x0040u, 0u, DMT_T_BINARY, DMT_P_DURABLE, DMT_R_COMMAND, 0x07u);
+    key(0x01000040u, 64u, 1u, 4u, 0u, 0x0001u, 0u, DMT_T_STRING, DMT_P_DURABLE, DMT_R_CONFIG, 0x03u);
+    key(0x00C00088u, 1u, 1440u, 4u, 0u, 0x0008u, 0u, DMT_T_U8, DMT_P_DURABLE, DMT_R_SETTINGS, 0x07u);
+    value(0x008000C0u, serial, sizeof serial, 0u);
+    value(0x00C00088u, mode, sizeof mode, 0u);
+    value(0x00400098u, NULL, 0u, 0u);
+    principal(0u, 2001u, 0u, DMT_PK_UNIX, 0x01u, 0x01020018u, 2000u, 50u, "integrator");
+    principal(1u, 2002u, 0u, DMT_PK_UNIX, 0x04u, 0x01020098u, 5000u, 100u, "iotd");
+    principal(2u, 2002u, 1u, DMT_PK_UNIX, 0x00u, 0u, 0u, 100u, NULL);
+    EXPECT(dmt_principals[0].cap_inflight_fd == 4u && dmt_principals[0].cap_inflight_bytes == 1048576u);
+    EXPECT(dmt_principals[0].cap_open_fds == 16u && dmt_principals[0].cap_trace_share_pct == 25u);
+    EXPECT(dmt_principals[0].resync_k == 3u && dmt_principals[0].resync_t_ms == 60000u);
+    EXPECT(dmt_principals[0].staging_bound_bytes == 65536u && dmt_principals[0].introduced_in == 0u);
+    EXPECT(dmt_uid_caps[0].uid == 2001u && dmt_uid_caps[1].uid == 2002u && dmt_uid_caps[2].uid == 2003u);
+    EXPECT(dmt_uid_caps[1].inflight_fd == 16u && dmt_uid_caps[1].inflight_bytes == 8388608u);
+    EXPECT(dmt_uid_caps[1].open_fds == 48u);
+    static const uint32_t reset[3] = { 0x00440048u, 0x004400C8u, 0x00440148u };
+    static const uint32_t pre_reset[3] = { 0x004401C8u, 0x00440248u, 0x004402C8u };
+    static const uint32_t trace[3] = { 0x00440348u, 0x004403C8u, 0x00440448u };
+    static const uint32_t map_edit[3] = { 0x00C60050u, 0x00C600C8u, 0x00C60148u };
+    command(0u, reset, 0u, 0u, 0u, 4u, DMT_OWNER_CORE, DMT_P_DURABLE);
+    command(1u, pre_reset, 0u, 0u, 0u, 4u, 0u, DMT_P_DURABLE);
+    command(2u, trace, 118u, 0u, 0u, 4u, DMT_OWNER_CORE, DMT_P_NONE);
+    command(3u, map_edit, 32768u, 256u, 32u, 8u, 4u, DMT_P_DURABLE);
+    EXPECT(dmt_wk[DMT_WK_RESET_REQUEST] == 0x00440048u && dmt_wk[DMT_WK_TRACE_ENABLE] == 0x00440348u);
+    EXPECT(dmt_wk[DMT_WK_RESET_PRE_COMMAND] == 0x004401C8u && dmt_wk[DMT_WK_DEVICE_ID] == 0x00800040u);
+    EXPECT(dmt_wk[DMT_WK_DIAG_FSYNC_COUNT] == 0x00400218u && dmt_wk[DMT_WK_DIAG_BYTES_WRITTEN_KIB] == 0u);
+    EXPECT(rights(0u, 0x01000040u) == 0u && rights(3u, 0x01000040u) == 3u);
+    EXPECT(rights(0u, 0x01020018u) == 3u && rights(1u, 0x01020018u) == 0u);
+    EXPECT(rights(0u, 0x010000C8u) == 1u);   /* integrator reads cloud_token (reader) */
+}
+
+/**
+ * @brief   Values of one version: 1.0 has the speed key and gain; 1.1 adds velocity (speed is
+ *          its alias) and iotd.ota; 2.0 drops speed, label and gain and adds gain_pct.
+ * @version 1
+ */
+static void versioned(void)
+{
+    static const uint8_t limit[] = { 100, 0 };
+    value(0x00C00010u, limit, sizeof limit, 0u);
+#if DMT_CONTRACT_MAJOR == 1
+    static const uint8_t gain[] = { 0x00, 0x00, 0xC0, 0x3F };   /* 1.5f */
+    static const uint8_t label[] = { 'i', 'd', 'l', 'e' };
+    EXPECT(DMT_NUM_RESERVED == 2 && dmt_reserved_ids[1] == 0x00C20480u);
+    value(0x00C00138u, gain, sizeof gain, 0u);
+    value(0x00C201C0u, label, sizeof label, 0u);
+#if DMT_CONTRACT_MINOR == 0
+    EXPECT(DMT_NUM_KEYS == 34 && DMT_NUM_PRINCIPALS == 8 && DMT_DEFAULT_BLOB_LEN == 17);
+    key(0x00C20028u, 2u, 864000u, 20u, 0u, 0x0000u, 0u, DMT_T_I16, DMT_P_NONE, DMT_R_STATE, 0x07u);
+#else
+    EXPECT(DMT_NUM_KEYS == 36 && DMT_NUM_PRINCIPALS == 9);
+    key(0x00C20028u, 2u, 864000u, 20u, 0u, 0x0004u, 0u, DMT_T_I16, DMT_P_NONE, DMT_R_STATE, 0x07u);
+    value(0x00C20028u, NULL, 0u, 0x00C202A8u);
+    key(0x00C202A8u, 2u, 864000u, 20u, 0u, 0x0000u, 1u, DMT_T_I16, DMT_P_NONE, DMT_R_STATE, 0x07u);
+    EXPECT(dmt_principals[5].token == 4u && dmt_principals[5].introduced_in == 1u);
+#endif
+#else
+    static const uint8_t gain_pct[] = { 150 };
+    EXPECT(DMT_NUM_RESERVED == 5 && key_at(0x00C20028u) == DMT_NUM_KEYS);
+    key(0x00C202A8u, 2u, 864000u, 20u, 0u, 0x0000u, 0u, DMT_T_I16, DMT_P_NONE, DMT_R_STATE, 0x07u);
+    value(0x00C00208u, gain_pct, sizeof gain_pct, 0u);
+    EXPECT(dmt_principals[5].introduced_in == 0u);
+#endif
+}
+
+/**
+ * @brief   Run every check.
+ * @version 1
+ * @return  0 when every value matches.
+ */
+int main(void)
+{
+    common();
+    versioned();
+    return bad == 0 ? 0 : 1;
+}

@@ -4,7 +4,7 @@ use super::bounds::queue_bound;
 use super::digest::digests;
 use super::model::Tables;
 use super::rights::pack;
-use super::schema::{Kind, Persist};
+use super::schema::Kind;
 use super::types::OWNER_CORE_INDEX;
 use crate::codegen::{join_list, render_template};
 use std::path::Path;
@@ -39,7 +39,8 @@ fn c_string(text: Option<&str>) -> String {
 
 /// The `dmt_keys` rows and the default blob.
 ///
-/// @version 1
+/// v2: the interval comes from Key::effective_deferred_ms, shared with contract.json.
+/// @version 2
 /// @req REQ-ING-TIV-003
 /// @req REQ-ING-TIV-004
 fn key_rows(tables: &Tables) -> (Vec<String>, Vec<u8>) {
@@ -50,7 +51,7 @@ fn key_rows(tables: &Tables) -> (Vec<String>, Vec<u8>) {
         .map(|k| {
             let offset = blob.len() as u32;
             blob.extend(&k.default);
-            let deferred = if k.persist == Persist::Deferred { k.deferred_ms } else { 0 };
+            let deferred = k.effective_deferred_ms();
             let alias = tables.id_of(k.alias_of.as_deref());
             format!(
                 "{{ {}, {}u, {}u, {}u, {deferred}u, {}, {offset}u, {}u, {:#06x}u, {}u, {}u, {}u, {}u, {:#04x}u }}",

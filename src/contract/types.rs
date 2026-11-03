@@ -314,33 +314,109 @@ mod tests {
         assert_eq!(v.to_string(), "1.3");
         assert!(Version::parse("1").is_err());
         assert!(Version::parse("a.b").is_err());
+        assert!(Version::parse("1.x").is_err());
     }
+
+    /// Every key type in `DMT_T_*` order, with its scalar size and model name.
+    const TYPES: [(KeyType, Option<u32>, &str); 11] = [
+        (KeyType::Bool, Some(1), "bool"),
+        (KeyType::Uint8, Some(1), "uint8"),
+        (KeyType::Uint16, Some(2), "uint16"),
+        (KeyType::Uint32, Some(4), "uint32"),
+        (KeyType::Int8, Some(1), "int8"),
+        (KeyType::Int16, Some(2), "int16"),
+        (KeyType::Int32, Some(4), "int32"),
+        (KeyType::Float32, Some(4), "float32"),
+        (KeyType::String, None, "string"),
+        (KeyType::Binary, None, "binary"),
+        (KeyType::Struct, None, "struct"),
+    ];
 
     #[test]
     fn codes_match_dmt_types() {
-        assert_eq!(KeyType::Float32.code(), 7);
-        assert_eq!(KeyType::Struct.code(), 10);
-        assert_eq!(KeyType::Uint16.code(), 2);
-        assert_eq!(Persist::Durable.code(), 2);
-        assert_eq!(Role::Diag.code(), 4);
-        assert_eq!(Kind::Uart.code(), 2);
-        assert_eq!(PrincipalFlag::TokenIssuer.bit(), 4);
-        assert_eq!(KeyType::Float32.scalar_size(), Some(4));
-        assert_eq!(KeyType::Struct.scalar_size(), None);
+        for (code, (ty, size, name)) in TYPES.iter().enumerate() {
+            assert_eq!(usize::from(ty.code()), code, "{name}");
+            assert_eq!(ty.scalar_size(), *size, "{name}");
+            assert_eq!(ty.name(), *name);
+        }
+        let persists = [Persist::None, Persist::Deferred, Persist::Durable];
+        assert_eq!(persists.map(Persist::code), [0, 1, 2]);
+        let roles = [
+            Role::Settings,
+            Role::State,
+            Role::Command,
+            Role::Config,
+            Role::Diag,
+        ];
+        assert_eq!(roles.map(Role::code), [0, 1, 2, 3, 4]);
+        assert_eq!(
+            [Kind::Unix, Kind::Inproc, Kind::Uart].map(Kind::code),
+            [0, 1, 2]
+        );
+        let flags = [
+            PrincipalFlag::WatchdogRequired,
+            PrincipalFlag::TraceReader,
+            PrincipalFlag::TokenIssuer,
+        ];
+        assert_eq!(flags.map(PrincipalFlag::bit), [1, 2, 4]);
+    }
+
+    /// One frozen R-WK row: (name, type code or None, persistence code, survives reset, core
+    /// written, min_size, per_principal).
+    type RwkRow = (&'static str, Option<u8>, u8, bool, bool, u32, u32);
+
+    /// R-WK as frozen, row for row; the first nine are required.
+    const R_WK: [RwkRow; 26] = [
+        ("RESET_REQUEST", None, 0, false, false, 0, 0),
+        ("RESET_PRE_COMMAND", None, 0, false, false, 0, 0),
+        ("TRACE_ENABLE", None, 0, false, false, 0, 0),
+        ("SECRETS_FALLBACK", Some(0), 0, false, true, 0, 0),
+        ("BOOT_EPOCH", Some(3), 2, true, true, 0, 0),
+        ("DIAG_CORRUPTION", Some(3), 1, false, true, 0, 0),
+        ("DIAG_KEYSTORE_VERSION", Some(8), 0, false, true, 30, 0),
+        ("DIAG_CONTRACT_VERSION", Some(8), 0, false, true, 17, 0),
+        ("DEVICE_ID", Some(8), 2, true, false, 0, 0),
+        ("DIAG_BYTES_WRITTEN_KIB", Some(3), 0, false, true, 0, 0),
+        ("DIAG_RECORDS_WRITTEN", Some(3), 0, false, true, 0, 0),
+        ("DIAG_FSYNC_COUNT", Some(3), 0, false, true, 0, 0),
+        ("DIAG_FSYNC_LATENCY_US", Some(3), 0, false, true, 0, 0),
+        ("DIAG_COMPACTIONS", Some(3), 0, false, true, 0, 0),
+        ("DIAG_JOURNAL_BYTES", Some(3), 0, false, true, 0, 0),
+        ("DIAG_FLASH_LIFE", Some(1), 0, false, true, 0, 0),
+        ("DIAG_OVERFLOW_RESYNCS", Some(3), 0, false, true, 0, 0),
+        ("DIAG_HANDSHAKE_REFUSALS", Some(3), 0, false, true, 0, 0),
+        ("DIAG_RIGHTS_REJECTIONS", Some(3), 0, false, true, 0, 0),
+        ("DIAG_RATE_REJECTIONS", Some(3), 0, false, true, 0, 0),
+        ("DIAG_REPLAY_SKIPPED", Some(3), 0, false, true, 0, 0),
+        ("DIAG_TORN_TAILS", Some(3), 0, false, true, 0, 0),
+        ("DIAG_ALLOC_GAPS", Some(3), 0, false, true, 0, 0),
+        ("DIAG_CONNECTED", Some(3), 0, false, true, 0, 0),
+        ("DIAG_SUBSCRIBERS", Some(9), 0, false, true, 4, 20),
+        ("DIAG_TRACE_REFUSALS", Some(3), 0, false, true, 0, 0),
+    ];
+
+    #[test]
+    fn wk_rules_are_r_wk_row_for_row() {
+        for (i, (rule, row)) in WK_RULES.iter().zip(R_WK).enumerate() {
+            let got = (
+                rule.name,
+                rule.ty.map(KeyType::code),
+                rule.persist.code(),
+                rule.survives_reset,
+                rule.core_written,
+                rule.min_size,
+                rule.per_principal,
+            );
+            assert_eq!(got, row, "DMT_WK_ index {i}");
+            assert_eq!(rule.required, i < 9, "{}", rule.name);
+        }
     }
 
     #[test]
-    fn wk_table_matches_r_wk() {
-        assert_eq!(WK_RULES.iter().filter(|r| r.required).count(), 9);
-        assert!(WK_RULES[..9].iter().all(|r| r.required));
+    fn wk_index_finds_roles_by_name() {
+        assert_eq!(wk_index("RESET_REQUEST"), Some(0));
         assert_eq!(wk_index("DEVICE_ID"), Some(8));
         assert_eq!(wk_index("DIAG_TRACE_REFUSALS"), Some(25));
-        let epoch = WK_RULES[wk_index("BOOT_EPOCH").unwrap()];
-        assert!(epoch.survives_reset && epoch.core_written);
-        assert!(
-            !WK_RULES[8].core_written,
-            "DEVICE_ID is written by the MFG writer"
-        );
-        assert!(!WK_RULES[2].core_written, "TRACE_ENABLE is a command");
+        assert_eq!(wk_index("NO_SUCH_ROLE"), None);
     }
 }
