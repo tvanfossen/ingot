@@ -104,6 +104,10 @@ const CASES: &[Case] = &[
     ("v1_0", "ns/drive.toml", "max = 2000\n", "max = 2005\n", "range 0..2005 step 10 must lie in"),
     ("v1_0", "ns/drive.toml", "max = 2000\n", "max = 70000\n", "range 0..70000 step 10 must lie in 0..65535"),
     ("v1_0", "ns/drive.toml", "step = 10\n", "step = 0\n", "range 0..2000 step 0 must lie in"),
+    ("v1_0", "ns/drive.toml", "step = 10\n", "step = -10\n", "range 0..2000 step -10 must lie in"),
+    ("v1_0", "ns/drive.toml", "id = \"odometer\"", "id = \"odometer\"\nallowed = []", "drive.state.odometer: allowed must be a non-empty set"),
+    ("v1_0", "ns/drive.toml", "min = 0\nmax = 2000\nstep = 10\n", "unset = 100\n", "drive.settings.speed_limit: unset 100 must equal the default and lie outside"),
+    ("v1_0", "ns/drive.toml", "min = 0\nmax = 2000\nstep = 10\n", "min = 200\nmax = 2000\nstep = 10\nunset = 50\n", "drive.settings.speed_limit: unset 50 must equal the default and lie outside"),
     ("v1_0", "ns/drive.toml", "min = 0\nmax = 2000", "min = 2000\nmax = 0", "range 2000..0 step 10 must lie in"),
     ("v1_0", "ns/drive.toml", "max = 2000\n", "", "drive.settings.speed_limit: a range needs both min and max"),
     ("v1_0", "ns/drive.toml", "default = 100", "default = 105", "drive.settings.speed_limit: default 105 is outside the range or allowed set"),
@@ -537,5 +541,86 @@ fn an_unset_sentinel_default_lies_outside_the_range() {
         .unwrap()
         .clone();
     assert_eq!(limit["unset"], 100);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// Edits of a model copy: (file, from, to).
+type Edits = &'static [(&'static str, &'static str, &'static str)];
+
+/// The speed-limit range of the generic 1.1 model, and the same range raised so its default 100
+/// is an `unset` sentinel.
+const LIMIT_RANGE: &str = "min = 0\nmax = 2000\nstep = 10\n";
+const LIMIT_SENTINEL: &str = "min = 200\nmax = 2000\nstep = 10\nunset = 100\n";
+
+/// A scaled speed limit, then its scale changed.
+const SCALE_BEFORE: Edits = &[(
+    "ns/drive.toml",
+    LIMIT_RANGE,
+    "min = 0\nmax = 2000\nstep = 10\nscale = 2.0\n",
+)];
+const SCALE_AFTER: Edits = &[(
+    "ns/drive.toml",
+    LIMIT_RANGE,
+    "min = 0\nmax = 2000\nstep = 10\nscale = 4.0\n",
+)];
+/// A speed limit whose default 100 is its sentinel, then the sentinel (and default) changed.
+const SKU_B_LIMIT: (&str, &str, &str) = (
+    "ns/drive.toml",
+    "defaults = { sku_b = 80 }",
+    "defaults = { sku_b = 200 }",
+);
+const SENTINEL_BEFORE: Edits = &[("ns/drive.toml", LIMIT_RANGE, LIMIT_SENTINEL), SKU_B_LIMIT];
+const SENTINEL_AFTER: Edits = &[
+    (
+        "ns/drive.toml",
+        LIMIT_RANGE,
+        "min = 200\nmax = 2000\nstep = 10\nunset = 150\n",
+    ),
+    ("ns/drive.toml", "default = 100", "default = 150"),
+    SKU_B_LIMIT,
+];
+
+#[test]
+fn scale_and_sentinel_are_kept_in_a_minor() {
+    let dir = unique_dir("limits_kept");
+    let cases = [
+        (SCALE_BEFORE, SCALE_AFTER),
+        (SENTINEL_BEFORE, SENTINEL_AFTER),
+    ];
+    for (i, (before, after)) in cases.iter().enumerate() {
+        let (prev_model, prev, case) = (
+            dir.join(format!("pm{i}")),
+            dir.join(format!("prev{i}")),
+            dir.join(format!("m{i}")),
+        );
+        edited_copy("v1_1", &prev_model, before);
+        let (ok, stderr) = generate(&prev_model.join("contract.toml"), &prev, &[]);
+        assert!(ok, "case {i} previous: {stderr}");
+        edited_copy("v1_1", &case, after);
+        refused_against(
+            &case.join("contract.toml"),
+            &prev,
+            "unit, scale or unset changed",
+        );
+    }
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_range_without_a_step_steps_by_one() {
+    let dir = unique_dir("step_one");
+    let case = dir.join("model");
+    edited_copy("v1_0", &case, &[("ns/drive.toml", "step = 10\n", "")]);
+    let (ok, stderr) = generate(&case.join("contract.toml"), &case.join("out"), &[]);
+    assert!(ok, "{stderr}");
+    let keys = contract_json(&case.join("out"))["keys"].clone();
+    let limit = keys
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|k| k["path"] == "drive.settings.speed_limit")
+        .unwrap()
+        .clone();
+    assert_eq!(limit["range"]["step"], 1);
     let _ = fs::remove_dir_all(&dir);
 }
