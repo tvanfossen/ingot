@@ -36,7 +36,8 @@ pub struct PersistenceStorage {
 ///
 /// v2: defaults come from the shared codegen::c_default_literal; an unused KeyEncoding (and the
 /// namespace ID it needed) is no longer built.
-/// @version 2
+/// v3: C storage type, dm_val_t field and buffer flag come from DataType.
+/// @version 3
 /// @req REQ-ING-GEN-007
 pub fn collect_persistence_storage(model: &DataModel) -> Option<PersistenceStorage> {
     let mut entries = Vec::new();
@@ -61,18 +62,7 @@ pub fn collect_persistence_storage(model: &DataModel) -> Option<PersistenceStora
                 key.id.to_lowercase().replace(' ', "_")
             );
 
-            let (c_type, val_field, is_string, is_bool) = match key.data_type {
-                DataType::Bool => ("bool".to_string(), "bval".to_string(), false, true),
-                DataType::Uint8 => ("uint8_t".to_string(), "u8val".to_string(), false, false),
-                DataType::Int8 => ("int8_t".to_string(), "s8val".to_string(), false, false),
-                DataType::Uint16 => ("uint16_t".to_string(), "u16val".to_string(), false, false),
-                DataType::Int16 => ("int16_t".to_string(), "s16val".to_string(), false, false),
-                DataType::Uint32 => ("uint32_t".to_string(), "u32val".to_string(), false, false),
-                DataType::Int32 => ("int32_t".to_string(), "s32val".to_string(), false, false),
-                DataType::String => ("char".to_string(), String::new(), true, false),
-                DataType::Binary => ("uint8_t".to_string(), String::new(), true, false),
-            };
-
+            let is_string = key.data_type.is_buffer();
             let max_size = if is_string {
                 key.max_size.unwrap_or(0)
             } else {
@@ -84,12 +74,12 @@ pub fn collect_persistence_storage(model: &DataModel) -> Option<PersistenceStora
             entries.push(PersistenceEntry {
                 field_name,
                 define_name,
-                c_type,
+                c_type: key.data_type.c_storage_type().to_string(),
                 is_string,
                 max_size,
                 default_literal,
-                val_field,
-                is_bool,
+                val_field: key.data_type.val_field().to_string(),
+                is_bool: key.data_type == DataType::Bool,
             });
         }
     }

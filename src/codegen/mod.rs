@@ -584,7 +584,8 @@ struct HelperEntry {
 /// Collect helper entries for keys with helpers=true.
 ///
 /// v2: an unused KeyEncoding (and the namespace ID it needed) is no longer built.
-/// @version 2
+/// v3: C type, dm_val_t field and buffer flag come from DataType.
+/// @version 3
 /// @req REQ-ING-GEN-008
 fn collect_helpers(model: &DataModel) -> Vec<HelperEntry> {
     let mut helpers = Vec::new();
@@ -602,17 +603,8 @@ fn collect_helpers(model: &DataModel) -> Vec<HelperEntry> {
             let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");
             let helper_name = format!("{c_ns_name}_{class_name}_{key_name}");
 
-            let (raw_c_type, val_field, is_string) = match key.data_type {
-                DataType::Bool => ("bool".to_string(), "bval".to_string(), false),
-                DataType::Uint8 => ("uint8_t".to_string(), "u8val".to_string(), false),
-                DataType::Int8 => ("int8_t".to_string(), "s8val".to_string(), false),
-                DataType::Uint16 => ("uint16_t".to_string(), "u16val".to_string(), false),
-                DataType::Int16 => ("int16_t".to_string(), "s16val".to_string(), false),
-                DataType::Uint32 => ("uint32_t".to_string(), "u32val".to_string(), false),
-                DataType::Int32 => ("int32_t".to_string(), "s32val".to_string(), false),
-                DataType::String => ("const char *".to_string(), String::new(), true),
-                DataType::Binary => ("const uint8_t *".to_string(), String::new(), true),
-            };
+            let raw_c_type = key.data_type.c_value_type().to_string();
+            let is_string = key.data_type.is_buffer();
 
             let is_enum = !is_string && key.enum_ref.is_some();
             let c_type = match (&key.enum_ref, is_enum) {
@@ -624,7 +616,7 @@ fn collect_helpers(model: &DataModel) -> Vec<HelperEntry> {
                 define_name,
                 helper_name,
                 c_type,
-                val_field,
+                val_field: key.data_type.val_field().to_string(),
                 is_string,
                 is_read_only: key.read_only,
                 is_enum,
@@ -666,7 +658,8 @@ struct TestKeyEntry {
 /// Collect test entries for every key in the model.
 ///
 /// v2: defaults come from the shared c_default_literal; an unused KeyEncoding is no longer built.
-/// @version 2
+/// v3: C type, dm_val_t field and buffer flag come from DataType.
+/// @version 3
 /// @req REQ-ING-GEN-009
 fn collect_test_keys(model: &DataModel) -> Vec<TestKeyEntry> {
     let mut entries = Vec::new();
@@ -679,27 +672,15 @@ fn collect_test_keys(model: &DataModel) -> Vec<TestKeyEntry> {
             let key_name = key.id.to_uppercase().replace(' ', "_");
             let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");
 
-            let (c_type, val_field, is_string, is_bool) = match key.data_type {
-                DataType::Bool => ("bool", "bval", false, true),
-                DataType::Uint8 => ("uint8_t", "u8val", false, false),
-                DataType::Int8 => ("int8_t", "s8val", false, false),
-                DataType::Uint16 => ("uint16_t", "u16val", false, false),
-                DataType::Int16 => ("int16_t", "s16val", false, false),
-                DataType::Uint32 => ("uint32_t", "u32val", false, false),
-                DataType::Int32 => ("int32_t", "s32val", false, false),
-                DataType::String => ("const char *", "", true, false),
-                DataType::Binary => ("const uint8_t *", "", true, false),
-            };
-
             let default_c = c_default_literal(&key.default, key.data_type);
             let test_c = format_test_value(key.data_type, &default_c);
 
             entries.push(TestKeyEntry {
                 define_name,
-                c_type: c_type.to_string(),
-                val_field: val_field.to_string(),
-                is_string,
-                is_bool,
+                c_type: key.data_type.c_value_type().to_string(),
+                val_field: key.data_type.val_field().to_string(),
+                is_string: key.data_type.is_buffer(),
+                is_bool: key.data_type == DataType::Bool,
                 read_only: key.read_only,
                 default_c,
                 test_c,
@@ -713,7 +694,8 @@ fn collect_test_keys(model: &DataModel) -> Vec<TestKeyEntry> {
 /// Collect persistence test entries for persistent keys in the model.
 ///
 /// v2: defaults come from the shared c_default_literal; an unused KeyEncoding is no longer built.
-/// @version 2
+/// v3: C type, dm_val_t field and buffer flag come from DataType.
+/// @version 3
 /// @req REQ-ING-GEN-009
 fn collect_persistence_test_entries(model: &DataModel) -> Vec<PersistenceTestEntry> {
     let mut entries = Vec::new();
@@ -730,27 +712,15 @@ fn collect_persistence_test_entries(model: &DataModel) -> Vec<PersistenceTestEnt
             let key_name = key.id.to_uppercase().replace(' ', "_");
             let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");
 
-            let (c_type, val_field, is_string, is_bool) = match key.data_type {
-                DataType::Bool => ("bool", "bval", false, true),
-                DataType::Uint8 => ("uint8_t", "u8val", false, false),
-                DataType::Int8 => ("int8_t", "s8val", false, false),
-                DataType::Uint16 => ("uint16_t", "u16val", false, false),
-                DataType::Int16 => ("int16_t", "s16val", false, false),
-                DataType::Uint32 => ("uint32_t", "u32val", false, false),
-                DataType::Int32 => ("int32_t", "s32val", false, false),
-                DataType::String => ("const char *", "", true, false),
-                DataType::Binary => ("const uint8_t *", "", true, false),
-            };
-
             let default_c = c_default_literal(&key.default, key.data_type);
             let test_c = format_test_value(key.data_type, &default_c);
 
             entries.push(PersistenceTestEntry {
                 define_name,
-                c_type: c_type.to_string(),
-                val_field: val_field.to_string(),
-                is_string,
-                is_bool,
+                c_type: key.data_type.c_value_type().to_string(),
+                val_field: key.data_type.val_field().to_string(),
+                is_string: key.data_type.is_buffer(),
+                is_bool: key.data_type == DataType::Bool,
                 default_c,
                 test_c,
             });

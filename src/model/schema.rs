@@ -153,6 +153,63 @@ impl DataType {
         }
     }
 
+    /// C type of a value as the generated API passes it: the scalar type, or a const
+    /// pointer for string and binary.
+    ///
+    /// @version 1
+    /// @req REQ-ING-MOD-002
+    pub fn c_value_type(self) -> &'static str {
+        match self {
+            DataType::String => "const char *",
+            DataType::Binary => "const uint8_t *",
+            scalar => scalar.c_storage_type(),
+        }
+    }
+
+    /// C type a value is stored as: the scalar type, or the element type of the
+    /// fixed-size buffer for string (`char`) and binary (`uint8_t`).
+    ///
+    /// @version 1
+    /// @req REQ-ING-MOD-002
+    pub fn c_storage_type(self) -> &'static str {
+        match self {
+            DataType::Bool => "bool",
+            DataType::Uint8 | DataType::Binary => "uint8_t",
+            DataType::Int8 => "int8_t",
+            DataType::Uint16 => "uint16_t",
+            DataType::Int16 => "int16_t",
+            DataType::Uint32 => "uint32_t",
+            DataType::Int32 => "int32_t",
+            DataType::String => "char",
+        }
+    }
+
+    /// Field of the generated `dm_val_t` union that carries a scalar of this type;
+    /// empty for string and binary, which are passed as buffers.
+    ///
+    /// @version 1
+    /// @req REQ-ING-MOD-002
+    pub fn val_field(self) -> &'static str {
+        match self {
+            DataType::Bool => "bval",
+            DataType::Uint8 => "u8val",
+            DataType::Int8 => "s8val",
+            DataType::Uint16 => "u16val",
+            DataType::Int16 => "s16val",
+            DataType::Uint32 => "u32val",
+            DataType::Int32 => "s32val",
+            DataType::String | DataType::Binary => "",
+        }
+    }
+
+    /// Whether values of this type are byte buffers (string and binary).
+    ///
+    /// @version 1
+    /// @req REQ-ING-MOD-002
+    pub fn is_buffer(self) -> bool {
+        matches!(self, DataType::String | DataType::Binary)
+    }
+
     /// Rust type name for code generation.
     ///
     /// `String`/`Binary` have no single scalar Rust type (they're generated
@@ -270,5 +327,27 @@ mod tests {
         assert_eq!(DataType::Bool.rust_type(), "bool");
         assert_eq!(DataType::String.rust_type(), "&[u8]");
         assert_eq!(DataType::Binary.rust_type(), "&[u8]");
+    }
+
+    #[test]
+    fn data_type_c_facts() {
+        // (type, value type, storage type, dm_val_t field, buffer)
+        let table = [
+            (DataType::Bool, "bool", "bool", "bval", false),
+            (DataType::Uint8, "uint8_t", "uint8_t", "u8val", false),
+            (DataType::Int8, "int8_t", "int8_t", "s8val", false),
+            (DataType::Uint16, "uint16_t", "uint16_t", "u16val", false),
+            (DataType::Int16, "int16_t", "int16_t", "s16val", false),
+            (DataType::Uint32, "uint32_t", "uint32_t", "u32val", false),
+            (DataType::Int32, "int32_t", "int32_t", "s32val", false),
+            (DataType::String, "const char *", "char", "", true),
+            (DataType::Binary, "const uint8_t *", "uint8_t", "", true),
+        ];
+        for (t, value, storage, field, buffer) in table {
+            assert_eq!(t.c_value_type(), value, "{t:?} value type");
+            assert_eq!(t.c_storage_type(), storage, "{t:?} storage type");
+            assert_eq!(t.val_field(), field, "{t:?} dm_val_t field");
+            assert_eq!(t.is_buffer(), buffer, "{t:?} buffer");
+        }
     }
 }
