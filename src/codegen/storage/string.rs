@@ -1,7 +1,6 @@
 use super::select_g_table_type;
-use crate::codegen::join_list;
+use crate::codegen::{encoded_keys, join_list, EncodedKeys};
 use crate::hash;
-use crate::model::key::KeyEncoding;
 use crate::model::schema::{DataModel, DataType, KeyDef};
 use serde::Serialize;
 
@@ -39,38 +38,18 @@ pub struct StringEntry {
 }
 
 /// Collect string keys from the model, split into RO and RW groups.
-/// @version 1
+///
+/// v2: keys and their IDs come from the shared codegen::encoded_keys.
+/// @version 2
 /// @req REQ-ING-GEN-006
 pub fn collect_string_storage(
     model: &DataModel,
     ns_id: u16,
 ) -> Result<Option<StringStorage>, String> {
-    let mut ro_keys: Vec<(u32, &KeyDef)> = Vec::new();
-    let mut rw_keys: Vec<(u32, &KeyDef)> = Vec::new();
-
-    for (pos, class) in model.classes.iter().enumerate() {
-        let c_ns_id = class.namespace_id.unwrap_or(ns_id);
-        let c_idx = class.class_index.unwrap_or(pos as u8);
-        for (key_pos, key) in class.keys.iter().enumerate() {
-            if key.data_type == DataType::String {
-                let encoding = KeyEncoding {
-                    namespace: c_ns_id,
-                    class: c_idx,
-                    id: key.key_index.unwrap_or(key_pos as u16),
-                    data_type: key.data_type.type_code(),
-                    thread_safe: key.thread_safe,
-                    derived: false,
-                    read_only: key.read_only,
-                };
-                let encoded = encoding.encode();
-                if key.read_only {
-                    ro_keys.push((encoded, key));
-                } else {
-                    rw_keys.push((encoded, key));
-                }
-            }
-        }
-    }
+    let (ro_keys, rw_keys): (EncodedKeys, EncodedKeys) =
+        encoded_keys(model, ns_id, |k| k.data_type == DataType::String)
+            .into_iter()
+            .partition(|(_, k)| k.read_only);
 
     if ro_keys.is_empty() && rw_keys.is_empty() {
         return Ok(None);

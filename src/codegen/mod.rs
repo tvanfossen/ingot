@@ -5,7 +5,7 @@ pub mod target;
 pub mod yaml_manifest;
 
 use crate::model::key::KeyEncoding;
-use crate::model::schema::{DataModel, DataType};
+use crate::model::schema::{DataModel, DataType, KeyDef};
 use serde::Serialize;
 use std::path::Path;
 use tera::{Context, Tera};
@@ -513,8 +513,58 @@ pub(crate) fn resolve_class_idx(class: &crate::model::schema::Class, position: u
     class.class_index.unwrap_or(position as u8)
 }
 
-/// Build renderable key definitions from the model.
+/// Encoded 32-bit ID of `key`, declared at `key_pos` in a class with namespace ID `ns_id`
+/// and class index `class_idx`: its explicit key_index or its position, its type code and
+/// its thread-safe and read-only flags.
+///
 /// @version 1
+/// @req REQ-ING-KEY-001
+/// @req REQ-ING-KEY-002
+pub(crate) fn encode_key(ns_id: u16, class_idx: u8, key_pos: usize, key: &KeyDef) -> u32 {
+    KeyEncoding {
+        namespace: ns_id,
+        class: class_idx,
+        id: key.key_index.unwrap_or(key_pos as u16),
+        data_type: key.data_type.type_code(),
+        thread_safe: key.thread_safe,
+        derived: false,
+        read_only: key.read_only,
+    }
+    .encode()
+}
+
+/// Keys paired with their encoded 32-bit IDs.
+pub(crate) type EncodedKeys<'m> = Vec<(u32, &'m KeyDef)>;
+
+/// Every key of the model that `wanted` accepts, with its encoded ID, in declaration order.
+///
+/// @version 1
+/// @req REQ-ING-KEY-002
+/// @req REQ-ING-GEN-004
+/// @req REQ-ING-GEN-005
+/// @req REQ-ING-GEN-006
+pub(crate) fn encoded_keys(
+    model: &DataModel,
+    ns_id: u16,
+    wanted: impl Fn(&KeyDef) -> bool,
+) -> EncodedKeys<'_> {
+    let mut keys = Vec::new();
+    for (pos, class) in model.classes.iter().enumerate() {
+        let c_ns_id = resolve_ns_id(class, ns_id);
+        let c_idx = resolve_class_idx(class, pos);
+        for (key_pos, key) in class.keys.iter().enumerate() {
+            if wanted(key) {
+                keys.push((encode_key(c_ns_id, c_idx, key_pos, key), key));
+            }
+        }
+    }
+    keys
+}
+
+/// Build renderable key definitions from the model.
+///
+/// v2: the key ID comes from the shared encode_key.
+/// @version 2
 /// @req REQ-ING-GEN-002
 fn collect_key_definitions(model: &DataModel, ns_id: u16) -> Vec<KeyDefRenderable> {
     let mut defs = Vec::new();
@@ -525,19 +575,7 @@ fn collect_key_definitions(model: &DataModel, ns_id: u16) -> Vec<KeyDefRenderabl
         let c_idx = resolve_class_idx(class, pos);
         let class_name = class.id.to_uppercase();
         for (key_pos, key) in class.keys.iter().enumerate() {
-            let type_code = key.data_type.type_code();
-
-            let encoding = KeyEncoding {
-                namespace: c_ns_id,
-                class: c_idx,
-                id: key.key_index.unwrap_or(key_pos as u16),
-                data_type: type_code,
-                thread_safe: key.thread_safe,
-                derived: false,
-                read_only: key.read_only,
-            };
-
-            let encoded = encoding.encode();
+            let encoded = encode_key(c_ns_id, c_idx, key_pos, key);
             let key_name = key.id.to_uppercase().replace(' ', "_");
 
             defs.push(KeyDefRenderable {
@@ -820,5 +858,56 @@ mod tests {
         assert_eq!(c_default_literal(&None, DataType::Uint32), "0");
         assert_eq!(c_default_literal(&None, DataType::String), "\"\"");
         assert_eq!(c_default_literal(&None, DataType::Binary), "\"\"");
+    }
+
+    fn two_class_model() -> DataModel {
+        toml::from_str(
+            r#"
+[meta]
+id = "rig"
+version = "1.0.0"
+namespace_id = 3
+
+[[classes]]
+id = "motor"
+[[classes.keys]]
+id = "speed"
+type = "uint16"
+[[classes.keys]]
+id = "fault"
+type = "bool"
+key_index = 9
+read_only = true
+
+[[classes]]
+id = "door"
+class_index = 4
+[[classes.keys]]
+id = "open"
+type = "bool"
+thread_safe = true
+"#,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn encode_key_uses_explicit_index_or_position() {
+        let model = two_class_model();
+        let motor = &model.classes[0];
+        // 3<<22 | 0<<17 | position 0<<7 | uint16 (2)<<3
+        assert_eq!(encode_key(3, 0, 0, &motor.keys[0]), 0x00C0_0010);
+        // explicit key_index 9 wins over position 1; bool type 0; read-only bit 0
+        assert_eq!(encode_key(3, 0, 1, &motor.keys[1]), 0x00C0_0481);
+    }
+
+    #[test]
+    fn encoded_keys_filters_in_declaration_order() {
+        let model = two_class_model();
+        let bools = encoded_keys(&model, 3, |k| k.data_type == DataType::Bool);
+        let ids: Vec<u32> = bools.iter().map(|(id, _)| *id).collect();
+        // motor.fault (class 0, index 9, read-only), door.open (class_index 4, thread-safe)
+        assert_eq!(ids, vec![0x00C0_0481, 0x00C8_0004]);
+        assert_eq!(bools[1].1.id, "open");
     }
 }

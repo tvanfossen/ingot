@@ -1,7 +1,6 @@
 use super::select_g_table_type;
-use crate::codegen::join_list;
+use crate::codegen::{encoded_keys, join_list};
 use crate::hash::{self, PerfectHash};
-use crate::model::key::KeyEncoding;
 use crate::model::schema::{DataModel, DataType, KeyDef};
 use serde::Serialize;
 
@@ -27,32 +26,15 @@ pub struct BoolStorage {
 }
 
 /// Collect boolean keys from the model, generate perfect hash and pack defaults.
-/// @version 1
+///
+/// v2: keys and their IDs come from the shared codegen::encoded_keys.
+/// @version 2
 /// @req REQ-ING-GEN-004
 pub fn collect_boolean_storage(
     model: &DataModel,
     ns_id: u16,
 ) -> Result<Option<BoolStorage>, String> {
-    let mut keys_with_meta: Vec<(u32, &KeyDef)> = Vec::new();
-
-    for (pos, class) in model.classes.iter().enumerate() {
-        let c_ns_id = class.namespace_id.unwrap_or(ns_id);
-        let c_idx = class.class_index.unwrap_or(pos as u8);
-        for (key_pos, key) in class.keys.iter().enumerate() {
-            if key.data_type == DataType::Bool {
-                let encoding = KeyEncoding {
-                    namespace: c_ns_id,
-                    class: c_idx,
-                    id: key.key_index.unwrap_or(key_pos as u16),
-                    data_type: key.data_type.type_code(),
-                    thread_safe: key.thread_safe,
-                    derived: false,
-                    read_only: key.read_only,
-                };
-                keys_with_meta.push((encoding.encode(), key));
-            }
-        }
-    }
+    let keys_with_meta = encoded_keys(model, ns_id, |k| k.data_type == DataType::Bool);
 
     if keys_with_meta.is_empty() {
         return Ok(None);

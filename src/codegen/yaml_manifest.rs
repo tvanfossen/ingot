@@ -1,4 +1,4 @@
-use crate::model::key::KeyEncoding;
+use crate::codegen::{encode_key, resolve_class_idx, resolve_ns_id, resolve_ns_name};
 use crate::model::schema::{DataModel, DataType};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -48,7 +48,10 @@ struct KeyTypeEntry {
 }
 
 /// Generate the dm_full.yaml manifest for downstream tool consumption.
-/// @version 1
+///
+/// v2: namespace, class index and key ID come from the shared resolve_* helpers and
+/// encode_key instead of inline copies.
+/// @version 2
 /// @req REQ-ING-MAN-001
 pub fn generate_yaml_manifest(
     model: &DataModel,
@@ -59,30 +62,15 @@ pub fn generate_yaml_manifest(
     let mut ns_classes: BTreeMap<String, Vec<ClassEntry>> = BTreeMap::new();
 
     for (pos, class) in model.classes.iter().enumerate() {
-        let c_ns_id = class.namespace_id.unwrap_or(ns_id);
-        let c_ns_name = class
-            .namespace_name
-            .as_deref()
-            .unwrap_or(&model.meta.id)
-            .to_string();
+        let c_ns_id = resolve_ns_id(class, ns_id);
+        let c_ns_name = resolve_ns_name(class, model);
         let c_ns_upper = c_ns_name.to_uppercase();
-        let c_idx = class.class_index.unwrap_or(pos as u8);
+        let c_idx = resolve_class_idx(class, pos);
         let class_name = class.id.to_uppercase();
         let mut data = Vec::new();
 
         for (key_pos, key) in class.keys.iter().enumerate() {
-            let type_code = key.data_type.type_code();
-
-            let encoding = KeyEncoding {
-                namespace: c_ns_id,
-                class: c_idx,
-                id: key.key_index.unwrap_or(key_pos as u16),
-                data_type: type_code,
-                thread_safe: key.thread_safe,
-                derived: false,
-                read_only: key.read_only,
-            };
-            let encoded = encoding.encode();
+            let encoded = encode_key(c_ns_id, c_idx, key_pos, key);
 
             let define_name = format!(
                 "{}_{}_{}",

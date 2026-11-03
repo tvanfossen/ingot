@@ -1,10 +1,9 @@
 use crate::hash::{self, PerfectHash};
-use crate::model::key::KeyEncoding;
 use crate::model::schema::{DataModel, DataType, KeyDef};
 use serde::Serialize;
 
 use super::enums;
-use crate::codegen::{join_list, resolve_class_idx, resolve_ns_id};
+use crate::codegen::{encode_key, join_list, resolve_class_idx, resolve_ns_id, resolve_ns_name};
 
 /// One group of same-typed integer/bool keys sharing a perfect hash table.
 #[derive(Debug, Serialize)]
@@ -100,7 +99,9 @@ struct ResolvedKey<'a> {
 }
 
 /// Walk every class/key in the model, resolving names and the 32-bit encoding.
-/// @version 1
+///
+/// v2: namespace name and key ID come from the shared resolve_ns_name and encode_key.
+/// @version 2
 /// @req REQ-ING-RST-002
 fn resolve_all_keys(model: &DataModel, ns_id: u16) -> Vec<ResolvedKey<'_>> {
     let mut out = Vec::new();
@@ -108,23 +109,10 @@ fn resolve_all_keys(model: &DataModel, ns_id: u16) -> Vec<ResolvedKey<'_>> {
     for (pos, class) in model.classes.iter().enumerate() {
         let c_ns_id = resolve_ns_id(class, ns_id);
         let c_idx = resolve_class_idx(class, pos);
-        let ns_name = class
-            .namespace_name
-            .as_deref()
-            .unwrap_or(&model.meta.id)
-            .to_string();
+        let ns_name = resolve_ns_name(class, model);
 
         for (key_pos, key) in class.keys.iter().enumerate() {
-            let encoding = KeyEncoding {
-                namespace: c_ns_id,
-                class: c_idx,
-                id: key.key_index.unwrap_or(key_pos as u16),
-                data_type: key.data_type.type_code(),
-                thread_safe: key.thread_safe,
-                derived: false,
-                read_only: key.read_only,
-            };
-            let encoded = encoding.encode();
+            let encoded = encode_key(c_ns_id, c_idx, key_pos, key);
 
             let key_name = key.id.to_lowercase().replace([' ', '-'], "_");
             let ns_lower = ns_name.to_lowercase();

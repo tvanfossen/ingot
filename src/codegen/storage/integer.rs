@@ -1,5 +1,5 @@
 use super::select_g_table_type;
-use crate::codegen::join_list;
+use crate::codegen::{encoded_keys, join_list};
 use crate::hash::{self, PerfectHash};
 use crate::model::schema::{DataModel, DataType, KeyDef};
 use serde::Serialize;
@@ -96,45 +96,24 @@ const INT_TYPES: &[TypeDesc] = &[
 ];
 
 /// Collect all integer keys from the model, grouped by type, with perfect hashes.
-/// @version 1
+///
+/// v2: keys and their IDs come from the shared codegen::encoded_keys.
+/// @version 2
 /// @req REQ-ING-GEN-005
 pub fn collect_integer_storage(
     model: &DataModel,
     ns_id: u16,
 ) -> Result<Vec<IntTypeStorage>, String> {
-    use crate::model::key::KeyEncoding;
-
     let mut result = Vec::new();
 
     for desc in INT_TYPES {
-        // Collect keys of this type along with their encoded 32-bit key value and default
-        let mut keys_with_meta: Vec<(u32, &KeyDef)> = Vec::new();
-
-        for (pos, class) in model.classes.iter().enumerate() {
-            let c_ns_id = class.namespace_id.unwrap_or(ns_id);
-            let c_idx = class.class_index.unwrap_or(pos as u8);
-            for (key_pos, key) in class.keys.iter().enumerate() {
-                if key.data_type == desc.data_type {
-                    let encoding = KeyEncoding {
-                        namespace: c_ns_id,
-                        class: c_idx,
-                        id: key.key_index.unwrap_or(key_pos as u16),
-                        data_type: key.data_type.type_code(),
-                        thread_safe: key.thread_safe,
-                        derived: false,
-                        read_only: key.read_only,
-                    };
-                    keys_with_meta.push((encoding.encode(), key));
-                }
-            }
-        }
-
+        let keys_with_meta = encoded_keys(model, ns_id, |k| k.data_type == desc.data_type);
         if keys_with_meta.is_empty() {
             continue;
         }
 
-        let encoded_keys: Vec<u32> = keys_with_meta.iter().map(|(k, _)| *k).collect();
-        let ph = hash::generate_deterministic(&encoded_keys, 100)
+        let ids: Vec<u32> = keys_with_meta.iter().map(|(k, _)| *k).collect();
+        let ph = hash::generate_deterministic(&ids, 100)
             .ok_or_else(|| format!("Failed to generate perfect hash for {} keys", desc.label))?;
 
         let storage = build_int_type_storage(desc, &keys_with_meta, &ph);
