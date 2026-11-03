@@ -1,3 +1,4 @@
+use super::select_g_table_type;
 use crate::hash::{self, PerfectHash};
 use crate::model::schema::{DataModel, DataType, KeyDef};
 use serde::Serialize;
@@ -184,22 +185,6 @@ fn build_int_type_storage(
     }
 }
 
-/// Pick the smallest signed C integer type that can hold all G table values.
-/// @version 1
-/// @req REQ-ING-GEN-005
-fn select_g_table_type(g: &[i32]) -> &'static str {
-    let min = g.iter().copied().min().unwrap_or(0);
-    let max = g.iter().copied().max().unwrap_or(0);
-
-    if min >= i8::MIN as i32 && max <= i8::MAX as i32 {
-        "int8_t"
-    } else if min >= i16::MIN as i32 && max <= i16::MAX as i32 {
-        "int16_t"
-    } else {
-        "int32_t"
-    }
-}
-
 /// Join integers as a comma-separated C initialiser.
 ///
 /// @version 1
@@ -235,21 +220,6 @@ fn format_c_value(val: &toml::Value, _data_type: DataType) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn select_g_type_fits_i8() {
-        assert_eq!(select_g_table_type(&[0, 1, -1, 127, -128]), "int8_t");
-    }
-
-    #[test]
-    fn select_g_type_fits_i16() {
-        assert_eq!(select_g_table_type(&[0, 128, -129]), "int16_t");
-    }
-
-    #[test]
-    fn select_g_type_needs_i32() {
-        assert_eq!(select_g_table_type(&[0, 40000, -40000]), "int32_t");
-    }
 
     #[test]
     fn collect_from_minimal_model() {

@@ -1,3 +1,4 @@
+use super::select_g_table_type;
 use crate::hash;
 use crate::model::key::KeyEncoding;
 use crate::model::schema::{DataModel, DataType, KeyDef};
@@ -140,23 +141,6 @@ fn build_string_group(keys: &[(u32, &KeyDef)]) -> Result<StringGroup, String> {
             .join(", "),
         entries,
     })
-}
-
-/// Smallest C integer type that holds every perfect-hash G value.
-///
-/// @version 1
-/// @req REQ-ING-GEN-006
-fn select_g_table_type(g: &[i32]) -> &'static str {
-    let min = g.iter().copied().min().unwrap_or(0);
-    let max = g.iter().copied().max().unwrap_or(0);
-
-    if min >= i8::MIN as i32 && max <= i8::MAX as i32 {
-        "int8_t"
-    } else if min >= i16::MIN as i32 && max <= i16::MAX as i32 {
-        "int16_t"
-    } else {
-        "int32_t"
-    }
 }
 
 /// Escape a string for use as a C string literal (with quotes).
