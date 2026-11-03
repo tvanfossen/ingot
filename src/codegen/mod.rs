@@ -103,7 +103,9 @@ fn int_type_info(suffix: &str) -> DmIntTypeInfo {
 }
 
 /// Generate all C code from a parsed data model.
-/// @version 1
+///
+/// v2: the Unity test collectors no longer take the namespace ID they did not use.
+/// @version 2
 /// @req REQ-ING-GEN-001
 pub fn generate(
     model: &DataModel,
@@ -193,7 +195,7 @@ pub fn generate(
     let bool_storage = storage::boolean::collect_boolean_storage(model, ns_id)?;
     let int_storages = storage::integer::collect_integer_storage(model, ns_id)?;
     let str_storage = storage::string::collect_string_storage(model, ns_id)?;
-    let persist_storage = storage::persistence::collect_persistence_storage(model, ns_id);
+    let persist_storage = storage::persistence::collect_persistence_storage(model);
 
     // Generate boolean_storage.h/.c
     if let Some(ref bs) = bool_storage {
@@ -322,9 +324,9 @@ pub fn generate(
 
     // --- Generate Unity test files ---
     {
-        let test_keys = collect_test_keys(model, ns_id);
+        let test_keys = collect_test_keys(model);
         let has_persistence = persist_storage.is_some();
-        let persist_test_entries = collect_persistence_test_entries(model, ns_id);
+        let persist_test_entries = collect_persistence_test_entries(model);
         let mut ctx = Context::new();
         ctx.insert("version", version);
         ctx.insert("keys", &test_keys);
@@ -674,18 +676,18 @@ struct TestKeyEntry {
 }
 
 /// Collect test entries for every key in the model.
-/// @version 1
+///
+/// v2: defaults come from the shared c_default_literal; an unused KeyEncoding is no longer built.
+/// @version 2
 /// @req REQ-ING-GEN-009
-fn collect_test_keys(model: &DataModel, ns_id: u16) -> Vec<TestKeyEntry> {
+fn collect_test_keys(model: &DataModel) -> Vec<TestKeyEntry> {
     let mut entries = Vec::new();
 
-    for (pos, class) in model.classes.iter().enumerate() {
-        let c_ns_id = resolve_ns_id(class, ns_id);
+    for class in &model.classes {
         let c_ns_name = resolve_ns_name(class, model).to_uppercase();
-        let c_idx = resolve_class_idx(class, pos);
         let class_name = class.id.to_uppercase();
 
-        for (key_pos, key) in class.keys.iter().enumerate() {
+        for key in &class.keys {
             let key_name = key.id.to_uppercase().replace(' ', "_");
             let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");
 
@@ -701,19 +703,8 @@ fn collect_test_keys(model: &DataModel, ns_id: u16) -> Vec<TestKeyEntry> {
                 DataType::Binary => ("const uint8_t *", "", true, false),
             };
 
-            let default_c = format_test_default(&key.default, key.data_type);
+            let default_c = c_default_literal(&key.default, key.data_type);
             let test_c = format_test_value(key.data_type, &default_c);
-
-            let type_code = key.data_type.type_code();
-            let _encoding = KeyEncoding {
-                namespace: c_ns_id,
-                class: c_idx,
-                id: key.key_index.unwrap_or(key_pos as u16),
-                data_type: type_code,
-                thread_safe: key.thread_safe,
-                derived: false,
-                read_only: key.read_only,
-            };
 
             entries.push(TestKeyEntry {
                 define_name,
@@ -732,18 +723,18 @@ fn collect_test_keys(model: &DataModel, ns_id: u16) -> Vec<TestKeyEntry> {
 }
 
 /// Collect persistence test entries for persistent keys in the model.
-/// @version 1
+///
+/// v2: defaults come from the shared c_default_literal; an unused KeyEncoding is no longer built.
+/// @version 2
 /// @req REQ-ING-GEN-009
-fn collect_persistence_test_entries(model: &DataModel, ns_id: u16) -> Vec<PersistenceTestEntry> {
+fn collect_persistence_test_entries(model: &DataModel) -> Vec<PersistenceTestEntry> {
     let mut entries = Vec::new();
 
-    for (pos, class) in model.classes.iter().enumerate() {
-        let c_ns_id = resolve_ns_id(class, ns_id);
+    for class in &model.classes {
         let c_ns_name = resolve_ns_name(class, model).to_uppercase();
-        let c_idx = resolve_class_idx(class, pos);
         let class_name = class.id.to_uppercase();
 
-        for (key_pos, key) in class.keys.iter().enumerate() {
+        for key in &class.keys {
             if !key.persistent {
                 continue;
             }
@@ -763,18 +754,7 @@ fn collect_persistence_test_entries(model: &DataModel, ns_id: u16) -> Vec<Persis
                 DataType::Binary => ("const uint8_t *", "", true, false),
             };
 
-            let type_code = key.data_type.type_code();
-            let _encoding = KeyEncoding {
-                namespace: c_ns_id,
-                class: c_idx,
-                id: key.key_index.unwrap_or(key_pos as u16),
-                data_type: type_code,
-                thread_safe: key.thread_safe,
-                derived: false,
-                read_only: key.read_only,
-            };
-
-            let default_c = format_test_default(&key.default, key.data_type);
+            let default_c = c_default_literal(&key.default, key.data_type);
             let test_c = format_test_value(key.data_type, &default_c);
 
             entries.push(PersistenceTestEntry {
@@ -792,11 +772,15 @@ fn collect_persistence_test_entries(model: &DataModel, ns_id: u16) -> Vec<Persis
     entries
 }
 
-/// C literal of a key's default for the generated Unity tests.
+/// C literal of a key's default: `true`/`false`, an integer, an escaped string, or the
+/// type's zero value when the key has no default.
+///
+/// Shared by the persistence struct initialiser and the generated Unity tests.
 ///
 /// @version 1
+/// @req REQ-ING-GEN-007
 /// @req REQ-ING-GEN-009
-fn format_test_default(default: &Option<toml::Value>, data_type: DataType) -> String {
+pub(crate) fn c_default_literal(default: &Option<toml::Value>, data_type: DataType) -> String {
     match default {
         Some(toml::Value::Boolean(b)) => if *b { "true" } else { "false" }.to_string(),
         Some(toml::Value::Integer(i)) => i.to_string(),
@@ -853,5 +837,30 @@ mod tests {
     fn join_list_of_one_and_of_none() {
         assert_eq!(join_list(&[42]), "42");
         assert_eq!(join_list::<i32>(&[]), "");
+    }
+
+    #[test]
+    fn c_default_literal_of_declared_defaults() {
+        use toml::Value;
+        assert_eq!(
+            c_default_literal(&Some(Value::Boolean(true)), DataType::Bool),
+            "true"
+        );
+        assert_eq!(
+            c_default_literal(&Some(Value::Integer(-7)), DataType::Int8),
+            "-7"
+        );
+        assert_eq!(
+            c_default_literal(&Some(Value::String("a\"b".into())), DataType::String),
+            "\"a\\\"b\""
+        );
+    }
+
+    #[test]
+    fn c_default_literal_without_default_is_the_zero_value() {
+        assert_eq!(c_default_literal(&None, DataType::Bool), "false");
+        assert_eq!(c_default_literal(&None, DataType::Uint32), "0");
+        assert_eq!(c_default_literal(&None, DataType::String), "\"\"");
+        assert_eq!(c_default_literal(&None, DataType::Binary), "\"\"");
     }
 }

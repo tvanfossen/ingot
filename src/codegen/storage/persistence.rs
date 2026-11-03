@@ -1,4 +1,4 @@
-use crate::model::key::KeyEncoding;
+use crate::codegen::c_default_literal;
 use crate::model::schema::{DataModel, DataType};
 use serde::Serialize;
 
@@ -33,37 +33,25 @@ pub struct PersistenceStorage {
 /// Collect all persistent keys from the model and build template context.
 ///
 /// Returns `None` if no keys are marked persistent.
-/// @version 1
+///
+/// v2: defaults come from the shared codegen::c_default_literal; an unused KeyEncoding (and the
+/// namespace ID it needed) is no longer built.
+/// @version 2
 /// @req REQ-ING-GEN-007
-pub fn collect_persistence_storage(model: &DataModel, ns_id: u16) -> Option<PersistenceStorage> {
+pub fn collect_persistence_storage(model: &DataModel) -> Option<PersistenceStorage> {
     let mut entries = Vec::new();
 
-    for (pos, class) in model.classes.iter().enumerate() {
-        let c_ns_id = class.namespace_id.unwrap_or(ns_id);
+    for class in &model.classes {
         let c_ns_name = class
             .namespace_name
             .as_deref()
             .unwrap_or(&model.meta.id)
             .to_uppercase();
-        let c_idx = class.class_index.unwrap_or(pos as u8);
         let class_name = class.id.to_uppercase();
-        for (key_pos, key) in class.keys.iter().enumerate() {
+        for key in &class.keys {
             if !key.persistent {
                 continue;
             }
-
-            let type_code = key.data_type.type_code();
-            let encoding = KeyEncoding {
-                namespace: c_ns_id,
-                class: c_idx,
-                id: key.key_index.unwrap_or(key_pos as u16),
-                data_type: type_code,
-                thread_safe: key.thread_safe,
-                derived: false,
-                read_only: key.read_only,
-            };
-            // Validate encoding (should not fail after validation pass)
-            let _ = encoding.encode();
 
             let key_name = key.id.to_uppercase().replace(' ', "_");
             let define_name = format!("DM_KEY_{c_ns_name}_{class_name}_{key_name}");
@@ -91,7 +79,7 @@ pub fn collect_persistence_storage(model: &DataModel, ns_id: u16) -> Option<Pers
                 0
             };
 
-            let default_literal = format_default(&key.default, key.data_type);
+            let default_literal = c_default_literal(&key.default, key.data_type);
 
             entries.push(PersistenceEntry {
                 field_name,
@@ -116,22 +104,6 @@ pub fn collect_persistence_storage(model: &DataModel, ns_id: u16) -> Option<Pers
     }
 }
 
-/// Format a default value as a C literal for the persistence struct initializer.
-/// @version 1
-/// @req REQ-ING-GEN-007
-fn format_default(default: &Option<toml::Value>, data_type: DataType) -> String {
-    match default {
-        Some(toml::Value::Boolean(b)) => if *b { "true" } else { "false" }.to_string(),
-        Some(toml::Value::Integer(i)) => i.to_string(),
-        Some(toml::Value::String(s)) => format!("\"{}\"", s.replace('"', "\\\"")),
-        _ => match data_type {
-            DataType::Bool => "false".to_string(),
-            DataType::String | DataType::Binary => "\"\"".to_string(),
-            _ => "0".to_string(),
-        },
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -144,7 +116,7 @@ mod tests {
     #[test]
     fn minimal_has_one_persistent_key() {
         let model = parse_model(include_str!("../../../examples/minimal.toml"));
-        let ps = collect_persistence_storage(&model, 0).unwrap();
+        let ps = collect_persistence_storage(&model).unwrap();
         assert_eq!(ps.num_keys, 1);
         let entry = &ps.entries[0];
         assert_eq!(entry.field_name, "config_update_interval_ms");
@@ -173,7 +145,7 @@ type = "uint16"
 default = 0
 "#,
         );
-        assert!(collect_persistence_storage(&model, 0).is_none());
+        assert!(collect_persistence_storage(&model).is_none());
     }
 
     #[test]
@@ -212,7 +184,7 @@ type = "uint8"
 default = 0
 "#,
         );
-        let ps = collect_persistence_storage(&model, 0).unwrap();
+        let ps = collect_persistence_storage(&model).unwrap();
         assert_eq!(ps.num_keys, 3);
 
         assert_eq!(ps.entries[0].c_type, "bool");
@@ -231,7 +203,7 @@ default = 0
     #[test]
     fn battery_has_two_persistent_keys() {
         let model = parse_model(include_str!("../../../examples/battery.toml"));
-        let ps = collect_persistence_storage(&model, 0).unwrap();
+        let ps = collect_persistence_storage(&model).unwrap();
         assert_eq!(ps.num_keys, 2);
 
         assert_eq!(ps.entries[0].field_name, "status_soc_in_use_threshold");
@@ -262,7 +234,7 @@ default = '/sdcard/"data".bin'
 persistent = true
 "#,
         );
-        let ps = collect_persistence_storage(&model, 0).unwrap();
+        let ps = collect_persistence_storage(&model).unwrap();
         assert_eq!(ps.entries[0].default_literal, r#""/sdcard/\"data\".bin""#);
     }
 }
