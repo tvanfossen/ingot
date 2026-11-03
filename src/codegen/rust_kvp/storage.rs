@@ -3,9 +3,8 @@ use crate::model::schema::{DataModel, DataType, KeyDef};
 use serde::Serialize;
 
 use super::enums;
-use crate::codegen::{
-    encode_key, join_list, key_stem, resolve_class_idx, resolve_ns_id, resolve_ns_name,
-};
+use crate::codegen::{join_list, key_stem, resolve_ns_name};
+use crate::model::key::key_id;
 
 /// One group of same-typed integer/bool keys sharing a perfect hash table.
 #[derive(Debug, Serialize)]
@@ -104,18 +103,17 @@ struct ResolvedKey<'a> {
 ///
 /// v2: namespace name and key ID come from the shared resolve_ns_name and encode_key.
 /// v3: the key constant's name comes from the shared key_stem.
-/// @version 3
+/// v4: the key ID comes from model::key::key_id.
+/// @version 4
 /// @req REQ-ING-RST-002
 fn resolve_all_keys(model: &DataModel, ns_id: u16) -> Vec<ResolvedKey<'_>> {
     let mut out = Vec::new();
 
-    for (pos, class) in model.classes.iter().enumerate() {
-        let c_ns_id = resolve_ns_id(class, ns_id);
-        let c_idx = resolve_class_idx(class, pos);
+    for class in &model.classes {
         let ns_name = resolve_ns_name(class, model);
 
-        for (key_pos, key) in class.keys.iter().enumerate() {
-            let encoded = encode_key(c_ns_id, c_idx, key_pos, key);
+        for key in &class.keys {
+            let encoded = key_id(class, ns_id, key);
 
             let key_name = key.id.to_lowercase().replace([' ', '-'], "_");
             let ns_lower = ns_name.to_lowercase();
@@ -351,7 +349,7 @@ mod tests {
     #[test]
     fn collect_int_groups_from_minimal_model() {
         let model: DataModel =
-            toml::from_str(include_str!("../../../examples/minimal.toml")).unwrap();
+            DataModel::from_toml(include_str!("../../../examples/minimal.toml")).unwrap();
         let (groups, accessors) = collect_int_groups(&model, 0).unwrap();
 
         // uint16 (temperature), uint8 (mode), uint32 (update_interval_ms)
@@ -366,7 +364,7 @@ mod tests {
     #[test]
     fn collect_bool_group_from_minimal_model() {
         let model: DataModel =
-            toml::from_str(include_str!("../../../examples/minimal.toml")).unwrap();
+            DataModel::from_toml(include_str!("../../../examples/minimal.toml")).unwrap();
         let (group, accessors) = collect_bool_group(&model, 0).unwrap();
         let group = group.expect("should have a bool group");
         assert_eq!(group.num_keys, 1);
@@ -377,7 +375,7 @@ mod tests {
     #[test]
     fn collect_bytes_accessors_from_minimal_model() {
         let model: DataModel =
-            toml::from_str(include_str!("../../../examples/minimal.toml")).unwrap();
+            DataModel::from_toml(include_str!("../../../examples/minimal.toml")).unwrap();
         let accessors = collect_bytes_accessors(&model, 0);
         assert_eq!(accessors.len(), 1);
         assert_eq!(accessors[0].method_name, "example_config_device_name");
@@ -399,7 +397,7 @@ mod tests {
             type = "uint32"
             default = 0
         "#;
-        let model: DataModel = toml::from_str(toml_str).unwrap();
+        let model = DataModel::from_toml(toml_str).unwrap();
         let (group, accessors) = collect_bool_group(&model, 0).unwrap();
         assert!(group.is_none());
         assert!(accessors.is_empty());

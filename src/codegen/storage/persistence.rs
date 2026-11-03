@@ -94,7 +94,7 @@ mod tests {
     use crate::model::schema::DataModel;
 
     fn parse_model(toml_str: &str) -> DataModel {
-        toml::from_str(toml_str).unwrap()
+        DataModel::from_toml(toml_str).unwrap()
     }
 
     #[test]

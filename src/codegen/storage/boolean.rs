@@ -105,7 +105,7 @@ mod tests {
     #[test]
     fn collect_from_battery_model() {
         let model: DataModel =
-            toml::from_str(include_str!("../../../examples/battery.toml")).unwrap();
+            DataModel::from_toml(include_str!("../../../examples/battery.toml")).unwrap();
         let storage = collect_boolean_storage(&model, 0).unwrap();
 
         // battery.toml has 2 bool keys: is_charging, shutdown
@@ -118,7 +118,7 @@ mod tests {
     #[test]
     fn collect_from_minimal_model() {
         let model: DataModel =
-            toml::from_str(include_str!("../../../examples/minimal.toml")).unwrap();
+            DataModel::from_toml(include_str!("../../../examples/minimal.toml")).unwrap();
         let storage = collect_boolean_storage(&model, 0).unwrap();
 
         // minimal.toml has 1 bool key: is_connected (default=false)
@@ -141,7 +141,7 @@ mod tests {
             type = "uint32"
             default = 0
         "#;
-        let model: DataModel = toml::from_str(toml_str).unwrap();
+        let model = DataModel::from_toml(toml_str).unwrap();
         let storage = collect_boolean_storage(&model, 0).unwrap();
         assert!(storage.is_none());
     }
@@ -167,7 +167,7 @@ mod tests {
             type = "bool"
             default = true
         "#;
-        let model: DataModel = toml::from_str(toml_str).unwrap();
+        let model = DataModel::from_toml(toml_str).unwrap();
         let storage = collect_boolean_storage(&model, 0).unwrap().unwrap();
 
         assert_eq!(storage.num_keys, 3);

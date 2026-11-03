@@ -101,7 +101,7 @@ mod tests {
     #[test]
     fn collect_enums_for_battery_example() {
         let toml_str = include_str!("../../examples/battery.toml");
-        let model: DataModel = toml::from_str(toml_str).unwrap();
+        let model = DataModel::from_toml(toml_str).unwrap();
 
         let enums = collect_enums(&model);
         assert_eq!(enums.len(), 2);
@@ -126,7 +126,7 @@ mod tests {
     #[test]
     fn members_are_sorted_by_value() {
         let toml_str = include_str!("../../examples/battery.toml");
-        let model: DataModel = toml::from_str(toml_str).unwrap();
+        let model = DataModel::from_toml(toml_str).unwrap();
         let enums = collect_enums(&model);
 
         let level = enums

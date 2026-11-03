@@ -1,4 +1,5 @@
-use crate::codegen::{encode_key, key_stem, resolve_class_idx, resolve_ns_id, resolve_ns_name};
+use crate::codegen::{key_stem, resolve_ns_name};
+use crate::model::key::key_id;
 use crate::model::schema::{DataModel, DataType};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -52,7 +53,8 @@ struct KeyTypeEntry {
 /// v2: namespace, class index and key ID come from the shared resolve_* helpers and
 /// encode_key instead of inline copies.
 /// v3: the define name comes from the shared key_stem.
-/// @version 3
+/// v4: the key ID comes from model::key::key_id.
+/// @version 4
 /// @req REQ-ING-MAN-001
 pub fn generate_yaml_manifest(
     model: &DataModel,
@@ -62,14 +64,12 @@ pub fn generate_yaml_manifest(
     // Group classes by namespace
     let mut ns_classes: BTreeMap<String, Vec<ClassEntry>> = BTreeMap::new();
 
-    for (pos, class) in model.classes.iter().enumerate() {
-        let c_ns_id = resolve_ns_id(class, ns_id);
+    for class in &model.classes {
         let c_ns_name = resolve_ns_name(class, model);
-        let c_idx = resolve_class_idx(class, pos);
         let mut data = Vec::new();
 
-        for (key_pos, key) in class.keys.iter().enumerate() {
-            let encoded = encode_key(c_ns_id, c_idx, key_pos, key);
+        for key in &class.keys {
+            let encoded = key_id(class, ns_id, key);
             let define_name = key_stem(class, model, key);
 
             // Inline enum values: DEFINE_NAME_VALUENAME
@@ -156,7 +156,7 @@ mod tests {
     #[test]
     fn generate_manifest_for_battery() {
         let toml_str = include_str!("../../examples/battery.toml");
-        let model: DataModel = toml::from_str(toml_str).unwrap();
+        let model = DataModel::from_toml(toml_str).unwrap();
 
         let dir = tempfile::tempdir().unwrap();
         generate_yaml_manifest(&model, 0, dir.path()).unwrap();
@@ -176,7 +176,7 @@ mod tests {
     #[test]
     fn generate_manifest_for_minimal() {
         let toml_str = include_str!("../../examples/minimal.toml");
-        let model: DataModel = toml::from_str(toml_str).unwrap();
+        let model = DataModel::from_toml(toml_str).unwrap();
 
         let dir = tempfile::tempdir().unwrap();
         generate_yaml_manifest(&model, 0, dir.path()).unwrap();
@@ -194,7 +194,7 @@ mod tests {
     #[test]
     fn manifest_key_ids_are_encoded() {
         let toml_str = include_str!("../../examples/minimal.toml");
-        let model: DataModel = toml::from_str(toml_str).unwrap();
+        let model = DataModel::from_toml(toml_str).unwrap();
 
         let dir = tempfile::tempdir().unwrap();
         generate_yaml_manifest(&model, 0, dir.path()).unwrap();

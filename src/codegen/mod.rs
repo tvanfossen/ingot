@@ -6,7 +6,7 @@ pub mod target;
 pub mod templates;
 pub mod yaml_manifest;
 
-use crate::model::key::{define_stem, KeyEncoding};
+use crate::model::key::{define_stem, key_id};
 use crate::model::schema::{DataModel, DataType, KeyDef};
 use serde::Serialize;
 use std::path::Path;
@@ -486,13 +486,6 @@ fn collect_namespaces(model: &DataModel, fallback_ns_id: u16) -> Vec<NamespaceDe
         .collect()
 }
 
-/// Resolve the namespace ID for a class, using per-class override or model-level fallback.
-/// @version 1
-/// @req REQ-ING-KEY-002
-pub(crate) fn resolve_ns_id(class: &crate::model::schema::Class, fallback: u16) -> u16 {
-    class.namespace_id.unwrap_or(fallback)
-}
-
 /// Resolve the namespace name for a class, using per-class override or model-level fallback.
 /// @version 1
 /// @req REQ-ING-KEY-002
@@ -516,39 +509,13 @@ pub(crate) fn key_stem(
     define_stem(&resolve_ns_name(class, model), &class.id, &key.id)
 }
 
-/// Resolve the class index, using explicit class_index or positional fallback.
-/// @version 1
-/// @req REQ-ING-KEY-002
-pub(crate) fn resolve_class_idx(class: &crate::model::schema::Class, position: usize) -> u8 {
-    class.class_index.unwrap_or(position as u8)
-}
-
-/// Encoded 32-bit ID of `key`, declared at `key_pos` in a class with namespace ID `ns_id`
-/// and class index `class_idx`: its explicit key_index or its position, its type code and
-/// its thread-safe and read-only flags.
-///
-/// @version 1
-/// @req REQ-ING-KEY-001
-/// @req REQ-ING-KEY-002
-pub(crate) fn encode_key(ns_id: u16, class_idx: u8, key_pos: usize, key: &KeyDef) -> u32 {
-    KeyEncoding {
-        namespace: ns_id,
-        class: class_idx,
-        id: key.key_index.unwrap_or(key_pos as u16),
-        data_type: key.data_type.type_code(),
-        thread_safe: key.thread_safe,
-        derived: false,
-        read_only: key.read_only,
-    }
-    .encode()
-}
-
 /// Keys paired with their encoded 32-bit IDs.
 pub(crate) type EncodedKeys<'m> = Vec<(u32, &'m KeyDef)>;
 
 /// Every key of the model that `wanted` accepts, with its encoded ID, in declaration order.
 ///
-/// @version 1
+/// v2: IDs from the shared model::key::key_id (positions stamped at parse time).
+/// @version 2
 /// @req REQ-ING-KEY-002
 /// @req REQ-ING-GEN-004
 /// @req REQ-ING-GEN-005
@@ -559,13 +526,9 @@ pub(crate) fn encoded_keys(
     wanted: impl Fn(&KeyDef) -> bool,
 ) -> EncodedKeys<'_> {
     let mut keys = Vec::new();
-    for (pos, class) in model.classes.iter().enumerate() {
-        let c_ns_id = resolve_ns_id(class, ns_id);
-        let c_idx = resolve_class_idx(class, pos);
-        for (key_pos, key) in class.keys.iter().enumerate() {
-            if wanted(key) {
-                keys.push((encode_key(c_ns_id, c_idx, key_pos, key), key));
-            }
+    for class in &model.classes {
+        for key in class.keys.iter().filter(|k| wanted(k)) {
+            keys.push((key_id(class, ns_id, key), key));
         }
     }
     keys
@@ -575,16 +538,15 @@ pub(crate) fn encoded_keys(
 ///
 /// v2: the key ID comes from the shared encode_key.
 /// v3: the define name comes from the shared key_stem.
-/// @version 3
+/// v4: the key ID comes from model::key::key_id.
+/// @version 4
 /// @req REQ-ING-GEN-002
 fn collect_key_definitions(model: &DataModel, ns_id: u16) -> Vec<KeyDefRenderable> {
     let mut defs = Vec::new();
 
-    for (pos, class) in model.classes.iter().enumerate() {
-        let c_ns_id = resolve_ns_id(class, ns_id);
-        let c_idx = resolve_class_idx(class, pos);
-        for (key_pos, key) in class.keys.iter().enumerate() {
-            let encoded = encode_key(c_ns_id, c_idx, key_pos, key);
+    for class in &model.classes {
+        for key in &class.keys {
+            let encoded = key_id(class, ns_id, key);
 
             defs.push(KeyDefRenderable {
                 namespace: resolve_ns_name(class, model),
@@ -860,7 +822,7 @@ mod tests {
     }
 
     fn two_class_model() -> DataModel {
-        toml::from_str(
+        DataModel::from_toml(
             r#"
 [meta]
 id = "rig"
@@ -891,13 +853,17 @@ thread_safe = true
     }
 
     #[test]
-    fn encode_key_uses_explicit_index_or_position() {
-        let model = two_class_model();
+    fn key_id_uses_explicit_index_or_stamped_position() {
+        let mut model = two_class_model();
         let motor = &model.classes[0];
         // 3<<22 | 0<<17 | position 0<<7 | uint16 (2)<<3
-        assert_eq!(encode_key(3, 0, 0, &motor.keys[0]), 0x00C0_0010);
+        assert_eq!(key_id(motor, 3, &motor.keys[0]), 0x00C0_0010);
         // explicit key_index 9 wins over position 1; bool type 0; read-only bit 0
-        assert_eq!(encode_key(3, 0, 1, &motor.keys[1]), 0x00C0_0481);
+        assert_eq!(key_id(motor, 3, &motor.keys[1]), 0x00C0_0481);
+        // a merged file's class carries its own namespace ID over the model fallback
+        model.classes[1].namespace_id = Some(7);
+        let door = &model.classes[1];
+        assert_eq!(key_id(door, 3, &door.keys[0]) >> 22, 7);
     }
 
     #[test]

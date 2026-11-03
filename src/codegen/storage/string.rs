@@ -148,7 +148,7 @@ mod tests {
     #[test]
     fn collect_from_battery_model() {
         let model: DataModel =
-            toml::from_str(include_str!("../../../examples/battery.toml")).unwrap();
+            DataModel::from_toml(include_str!("../../../examples/battery.toml")).unwrap();
         let storage = collect_string_storage(&model, 0).unwrap();
 
         // battery.toml has 1 string key: version (read_only, max_size=12, default="0.0.1")
@@ -166,7 +166,7 @@ mod tests {
     #[test]
     fn collect_from_minimal_model() {
         let model: DataModel =
-            toml::from_str(include_str!("../../../examples/minimal.toml")).unwrap();
+            DataModel::from_toml(include_str!("../../../examples/minimal.toml")).unwrap();
         let storage = collect_string_storage(&model, 0).unwrap();
 
         // minimal.toml has 1 string key: device_name (not read_only, max_size=32, default="device")
@@ -194,7 +194,7 @@ mod tests {
             type = "uint32"
             default = 0
         "#;
-        let model: DataModel = toml::from_str(toml_str).unwrap();
+        let model = DataModel::from_toml(toml_str).unwrap();
         let storage = collect_string_storage(&model, 0).unwrap();
         assert!(storage.is_none());
     }
@@ -219,7 +219,7 @@ mod tests {
             max_size = 32
             default = "widget"
         "#;
-        let model: DataModel = toml::from_str(toml_str).unwrap();
+        let model = DataModel::from_toml(toml_str).unwrap();
         let storage = collect_string_storage(&model, 0).unwrap().unwrap();
         assert_eq!(storage.total_keys, 2);
         assert!(storage.ro.is_some());

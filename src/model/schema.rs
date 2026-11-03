@@ -38,6 +38,28 @@ pub struct DataModel {
     pub classes: Vec<Class>,
 }
 
+impl DataModel {
+    /// Parse one namespace file and stamp every class and key without an explicit index with
+    /// its declaration position, so encoded IDs survive key-list filtering. This is the only
+    /// place positions are assigned.
+    ///
+    /// @version 1
+    /// @req REQ-ING-KEY-002
+    pub fn from_toml(text: &str) -> Result<Self, toml::de::Error> {
+        let mut model: Self = toml::from_str(text)?;
+        for (i, class) in model.classes.iter_mut().enumerate() {
+            class.class_index.get_or_insert(i as u8);
+            for (k, key) in class.keys.iter_mut().enumerate() {
+                key.key_index.get_or_insert(k as u16);
+            }
+        }
+        Ok(model)
+    }
+}
+
+/// Message of the stamped-position invariant (DataModel::from_toml).
+pub const STAMPED: &str = "class and key positions are stamped by DataModel::from_toml";
+
 /// Model metadata.
 #[derive(Debug, Deserialize)]
 pub struct Meta {
@@ -234,6 +256,18 @@ impl DataType {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn from_toml_stamps_positions_and_keeps_explicit_indices() {
+        let model = DataModel::from_toml(
+            "[meta]\nid = \"a\"\nversion = \"1\"\n\n[[classes]]\nid = \"x\"\n[[classes.keys]]\nid = \"p\"\ntype = \"bool\"\n[[classes.keys]]\nid = \"q\"\ntype = \"bool\"\nkey_index = 7\n\n[[classes]]\nid = \"y\"\nclass_index = 5\n[[classes]]\nid = \"z\"\n",
+        )
+        .unwrap();
+        let classes: Vec<Option<u8>> = model.classes.iter().map(|c| c.class_index).collect();
+        assert_eq!(classes, [Some(0), Some(5), Some(2)]);
+        let keys: Vec<Option<u16>> = model.classes[0].keys.iter().map(|k| k.key_index).collect();
+        assert_eq!(keys, [Some(0), Some(7)]);
+    }
 
     #[test]
     fn parse_minimal_example() {

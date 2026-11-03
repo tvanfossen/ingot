@@ -165,7 +165,8 @@ fn contract_options<'a>(cli: &'a Cli, contract: &'a std::path::Path) -> contract
 /// Load, filter, validate and generate the model the command line names.
 ///
 /// v2: renders with the templates `dispatch` loaded.
-/// @version 2
+/// v3: positions are stamped when each file is parsed (DataModel::from_toml), not here.
+/// @version 3
 /// @req REQ-ING-CLI-001
 fn run(cli: &Cli, tera: &tera::Tera) -> Result<(), Box<dyn std::error::Error>> {
     if cli.include_list.is_some() && cli.exclude_list.is_some() {
@@ -173,16 +174,6 @@ fn run(cli: &Cli, tera: &tera::Tera) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut data_model = load_models(&cli.model)?;
-
-    // Stamp original key positions before filtering so encoded IDs survive
-    // include/exclude list pruning (matching gen_udm_code behaviour).
-    for class in &mut data_model.classes {
-        for (i, key) in class.keys.iter_mut().enumerate() {
-            if key.key_index.is_none() {
-                key.key_index = Some(i as u16);
-            }
-        }
-    }
 
     // Apply key filtering lists
     if let Some(ref path) = cli.include_list {
@@ -401,7 +392,8 @@ fn expand_to_toml_files(paths: &[PathBuf]) -> Result<Vec<PathBuf>, Box<dyn std::
 /// Validate several namespace files and merge them into one model, keeping each class's namespace.
 ///
 /// v2: the merged meta no longer sets the removed, never-read `doc` field.
-/// @version 2
+/// v3: each file is parsed (and its positions stamped) by DataModel::from_toml.
+/// @version 3
 /// @req REQ-ING-CLI-003
 fn merge_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::error::Error>> {
     let mut merged_classes = Vec::new();
@@ -409,8 +401,8 @@ fn merge_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::erro
 
     for path in paths {
         let model_str = std::fs::read_to_string(path)?;
-        let file_model: model::DataModel =
-            toml::from_str(&model_str).map_err(|e| format!("{}: {e}", path.display()))?;
+        let file_model = model::DataModel::from_toml(&model_str)
+            .map_err(|e| format!("{}: {e}", path.display()))?;
 
         log::info!(
             "  {} — namespace '{}' (id={:?}), {} class(es), {} enum(s)",
@@ -431,12 +423,9 @@ fn merge_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::erro
         let ns_name = file_model.meta.id.clone();
         let ns_id = file_model.meta.namespace_id;
 
-        for (i, mut class) in file_model.classes.into_iter().enumerate() {
+        for mut class in file_model.classes {
             class.namespace_name = Some(ns_name.clone());
             class.namespace_id = ns_id;
-            if class.class_index.is_none() {
-                class.class_index = Some(i as u8);
-            }
             for key in &mut class.keys {
                 if let Some(ref enum_name) = key.enum_ref {
                     key.enum_ref = Some(format!("{}::{}", ns_name, enum_name));
@@ -465,7 +454,8 @@ fn merge_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::erro
 ///
 /// A single file is loaded directly. Multiple paths or directories are
 /// merged into one DataModel with per-class namespace info preserved.
-/// @version 1
+/// v2: parsed (and positions stamped) by DataModel::from_toml.
+/// @version 2
 /// @req REQ-ING-CLI-003
 fn load_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::error::Error>> {
     let toml_files = expand_to_toml_files(paths)?;
@@ -473,8 +463,8 @@ fn load_models(paths: &[PathBuf]) -> Result<model::DataModel, Box<dyn std::error
     if toml_files.len() == 1 {
         let path = &toml_files[0];
         let model_str = std::fs::read_to_string(path)?;
-        let m: model::DataModel =
-            toml::from_str(&model_str).map_err(|e| format!("{}: {e}", path.display()))?;
+        let m = model::DataModel::from_toml(&model_str)
+            .map_err(|e| format!("{}: {e}", path.display()))?;
         log::info!("Parsed namespace '{}' v{}", m.meta.id, m.meta.version);
         return Ok(m);
     }

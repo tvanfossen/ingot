@@ -182,7 +182,7 @@ mod tests {
     #[test]
     fn collect_rust_enums_for_battery_example() {
         let model: DataModel =
-            toml::from_str(include_str!("../../../examples/battery.toml")).unwrap();
+            DataModel::from_toml(include_str!("../../../examples/battery.toml")).unwrap();
         let enums = collect_rust_enums(&model);
         assert_eq!(enums.len(), 2);
 
@@ -200,7 +200,7 @@ mod tests {
     #[test]
     fn resolve_enum_ref_matches_collect_rust_enums() {
         let model: DataModel =
-            toml::from_str(include_str!("../../../examples/battery.toml")).unwrap();
+            DataModel::from_toml(include_str!("../../../examples/battery.toml")).unwrap();
         let (type_name, repr) = resolve_enum_ref(&model, "level").unwrap();
         assert_eq!(type_name, "BatteryLevel");
         assert_eq!(repr, "u8");
@@ -209,7 +209,7 @@ mod tests {
     #[test]
     fn resolve_enum_ref_unknown_returns_none() {
         let model: DataModel =
-            toml::from_str(include_str!("../../../examples/battery.toml")).unwrap();
+            DataModel::from_toml(include_str!("../../../examples/battery.toml")).unwrap();
         assert!(resolve_enum_ref(&model, "nonexistent").is_none());
     }
 }

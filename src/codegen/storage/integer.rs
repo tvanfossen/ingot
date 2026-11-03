@@ -193,7 +193,7 @@ mod tests {
     #[test]
     fn collect_from_minimal_model() {
         let model: DataModel =
-            toml::from_str(include_str!("../../../examples/minimal.toml")).unwrap();
+            DataModel::from_toml(include_str!("../../../examples/minimal.toml")).unwrap();
         let storages = collect_integer_storage(&model, 0).unwrap();
 
         // minimal.toml has: temperature(uint16), mode(uint8), update_interval_ms(uint32)

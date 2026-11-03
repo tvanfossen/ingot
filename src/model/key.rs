@@ -1,3 +1,5 @@
+use super::schema::{Class, KeyDef, STAMPED};
+
 /// 32-bit key encoding for the data model.
 ///
 /// Bit layout:
@@ -39,6 +41,26 @@ impl KeyEncoding {
         }
         val
     }
+}
+
+/// Encoded 32-bit ID of `key` in `class`: the class's namespace ID (or `fallback_ns` for a
+/// single-file model), its class index, the key's index, type code and thread-safe and
+/// read-only flags. Indices are the explicit ones or the positions DataModel::from_toml stamped.
+///
+/// @version 1
+/// @req REQ-ING-KEY-001
+/// @req REQ-ING-KEY-002
+pub fn key_id(class: &Class, fallback_ns: u16, key: &KeyDef) -> u32 {
+    KeyEncoding {
+        namespace: class.namespace_id.unwrap_or(fallback_ns),
+        class: class.class_index.expect(STAMPED),
+        id: key.key_index.expect(STAMPED),
+        data_type: key.data_type.type_code(),
+        thread_safe: key.thread_safe,
+        derived: false,
+        read_only: key.read_only,
+    }
+    .encode()
 }
 
 /// `<NAMESPACE>_<CLASS>_<KEY>`, upper-case with spaces as underscores: the stem of a key's
