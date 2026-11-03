@@ -330,12 +330,41 @@ pub fn generate(
     Ok(())
 }
 
-/// Render the C++/tinyfsm event header + dispatch-by-key wrapper.
+/// Templates rendered from the flat list of event keys, each written under its own name.
+///
+/// They share one context, so every file lists exactly the same keys in the same order.
+const EVENT_KEY_TEMPLATES: [&str; 3] = [
+    "dm_key_events_wrapper.hpp",
+    "dm_key_events_wrapper.cpp",
+    "dm_key_has_event.hpp",
+];
+
+/// Render the template `name` and write the result to `output_dir/name`.
+///
+/// @version 1
+/// @req REQ-ING-GEN-001
+fn render_template(
+    tera: &Tera,
+    name: &str,
+    ctx: &Context,
+    output_dir: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let rendered = tera.render(name, ctx)?;
+    write_generated(output_dir.join(name), rendered)?;
+    Ok(())
+}
+
+/// Render the C++/tinyfsm event header, the dispatch-by-key wrapper and the
+/// has-event predicate.
 ///
 /// Emits nothing when no key carries `event = true` — a consumer with no
 /// event keys gets no C++ artifacts even with the flag on.
-/// @version 1
+///
+/// v2: renders through render_template over EVENT_KEY_TEMPLATES and adds the has-event
+/// predicate, which shares the dispatch switch's context.
+/// @version 2
 /// @req REQ-ING-EVT-001
+/// @req REQ-ING-EVT-002
 fn generate_tinyfsm_events(
     tera: &Tera,
     version: &str,
@@ -351,19 +380,18 @@ fn generate_tinyfsm_events(
     let mut hpp_ctx = Context::new();
     hpp_ctx.insert("version", version);
     hpp_ctx.insert("groups", &groups);
-    let hpp = tera.render("dm_key_events.hpp", &hpp_ctx)?;
-    write_generated(output_dir.join("dm_key_events.hpp"), hpp)?;
+    render_template(tera, "dm_key_events.hpp", &hpp_ctx, output_dir)?;
 
-    let mut wrap_ctx = Context::new();
-    wrap_ctx.insert("version", version);
-    wrap_ctx.insert("events", &events);
-    let wrapper_h = tera.render("dm_key_events_wrapper.hpp", &wrap_ctx)?;
-    let wrapper_c = tera.render("dm_key_events_wrapper.cpp", &wrap_ctx)?;
-    write_generated(output_dir.join("dm_key_events_wrapper.hpp"), wrapper_h)?;
-    write_generated(output_dir.join("dm_key_events_wrapper.cpp"), wrapper_c)?;
+    let mut events_ctx = Context::new();
+    events_ctx.insert("version", version);
+    events_ctx.insert("events", &events);
+    for name in EVENT_KEY_TEMPLATES {
+        render_template(tera, name, &events_ctx, output_dir)?;
+    }
 
     log::info!(
-        "Generated dm_key_events.hpp + dm_key_events_wrapper.hpp/.cpp ({} event keys)",
+        "Generated dm_key_events.hpp + {} ({} event keys)",
+        EVENT_KEY_TEMPLATES.join(" + "),
         events.len()
     );
     Ok(())

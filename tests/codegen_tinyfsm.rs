@@ -88,6 +88,7 @@ fn without_flag_no_cxx_artifacts_are_emitted() {
         "dm_key_events.hpp",
         "dm_key_events_wrapper.hpp",
         "dm_key_events_wrapper.cpp",
+        "dm_key_has_event.hpp",
     ] {
         assert!(
             !out.join(f).exists(),
@@ -130,6 +131,10 @@ fn emit_tinyfsm_with_no_event_keys_emits_nothing() {
         "a model with zero event keys must emit no event header even with the flag on"
     );
     assert!(!out.join("dm_key_events_wrapper.cpp").exists());
+    assert!(
+        !out.join("dm_key_has_event.hpp").exists(),
+        "a model with zero event keys must emit no has-event predicate"
+    );
 
     let _ = fs::remove_dir_all(&dir);
 }

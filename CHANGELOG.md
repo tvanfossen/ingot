@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `BatteryLevel`), reused across every key that references it. Keys with
   `enum = "..."` get enum-typed accessor methods (`from_raw`/`to_raw`
   convert to/from the underlying storage type) instead of the raw integer.
+- `--emit-tinyfsm`: `dm_key_has_event.hpp` declares `dm_key_has_event(key)`,
+  true for exactly the keys that have an `FSM_EVENT_` struct. A value-change
+  callback can call it before enqueueing, so keys declared `event = false`
+  stop taking dispatch-queue slots. Generated from the same key list as the
+  event structs and `send_tinyfsm_event_by_key()`, and skipped with them
+  when the model has no event keys.
 
 ### Fixed
 - `--target rust`: generic by-key setters reject writes to keys marked

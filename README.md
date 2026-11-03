@@ -91,6 +91,7 @@ With `--emit-tinyfsm`, ingot additionally emits (for `event = true` keys):
 |------|---------|
 | `dm_key_events.hpp` | One empty `tinyfsm::Event` struct per event key |
 | `dm_key_events_wrapper.hpp/.cpp` | `send_tinyfsm_event_by_key(key_id)` dispatch switch (calls a consumer-provided `send_tinyfsm_event` seam) |
+| `dm_key_has_event.hpp` | `dm_key_has_event(key)`: true for exactly the keys above, for filtering before enqueue |
 
 ## Data Model Format
 
