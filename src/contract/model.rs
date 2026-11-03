@@ -1,7 +1,7 @@
 //! Load a contract-mode model and resolve it into the content of the generated tables.
 
 use super::error_groups::{self, ErrorGroup};
-use super::keys::{command_keys, declared_key, ClassCtx, Errors, Key};
+use super::keys::{command_key_names, command_keys, declared_key, ClassCtx, Errors, Key};
 use super::ranges::Units;
 use super::rights::{self, Principal};
 use super::schema::{
@@ -10,6 +10,7 @@ use super::schema::{
 use super::types::{Version, WK_RULES};
 use super::{enums, variants};
 use sha2::{Digest, Sha256};
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 /// One `dmt_commands` row.
@@ -73,7 +74,9 @@ struct Loaded {
 /// v4: whether `--variant` names a declared variant is the caller's check
 /// (variants::check_selected), so the base can be resolved too.
 /// v5: the error groups, resolved for the variant.
-/// @version 5
+/// v6: grants are checked against the key paths of every variant.
+/// @version 6
+/// @req REQ-ING-PRS-001
 /// @req REQ-ING-ERR-001
 /// @req REQ-ING-TIV-015
 /// @req REQ-ING-TIV-002
@@ -84,8 +87,9 @@ pub fn build(contract_path: &Path, variant: Option<&str>) -> Result<(Tables, Err
     let declared = &loaded.contract.contract.variants;
     variants::check_entries(declared, &loaded.namespaces, &mut errors);
     let (keys, commands) = collect_keys(&loaded, variant, &mut errors);
+    let known = declared_paths(&loaded);
     let (principals, grants) = rights::principals(loaded.contract.principals, &mut errors);
-    rights::check_grants(&principals, &grants, &keys, &mut errors);
+    rights::check_grants(&principals, &grants, &known, &mut errors);
     let rights = rights::resolve(&principals, &grants, &keys, &mut errors);
     let reserved = reserved_ids(&loaded.contract.reserved);
     let mut uid_caps = loaded.contract.uid_caps;
@@ -335,6 +339,23 @@ fn class_keys(
     }
 }
 
+/// The path of every key the model declares, on any variant (command keys included).
+///
+/// @version 1
+/// @req REQ-ING-PRS-001
+fn declared_paths(loaded: &Loaded) -> BTreeSet<String> {
+    let mut paths = BTreeSet::new();
+    for ns in &loaded.namespaces {
+        for class in &ns.classes {
+            let path = |id: &str| format!("{}.{}.{id}", ns.meta.id, class.id);
+            paths.extend(class.keys.iter().map(|k| path(&k.id)));
+            for cmd in &class.commands {
+                paths.extend(command_key_names(cmd).iter().map(|n| path(n)));
+            }
+        }
+    }
+    paths
+}
 /// Whether a key or command limited to `only` exists on `variant` (the base has every one).
 ///
 /// @version 1

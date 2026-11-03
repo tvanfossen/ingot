@@ -270,32 +270,46 @@ fn copy_attributes(key: &mut Key, def: &KeyDef) {
 /// One generated key of a command type: name, index, type, part, max_size.
 type CommandPart = (String, u16, KeyType, CmdPart, u32);
 
-/// The command, result and dedupe keys a command type declares.
+/// The ids of a command type's command, result and dedupe keys, within its class.
 ///
 /// @version 1
 /// @req REQ-ING-TIV-005
+pub fn command_key_names(def: &CommandDef) -> [String; 3] {
+    [
+        def.id.clone(),
+        format!("{}_result", def.id),
+        format!("{}_dedupe", def.id),
+    ]
+}
+
+/// The command, result and dedupe keys a command type declares.
+///
+/// v2: key names from command_key_names.
+/// @version 2
+/// @req REQ-ING-TIV-005
 fn command_parts(def: &CommandDef) -> [CommandPart; 3] {
+    let [cmd, result, dedupe] = command_key_names(def);
     let cmd_ty = match def.payload {
         Payload::Binary => KeyType::Binary,
         Payload::Struct => KeyType::Struct,
     };
     [
         (
-            def.id.clone(),
+            cmd,
             def.cmd_index,
             cmd_ty,
             CmdPart::Command,
             CMD_HEADER_BYTES + def.payload_max,
         ),
         (
-            format!("{}_result", def.id),
+            result,
             def.result_index,
             KeyType::Binary,
             CmdPart::Result,
             RESULT_HEADER_BYTES + def.result_max,
         ),
         (
-            format!("{}_dedupe", def.id),
+            dedupe,
             def.dedupe_index,
             KeyType::Binary,
             CmdPart::Dedupe,

@@ -3,6 +3,7 @@
 use super::keys::{Errors, Key};
 use super::schema::{Access, Caps, Grant, Kind, PrincipalDef};
 use super::types::Version;
+use std::collections::BTreeSet;
 
 /// Read right in a rights cell.
 pub const READ: u8 = 0x1;
@@ -143,20 +144,24 @@ fn access_bits(access: Access) -> u8 {
 }
 
 /// Refuse grants that name nothing, a class without its namespace, both a key and a scope,
-/// or a key or scope that no key has.
+/// or a key or scope that no key of the model has. `known` is every key path on any variant,
+/// so a grant naming a key that exists on another variant only is accepted (it grants
+/// nothing here).
 ///
 /// v2: a class-only grant and a grant whose scope covers no key are refused (both matched
 /// nothing in silence); the per-grant check moved into grant_error.
-/// @version 2
+/// v3: checked against every variant's key paths (per-variant presence).
+/// @version 3
 /// @req REQ-ING-TIV-002
+/// @req REQ-ING-PRS-001
 pub fn check_grants(
     principals: &[Principal],
     grants: &[Vec<Grant>],
-    keys: &[Key],
+    known: &BTreeSet<String>,
     errors: &mut Errors,
 ) {
     for (p, list) in principals.iter().zip(grants) {
-        for why in list.iter().filter_map(|g| grant_error(g, keys)) {
+        for why in list.iter().filter_map(|g| grant_error(g, known)) {
             errors.push(format!("principal {}: {why}", p.name));
         }
     }
@@ -164,14 +169,15 @@ pub fn check_grants(
 
 /// Why grant `g` is refused, if it is.
 ///
-/// @version 1
+/// v2: against the model's key paths on any variant.
+/// @version 2
 /// @req REQ-ING-TIV-002
-fn grant_error(g: &Grant, keys: &[Key]) -> Option<String> {
+fn grant_error(g: &Grant, known: &BTreeSet<String>) -> Option<String> {
     match (&g.key, &g.namespace, &g.class) {
         (Some(path), None, None) => {
-            (!keys.iter().any(|k| &k.path == path)).then(|| format!("grant on unknown key {path}"))
+            (!known.contains(path)).then(|| format!("grant on unknown key {path}"))
         }
-        (None, Some(ns), class) => (!keys.iter().any(|k| scope_matches(g, &k.path))).then(|| {
+        (None, Some(ns), class) => (!known.iter().any(|p| scope_matches(g, p))).then(|| {
             format!(
                 "grant on {ns}{}{} covers no key",
                 if class.is_some() { "." } else { "" },

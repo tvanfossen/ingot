@@ -318,24 +318,28 @@ fn the_gzip_header_carries_no_time_and_a_run_without_a_variant_is_base() {
 
 #[test]
 fn a_refusal_in_another_variant_refuses_the_run() {
-    // error_dock_jam exists on sku_b only; a grant naming it is fine for sku_b and refused for
-    // sku_a, so generating sku_b is refused too
+    // mode's sku_b default 2 is "sport", which sku_b removes: valid for sku_a, refused for
+    // sku_b, so generating sku_a is refused too
     let dir = unique_dir("ks_other");
+    let case = dir.join("model");
+    let from = "enum = \"mode\"\nintroduced_in = \"1.0\"\nwrite_rate = \"1/min\"\ndefault = 1";
+    let to = "enum = \"mode\"\nintroduced_in = \"1.0\"\nwrite_rate = \"1/min\"\ndefault = 1\ndefaults = { sku_b = 2 }";
+    edited_copy("v1_0", &case, &[("ns/drive.toml", from, to)]);
+    let (ok, stderr) = generate(&case.join("contract.toml"), &case.join("out"), &[]);
+    let expected = "variant sku_b: drive.settings.mode: default 2 is not a value of the key's enum";
+    assert!(!ok && stderr.contains(expected), "{stderr}");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_grant_naming_a_key_of_another_variant_grants_nothing_here() {
+    let dir = unique_dir("ks_grant_presence");
     let case = dir.join("model");
     let grant = "  { key = \"net.health.integrator_hb\", access = \"rw\" },";
     let both = "  { key = \"net.health.integrator_hb\", access = \"rw\" },\n  { key = \"drive.state.error_dock_jam\", access = \"rw\" },";
     edited_copy("v1_0", &case, &[("contract.toml", grant, both)]);
-    let (ok, stderr) = generate(
-        &case.join("contract.toml"),
-        &case.join("out"),
-        &["--variant", "sku_b"],
-    );
-    assert!(
-        !ok && stderr.contains(
-            "variant sku_a: principal integrator: grant on unknown key drive.state.error_dock_jam"
-        ),
-        "{stderr}"
-    );
+    let (ok, stderr) = generate(&case.join("contract.toml"), &case.join("out"), &[]);
+    assert!(ok, "{stderr}");
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -366,5 +370,81 @@ fn a_body_one_mqtt_message_cannot_carry_is_refused() {
         !case.join("out/dmt_tables.c").exists(),
         "nothing is generated"
     );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_body_names_its_sku_and_orders_namespaces_by_id() {
+    let dir = unique_dir("ks_order");
+    let gen = dir.join("gen");
+    generate_ok("v1_0", &gen, &["--variant", "sku_b"]);
+    let body = json(&gen, "keyspace.sku_b.json");
+    assert_eq!(body["sku"], "sku_b");
+    let ids: Vec<u64> = body["namespaces"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|n| n["id"].as_u64().unwrap())
+        .collect();
+    assert_eq!(
+        ids,
+        [1, 2, 3, 4],
+        "files sort core, drive, mfg, net; IDs are 1, 3, 2, 4"
+    );
+    assert_eq!(
+        contract_json(&gen)["error_groups"][0]["publish_max_bit"],
+        31
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn group_bits_are_listed_by_bit() {
+    let dir = unique_dir("ks_bits");
+    let case = dir.join("model");
+    edited_copy(
+        "v1_0",
+        &case,
+        &[(
+            "ns/drive.toml",
+            "id = \"enabled\"",
+            "id = \"enabled\"\nerror = { group = \"product\", bit = 2 }",
+        )],
+    );
+    let (ok, stderr) = generate(&case.join("contract.toml"), &case.join("out"), &[]);
+    assert!(ok, "{stderr}");
+    let bits: Vec<u64> = json(&case.join("out"), "keyspace.json")["error_groups"][0]["bits"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|b| b["bit"].as_u64().unwrap())
+        .collect();
+    assert_eq!(
+        bits,
+        [1, 2],
+        "enabled (bit 2) sorts before error_overcurrent (bit 1) by key ID"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// The map_edit command limited to sku_b (the key grants naming its keys grant nothing on sku_a).
+const MAP_EDIT_SKU_B: &[(&str, &str, &str)] = &[(
+    "ns/drive.toml",
+    "owner = \"iotd.map\"",
+    "owner = \"iotd.map\"\nvariants = [\"sku_b\"]",
+)];
+
+#[test]
+fn a_command_limited_to_a_variant_exists_only_there() {
+    let dir = unique_dir("ks_cmd_presence");
+    let case = dir.join("model");
+    edited_copy("v1_0", &case, MAP_EDIT_SKU_B);
+    let (a, b) = (case.join("a"), case.join("b"));
+    for (out, v) in [(&a, "sku_a"), (&b, "sku_b")] {
+        let (ok, stderr) = generate(&case.join("contract.toml"), out, &["--variant", v]);
+        assert!(ok, "{v}: {stderr}");
+    }
+    let cmd = "drive.command.map_edit";
+    assert!(!has_key(&a, cmd) && has_key(&b, cmd));
     let _ = fs::remove_dir_all(&dir);
 }
