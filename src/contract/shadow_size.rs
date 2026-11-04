@@ -4,7 +4,7 @@
 
 use super::keys::Key;
 use super::model::Tables;
-use super::schema::{Constant, Echo, EchoType, Image, KeyType, Role};
+use super::schema::{Constant, Echo, EchoType, Image, KeyType, PathForm, Role};
 use super::value::int_range;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -145,14 +145,17 @@ fn longest_wire(e: &super::enums::ResolvedEnum) -> usize {
     e.values().map(|m| m.wire.len() + 2).max().unwrap_or(2)
 }
 
-/// The longest reported text of a STATE key: a rendered list, an enum wire string (or its raw
-/// code), or its type's longest value.
+/// The longest reported text of a STATE key at a path of form `f`: a rendered list, an enum
+/// wire string (or its raw code), or its type's longest value (also an enum's integer form).
 ///
-/// @version 1
+/// v2: an integer path carries the code.
+/// @version 2
 /// @req REQ-ING-SIZ-001
-fn key_text(key: &Key) -> usize {
+/// @req REQ-ING-SHD-003
+fn key_text(key: &Key, f: &PathForm) -> usize {
     let raw = key.wire.outbound_unknown.as_deref() == Some("raw");
-    match (&key.wire.render, &key.wire.render_values, &key.enum_values) {
+    let strings = key.enum_values.as_ref().filter(|_| !f.integer());
+    match (&key.wire.render, &key.wire.render_values, strings) {
         (Some(r), Some(e), _) => {
             let n = usize::from(r.max_items);
             2 + n * longest_wire(e) + n.saturating_sub(1)
@@ -225,39 +228,35 @@ fn errors_text(tables: &Tables, path: &str) -> usize {
     2 + elements + ids.len().saturating_sub(1)
 }
 
-/// The desired, reported and forced-delta trees of the tables.
+/// The desired tree, the full reported document, the delta's reported rows and the forced
+/// delta rows of the tables.
 pub struct Trees {
     pub desired: PathTree,
     pub reported: PathTree,
+    pub delta: PathTree,
     pub forced: PathTree,
 }
 
 /// Every shadow path of the tables in its trees: SETTINGS keys and echo paths desired; STATE
-/// keys, echo paths, constants and error groups reported; forced rows in the delta tree too.
+/// keys by scope, echo paths, constants and error groups in the full document; delta-scope
+/// keys, echo paths and forced constants in the delta; forced rows in the forced tree too.
 ///
-/// @version 1
+/// v2: the delta tree, and key rows by scope; the contract-level rows in `row_paths`.
+/// @version 2
 /// @req REQ-ING-SHD-001
 /// @req REQ-ING-SIZ-001
+/// @req REQ-ING-SHD-003
 pub fn trees(tables: &Tables) -> Trees {
     let mut t = Trees {
         desired: PathTree::default(),
         reported: PathTree::default(),
+        delta: PathTree::default(),
         forced: PathTree::default(),
     };
     for key in &tables.keys {
         key_rows(&mut t, key);
     }
-    for e in &tables.shadow.echo {
-        t.desired.add("shadow_echo", &e.path, 0);
-        t.reported.add("shadow_echo", &e.path, echo_text(e));
-    }
-    for c in &tables.shadow.constants {
-        let size = constant_text(tables, c);
-        t.reported.add("shadow_constant", &c.path, size);
-        if c.forced {
-            t.forced.add("shadow_constant", &c.path, size);
-        }
-    }
+    row_paths(&mut t, tables);
     let paths: BTreeSet<&str> = tables
         .error_groups
         .iter()
@@ -269,21 +268,59 @@ pub fn trees(tables: &Tables) -> Trees {
     t
 }
 
-/// A key's rows: desired paths of a SETTINGS key, reported (and forced) paths of a STATE key.
+/// The contract-level rows: echo paths desired, in the full document and in the delta;
+/// constants in the full document, forced ones in the delta and the forced tree.
 ///
 /// @version 1
+/// @req REQ-ING-SHD-002
+/// @req REQ-ING-SHD-003
+fn row_paths(t: &mut Trees, tables: &Tables) {
+    for e in &tables.shadow.echo {
+        t.desired.add("shadow_echo", &e.path, 0);
+        t.reported.add("shadow_echo", &e.path, echo_text(e));
+        t.delta.add("shadow_echo", &e.path, echo_text(e));
+    }
+    for c in &tables.shadow.constants {
+        let size = constant_text(tables, c);
+        t.reported.add("shadow_constant", &c.path, size);
+        if c.forced {
+            t.delta.add("shadow_constant", &c.path, size);
+            t.forced.add("shadow_constant", &c.path, size);
+        }
+    }
+}
+
+/// A key's rows: desired paths of a SETTINGS key; a STATE key's paths in the full document,
+/// the delta (and forced) by scope.
+///
+/// v2: by scope, each at its form's text.
+/// @version 2
 /// @req REQ-ING-SHD-001
+/// @req REQ-ING-SHD-003
 fn key_rows(t: &mut Trees, key: &Key) {
-    for p in &key.wire.shadow {
+    for f in &key.wire.shadow_forms {
         match key.role {
-            Role::Settings => t.desired.add(&key.path, p, 0),
-            Role::State => {
-                t.reported.add(&key.path, p, key_text(key));
-                if key.wire.forced {
-                    t.forced.add(&key.path, p, key_text(key));
-                }
-            }
+            Role::Settings => t.desired.add(&key.path, &f.path, 0),
+            Role::State => state_row(t, key, f),
             _ => {}
+        }
+    }
+}
+
+/// A STATE key's row at `f`: in the full document unless delta-only, in the delta (and the
+/// forced tree when forced) unless full-only.
+///
+/// @version 1
+/// @req REQ-ING-SHD-003
+fn state_row(t: &mut Trees, key: &Key, f: &PathForm) {
+    let size = key_text(key, f);
+    if f.in_full() {
+        t.reported.add(&key.path, &f.path, size);
+    }
+    if f.in_delta() {
+        t.delta.add(&key.path, &f.path, size);
+        if key.wire.forced {
+            t.forced.add(&key.path, &f.path, size);
         }
     }
 }

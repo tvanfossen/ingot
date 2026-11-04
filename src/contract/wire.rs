@@ -3,7 +3,7 @@
 
 use super::enums::ResolvedEnum;
 use super::keys::{ClassCtx, Errors};
-use super::schema::{Implies, KeyDef, OnReject, Render, Role};
+use super::schema::{Implies, KeyDef, OnReject, PathForm, Render, Role};
 use serde::Serialize;
 
 /// A key's shadow paths and how the binder and reporter treat them.
@@ -11,6 +11,9 @@ use serde::Serialize;
 pub struct KeyWire {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub shadow: Vec<String>,
+    /// Every path with its form and scope; written only when one declares either.
+    #[serde(skip_serializing_if = "all_plain")]
+    pub shadow_forms: Vec<PathForm>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub applies: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -34,14 +37,33 @@ pub struct KeyWire {
     pub telem: Option<String>,
 }
 
+/// Whether no path declares a form or a scope (the forms are then left out of the outputs).
+///
+/// @version 1
+/// @req REQ-ING-SHD-003
+fn all_plain(forms: &[PathForm]) -> bool {
+    forms.iter().all(PathForm::plain)
+}
+
+/// The paths of `forms`, in order.
+///
+/// @version 1
+/// @req REQ-ING-SHD-003
+fn path_names(forms: &[PathForm]) -> Vec<String> {
+    forms.iter().map(|f| f.path.clone()).collect()
+}
+
 /// The wire attributes `def` declares; a shadowed SETTINGS key rejects by echo unless it says
 /// otherwise, and a rendered list's enum is resolved from the key's namespace.
 ///
-/// @version 1
+/// v2: each path's form and scope.
+/// @version 2
 /// @req REQ-ING-SHD-001
 /// @req REQ-ING-SHD-002
+/// @req REQ-ING-SHD-003
 pub fn of(ctx: &ClassCtx, path: &str, def: &KeyDef, errors: &mut Errors) -> KeyWire {
-    let shadow = def.shadow.as_ref().map(|p| p.list()).unwrap_or_default();
+    let shadow_forms = def.shadow.as_ref().map(|p| p.list()).unwrap_or_default();
+    let shadow = path_names(&shadow_forms);
     let echo_default = ctx.class.role == Role::Settings && !shadow.is_empty();
     let on_reject = def.on_reject.or(echo_default.then_some(OnReject::Echo));
     let render_values = def
@@ -50,6 +72,7 @@ pub fn of(ctx: &ClassCtx, path: &str, def: &KeyDef, errors: &mut Errors) -> KeyW
         .and_then(|r| render_enum(ctx, path, r, errors));
     KeyWire {
         shadow,
+        shadow_forms,
         applies: def.applies.clone(),
         apply_group: def.apply_group.clone(),
         implies: def.implies.clone(),

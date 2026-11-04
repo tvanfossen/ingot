@@ -3,18 +3,21 @@
 use super::enums::ResolvedEnum;
 use super::keys::{Errors, Key};
 use super::model::Tables;
-use super::schema::{EchoType, KeyType, Role};
+use super::schema::{EchoType, KeyType, PathForm, Role};
 use super::value::encode_default;
 use std::collections::BTreeSet;
 
 /// Every key and row refusal of the mapping.
 ///
-/// @version 1
+/// v2: the path forms.
+/// @version 2
 /// @req REQ-ING-SHD-001
 /// @req REQ-ING-SHD-002
+/// @req REQ-ING-SHD-003
 pub fn check(tables: &Tables, errors: &mut Errors) {
     for key in &tables.keys {
         placement(key, errors);
+        form_rules(key, errors);
         enum_rules(key, errors);
         group_rules(tables, key, errors);
         applies_rule(tables, key, errors);
@@ -86,18 +89,51 @@ fn implicit_wires(e: &ResolvedEnum) -> Vec<&String> {
         .collect()
 }
 
-/// S3 and S4: a shadowed key's enum (and a rendered list's) has explicit wire strings; a
-/// shadowed SETTINGS enum key declares inbound_unknown and a shadowed STATE enum key
-/// outbound_unknown, and nothing else declares either.
+/// S1 of the path forms: `as` is for enum keys, `scope` for reported paths of STATE keys, and a
+/// forced key has a path in the delta.
 ///
 /// @version 1
+/// @req REQ-ING-SHD-003
+fn form_rules(key: &Key, errors: &mut Errors) {
+    let forms = &key.wire.shadow_forms;
+    let mut refuse = |why: &str| errors.push(format!("{}: {why}", key.path));
+    if key.enum_values.is_none() && forms.iter().any(|f| f.form.is_some()) {
+        refuse("as is for enum keys");
+    }
+    if key.role != Role::State && forms.iter().any(|f| f.scope.is_some()) {
+        refuse("scope is for reported paths of STATE keys");
+    }
+    if key.wire.forced && !forms.iter().any(PathForm::in_delta) {
+        refuse("forced needs a path in the delta");
+    }
+}
+
+/// Whether the key has a path that carries its enum's wire strings.
+///
+/// @version 1
+/// @req REQ-ING-SHD-003
+fn wire_strings(key: &Key) -> bool {
+    key.wire.shadow_forms.iter().any(|f| !f.integer())
+}
+
+/// S3 and S4: a shadowed key's enum where a path carries its wire strings (and a rendered
+/// list's) has explicit wire strings; such a SETTINGS enum key declares inbound_unknown and
+/// such a STATE enum key outbound_unknown, and nothing else declares either.
+///
+/// v2: only where a path carries the wire strings (an integer path carries the code).
+/// @version 2
 /// @req REQ-ING-SHD-001
+/// @req REQ-ING-SHD-003
 fn enum_rules(key: &Key, errors: &mut Errors) {
-    let enums = [&key.enum_values, &key.wire.render_values];
+    let strings = wire_strings(key);
+    let enums = [
+        key.enum_values.as_ref().filter(|_| strings),
+        key.wire.render_values.as_ref(),
+    ];
     for name in enums
         .iter()
         .filter(|_| !key.wire.shadow.is_empty())
-        .filter_map(|e| e.as_ref())
+        .filter_map(|e| *e)
         .flat_map(implicit_wires)
     {
         errors.push(format!(
@@ -105,7 +141,7 @@ fn enum_rules(key: &Key, errors: &mut Errors) {
             key.path
         ));
     }
-    let e = key.enum_values.as_ref();
+    let e = key.enum_values.as_ref().filter(|_| strings);
     let inbound = e.filter(|_| shadowed(key, Role::Settings));
     unknown_rule(
         key,
@@ -125,10 +161,12 @@ fn enum_rules(key: &Key, errors: &mut Errors) {
 }
 
 /// S4 for one direction: `declared` is required exactly where `applies_to` is the key's enum,
-/// and is `reject` (inbound) or `raw` (outbound), or a string of the enum that way.
+/// and is `reject` or `ignore` (inbound) or `raw` (outbound), or a string of the enum that way.
 ///
-/// @version 1
+/// v2: `ignore` inbound; the rule is for keys with a wire-string path.
+/// @version 2
 /// @req REQ-ING-SHD-001
+/// @req REQ-ING-SHD-003
 fn unknown_rule(
     key: &Key,
     attr: &str,
@@ -139,7 +177,7 @@ fn unknown_rule(
     let inbound = attr == "inbound_unknown";
     let why = match (applies_to, declared.as_deref()) {
         (None, Some(_)) => Some(format!(
-            "{attr} is for shadowed {} enum keys",
+            "{attr} is for shadowed {} enum keys with a wire-string path",
             role_of(inbound)
         )),
         (Some(_), None) => Some(format!("a shadowed enum key declares {attr}")),
@@ -148,7 +186,7 @@ fn unknown_rule(
         )),
         (Some(e), Some(v)) if !known_unknown(e, v, inbound) => Some(format!(
             "{attr} {v} is neither {} nor {} of the enum",
-            if inbound { "reject" } else { "raw" },
+            if inbound { "reject, ignore" } else { "raw" },
             if inbound {
                 "an inbound string"
             } else {
@@ -174,14 +212,15 @@ fn role_of(inbound: bool) -> &'static str {
     }
 }
 
-/// Whether `v` is an accepted unknown rule: `reject` or an inbound string, or `raw` or a wire
-/// string.
+/// Whether `v` is an accepted unknown rule: `reject`, `ignore` or an inbound string, or `raw`
+/// or a wire string.
 ///
-/// @version 1
+/// v2: `ignore` (the unknown string is dropped, nothing is written).
+/// @version 2
 /// @req REQ-ING-SHD-001
 fn known_unknown(e: &ResolvedEnum, v: &str, inbound: bool) -> bool {
     if inbound {
-        v == "reject" || e.values().any(|m| m.inbound().any(|s| s == v))
+        matches!(v, "reject" | "ignore") || e.values().any(|m| m.inbound().any(|s| s == v))
     } else {
         v == "raw" || e.values().any(|m| m.wire == v)
     }

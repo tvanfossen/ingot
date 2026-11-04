@@ -88,8 +88,10 @@ pub fn json(tables: &Tables) -> Option<Value> {
 /// full document's size (Z1), topics (T1, T2) and command rows (S2, S6).
 ///
 /// v2: topics and command rows.
-/// @version 2
+/// v3: the delta's path conflicts, each once beside the full document's.
+/// @version 3
 /// @req REQ-ING-SHD-001
+/// @req REQ-ING-SHD-003
 /// @req REQ-ING-SIZ-001
 /// @req REQ-ING-TOP-001
 /// @req REQ-ING-CMD-001
@@ -100,7 +102,14 @@ pub fn check(tables: &Tables, errors: &mut Errors) {
     let t = trees(tables);
     let full = t.reported.bytes();
     errors.extend(t.desired.errors);
+    let delta_only: Vec<String> = t
+        .delta
+        .errors
+        .into_iter()
+        .filter(|e| !t.reported.errors.contains(e))
+        .collect();
     errors.extend(t.reported.errors);
+    errors.extend(delta_only);
     if full > SHADOW_QUOTA {
         errors.push(format!(
             "the full shadow document is up to {full} bytes, over the {SHADOW_QUOTA}-byte AWS IoT shadow quota"

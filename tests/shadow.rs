@@ -223,6 +223,10 @@ fn unknown_rules_accept_aliases_reject_and_raw() {
             "outbound_unknown = \"normal\"",
             "outbound_unknown = \"raw\"",
         ),
+        (
+            "inbound_unknown = \"quiet\"",
+            "inbound_unknown = \"ignore\"",
+        ),
     ];
     for (i, (from, to)) in cases.iter().enumerate() {
         let case = dir.join(format!("case{i}"));
@@ -423,6 +427,186 @@ fn contract_json_names_why_a_command_is_internal() {
         Some(serde_json::json!(reason))
     );
     assert_eq!(internal("drive.command.drive"), None);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// fan_applied's two reported paths in the 1.0 model.
+const FAN_PATHS: &str = "shadow = [\"state.fanSpeed\", \"settings.fanSpeed\"]";
+
+/// @brief contract.json of `v1_0` for sku_b after `edits`, asserting it generates.
+/// @version 1
+fn edited_json(dir: &Path, tag: &str, edits: &[(&str, &str, &str)]) -> serde_json::Value {
+    let case = dir.join(tag);
+    edited_copy("v1_0", &case, edits);
+    let out = case.join("out");
+    let (ok, stderr) = generate(&case.join("contract.toml"), &out, &["--variant", "sku_b"]);
+    assert!(ok, "{tag}: {stderr}");
+    contract_json(&out)
+}
+
+/// @brief The JSON object of key `path` in a parsed contract.json or keyspace key list.
+/// @version 1
+fn find_key<'a>(keys: &'a serde_json::Value, path: &str, field: &str) -> &'a serde_json::Value {
+    keys.as_array()
+        .unwrap()
+        .iter()
+        .find(|k| k[field] == path)
+        .unwrap_or_else(|| panic!("key {path}"))
+}
+
+#[test]
+fn one_key_is_reported_as_a_string_and_as_an_integer() {
+    let dir = unique_dir("shadow_forms");
+    let base = edited_json(&dir, "base", &[]);
+    let two = "shadow = [\"state.fanSpeed\", { path = \"state.fanLevel\", as = \"integer\" }, { path = \"settings.fanSpeed\", as = \"enum\" }]";
+    let json = edited_json(&dir, "two", &[("ns/drive.toml", FAN_PATHS, two)]);
+    let fan = find_key(&json["keys"], "drive.state.fan_applied", "path");
+    assert_eq!(
+        fan["shadow"],
+        serde_json::json!(["state.fanSpeed", "state.fanLevel", "settings.fanSpeed"])
+    );
+    assert_eq!(
+        fan["shadow_forms"],
+        serde_json::json!([{"path": "state.fanSpeed"}, {"path": "state.fanLevel", "as": "integer"},
+                           {"path": "settings.fanSpeed", "as": "enum"}])
+    );
+    let grown = json["shadow"]["full_max_bytes"].as_u64().unwrap()
+        - base["shadow"]["full_max_bytes"].as_u64().unwrap();
+    assert_eq!(
+        grown,
+        ",\"fanLevel\":255".len() as u64,
+        "an integer path counts the type's digits"
+    );
+    let plain = find_key(&base["keys"], "drive.state.fan_applied", "path");
+    assert!(
+        plain.get("shadow_forms").is_none(),
+        "no forms without a declared one"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn an_integer_only_enum_key_needs_no_wire_strings_or_unknown_rules() {
+    let dir = unique_dir("shadow_integer_only");
+    let code = "telem = \"dock\"\n\n[[classes.keys]]\nid = \"mode_code\"\nkey_index = 14\ntype = \"uint8\"\nenum = \"mode\"\nintroduced_in = \"1.0\"\nshadow = { path = \"state.modeCode\", as = \"integer\" }";
+    let fan_in = "shadow = { path = \"settings.fanSpeed\", as = \"integer\" }\napply_group";
+    let json = edited_json(
+        &dir,
+        "code",
+        &[
+            ("ns/drive.toml", "telem = \"dock\"", code),
+            ("ns/drive.toml", "shadow = \"settings.fanSpeed\"\napply_group", fan_in),
+            ("ns/drive.toml", "inbound_unknown = \"quiet\"            # an unmatched string is quiet (code 0), as today\n", ""),
+        ],
+    );
+    let key = find_key(&json["keys"], "drive.state.mode_code", "path");
+    assert_eq!(key["shadow_forms"][0]["as"], "integer");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_path_takes_its_full_and_its_delta_value_from_two_keys() {
+    let dir = unique_dir("shadow_scopes");
+    let base = edited_json(&dir, "base", &[]);
+    let accepted = "telem = \"dock\"\n\n[[classes.keys]]\nid = \"speed_limit_accepted\"\nkey_index = 14\ntype = \"uint16\"\nintroduced_in = \"1.0\"\nshadow = { path = \"settings.speedLimit\", scope = \"delta\" }";
+    let full_only = "shadow = { path = \"settings.speedLimit\", scope = \"full\" }\napplies";
+    let json = edited_json(
+        &dir,
+        "split",
+        &[
+            ("ns/drive.toml", "telem = \"dock\"", accepted),
+            (
+                "ns/drive.toml",
+                "shadow = \"settings.speedLimit\"\napplies",
+                full_only,
+            ),
+        ],
+    );
+    assert_eq!(
+        json["shadow"]["full_max_bytes"],
+        base["shadow"]["full_max_bytes"]
+    );
+    let key = find_key(&json["keys"], "drive.state.speed_limit_accepted", "path");
+    assert_eq!(key["shadow_forms"][0]["scope"], "delta");
+    let gen = dir.join("split/out");
+    let body = read_json(&gen, "keyspace.sku_b.json");
+    let text = serde_json::to_string(&body).unwrap();
+    assert!(text.contains(r#"{"path":"settings.speedLimit","scope":"full"}"#));
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_scope_places_a_row_in_the_full_document_or_the_delta() {
+    let dir = unique_dir("shadow_scope_sizes");
+    let base = edited_json(&dir, "base", &[]);
+    let docked = "shadow = { path = \"state.docked\", scope = \"delta\" }\nforced";
+    let delta = edited_json(
+        &dir,
+        "delta",
+        &[("ns/drive.toml", "shadow = \"state.docked\"\nforced", docked)],
+    );
+    let shrunk = base["shadow"]["full_max_bytes"].as_u64().unwrap()
+        - delta["shadow"]["full_max_bytes"].as_u64().unwrap();
+    assert_eq!(
+        shrunk,
+        ",\"docked\":false".len() as u64,
+        "a delta-only row is not in the full document"
+    );
+    assert_eq!(
+        delta["shadow"]["delta_forced_bytes"],
+        base["shadow"]["delta_forced_bytes"]
+    );
+    let extra =
+        "shadow = [\"state.docked\", { path = \"state.dockedFull\", scope = \"full\" }]\nforced";
+    let full_extra = edited_json(
+        &dir,
+        "extra",
+        &[("ns/drive.toml", "shadow = \"state.docked\"\nforced", extra)],
+    );
+    assert_eq!(
+        full_extra["shadow"]["delta_forced_bytes"], base["shadow"]["delta_forced_bytes"],
+        "a full-only path of a forced key is not forced"
+    );
+    let both = "shadow = { path = \"state.docked\", scope = \"both\" }\nforced";
+    let explicit = edited_json(
+        &dir,
+        "both",
+        &[("ns/drive.toml", "shadow = \"state.docked\"\nforced", both)],
+    );
+    assert_eq!(
+        explicit["shadow"]["full_max_bytes"],
+        base["shadow"]["full_max_bytes"]
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_conflict_in_both_documents_is_reported_once() {
+    let dir = unique_dir("shadow_conflict_once");
+    let case = dir.join("model");
+    let taken = "shadow = \"state.fanSpeed\"\nforced";
+    edited_copy(
+        "v1_0",
+        &case,
+        &[
+            ("ns/drive.toml", "shadow = \"state.docked\"\nforced", taken),
+            ("ns/drive.toml", "telem = \"dock\"", "telem = \"tones\""),
+        ],
+    );
+    let (ok, stderr) = generate(
+        &case.join("contract.toml"),
+        &case.join("out"),
+        &["--variant", "sku_b"],
+    );
+    assert!(!ok);
+    let conflict = stderr
+        .matches("is taken by drive.state.fan_applied")
+        .count();
+    let telem = stderr
+        .matches("telem name 'tones' is empty or used twice")
+        .count();
+    assert!(telem > 0, "{stderr}");
+    assert_eq!(conflict, telem, "{stderr}");
     let _ = fs::remove_dir_all(&dir);
 }
 

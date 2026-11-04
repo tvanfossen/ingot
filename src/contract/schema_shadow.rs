@@ -4,23 +4,117 @@
 
 use serde::{Deserialize, Serialize};
 
-/// A key's `shadow`: one dotted path or several.
+/// How a path carries an enum key's value.
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum WireForm {
+    /// The value's wire string (inbound: a wire string or an accept alias).
+    Enum,
+    /// The code as a JSON integer, inbound and outbound.
+    Integer,
+}
+
+/// The reported documents a path is in.
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Scope {
+    /// The full document only.
+    Full,
+    /// The on-change delta only.
+    Delta,
+    /// Both.
+    Both,
+}
+
+/// One shadow path of a key, with its declared wire form and scope (absent: the defaults).
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PathForm {
+    pub path: String,
+    #[serde(rename = "as", skip_serializing_if = "Option::is_none")]
+    pub form: Option<WireForm>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<Scope>,
+}
+
+impl PathForm {
+    /// Whether the path carries the code as an integer.
+    ///
+    /// @version 1
+    /// @req REQ-ING-SHD-003
+    pub fn integer(&self) -> bool {
+        self.form == Some(WireForm::Integer)
+    }
+
+    /// Whether the path is in the full document.
+    ///
+    /// @version 1
+    /// @req REQ-ING-SHD-003
+    pub fn in_full(&self) -> bool {
+        self.scope != Some(Scope::Delta)
+    }
+
+    /// Whether the path is in the delta.
+    ///
+    /// @version 1
+    /// @req REQ-ING-SHD-003
+    pub fn in_delta(&self) -> bool {
+        self.scope != Some(Scope::Full)
+    }
+
+    /// Whether the path declares neither a form nor a scope.
+    ///
+    /// @version 1
+    /// @req REQ-ING-SHD-003
+    pub fn plain(&self) -> bool {
+        self.form.is_none() && self.scope.is_none()
+    }
+}
+
+/// One entry of a key's `shadow`: a bare path, or a path with its form and scope.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum PathDecl {
+    Bare(String),
+    Form(PathForm),
+}
+
+impl PathDecl {
+    /// The entry as a path with its declared form and scope.
+    ///
+    /// @version 1
+    /// @req REQ-ING-SHD-003
+    fn form(&self) -> PathForm {
+        match self {
+            PathDecl::Bare(path) => PathForm {
+                path: path.clone(),
+                form: None,
+                scope: None,
+            },
+            PathDecl::Form(f) => f.clone(),
+        }
+    }
+}
+
+/// A key's `shadow`: one entry or several.
 #[derive(Debug, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum Paths {
-    One(String),
-    Many(Vec<String>),
+    One(PathDecl),
+    Many(Vec<PathDecl>),
 }
 
 impl Paths {
-    /// The paths, in declaration order.
+    /// The paths with their forms and scopes, in declaration order.
     ///
-    /// @version 1
+    /// v2: entries may declare a wire form and a scope.
+    /// @version 2
     /// @req REQ-ING-SHD-001
-    pub fn list(&self) -> Vec<String> {
+    /// @req REQ-ING-SHD-003
+    pub fn list(&self) -> Vec<PathForm> {
         match self {
-            Paths::One(p) => vec![p.clone()],
-            Paths::Many(list) => list.clone(),
+            Paths::One(p) => vec![p.form()],
+            Paths::Many(list) => list.iter().map(PathDecl::form).collect(),
         }
     }
 }
