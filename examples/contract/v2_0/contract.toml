@@ -193,6 +193,8 @@ introduced_in = "1.0"
 grants = [
   { namespace = "drive", class = "settings", access = "r" },
   { namespace = "drive", class = "state", access = "r" },
+  { key = "drive.settings.mode", access = "rw" },   # an in-process role writes a key
+  { key = "drive.command.drive", access = "w" },    # and submits a command
 ]
 
 # -- new in 1.1: the OTA FSM of iotd -----------------------------------------------------------

@@ -264,7 +264,7 @@ fn the_last_key_grant_wins_and_none_removes() {
 
 #[test]
 fn queue_bound_is_computed_from_rates_and_latency() {
-    // ceil(200 * 1_128_990 writes/day * 50_000 ms / (100 * 86_400_000)) = 1307
+    // ceil(200 * 1_216_830 writes/day * 50_000 ms / (100 * 86_400_000)) = 1409
     let dir = unique_dir("bound");
     let model_dir = dir.join("model");
     copy_dir(&model("v1_0"), &model_dir);
@@ -276,7 +276,7 @@ fn queue_bound_is_computed_from_rates_and_latency() {
     let out = dir.join("bound");
     let (ok, stderr) = generate(&model_dir.join("contract.toml"), &out, &[]);
     assert!(ok, "{stderr}");
-    assert_eq!(principal(&out, "integrator")["queue_bound"], 1307);
+    assert_eq!(principal(&out, "integrator")["queue_bound"], 1409);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -469,7 +469,7 @@ fn the_model_hash_covers_every_input_in_path_order() {
 const FACTORY_RESET: &str = "[[classes.commands]]\nid = \"factory_reset\"\ncmd_index = 0\nresult_index = 1\ndedupe_index = 2\nintroduced_in = \"1.0\"\npersistence = \"durable\"\nowner = \"core\"\ndedupe_ring = 4\nwrite_rate = \"1/day\"\nwk = \"RESET_REQUEST\"\n\n";
 const CAPS_2001: &str =
     "[[uid_caps]]\nuid = 2001\ninflight_fd = 4\ninflight_bytes = 1048576\nopen_fds = 16\n\n";
-const INPROC: &str = "# -- an in-process consumer (compile-time role 10) ---------------------------------------------\n[[principals]]\nname = \"inproc\"\nuid = 10\nkind = \"inproc\"\nlatency_budget_ms = 50\nresync_k = 3\nresync_t_ms = 60000\nstaging_bound_bytes = 8192\nintroduced_in = \"1.0\"\ngrants = [\n  { namespace = \"drive\", class = \"settings\", access = \"r\" },\n  { namespace = \"drive\", class = \"state\", access = \"r\" },\n]\n\n";
+const INPROC: &str = "# -- an in-process consumer (compile-time role 10) ---------------------------------------------\n[[principals]]\nname = \"inproc\"\nuid = 10\nkind = \"inproc\"\nlatency_budget_ms = 50\nresync_k = 3\nresync_t_ms = 60000\nstaging_bound_bytes = 8192\nintroduced_in = \"1.0\"\ngrants = [\n  { namespace = \"drive\", class = \"settings\", access = \"r\" },\n  { namespace = \"drive\", class = \"state\", access = \"r\" },\n  { key = \"drive.settings.mode\", access = \"rw\" },   # an in-process role writes a key\n  { key = \"drive.command.drive\", access = \"w\" },    # and submits a command\n]\n\n";
 
 /// @brief Remove `block` from `file` and append it at the end.
 /// @version 1
@@ -567,7 +567,8 @@ fn flags_and_scope_grants_combine_and_secrets_keep_their_readers() {
 #[test]
 fn write_only_keys_count_in_neither_the_queue_bound_nor_the_snapshot() {
     // in-process principal with read on drive.settings and drive.state except speed (write
-    // only): 4 x 1440 + 86400 writes/day readable; ceil(200 * 92160 * 50000 / 8.64e9) = 107.
+    // only): 5 x 1440 + 2 x 86400 writes/day readable (trip_count and run_time included);
+    // ceil(200 * 180000 * 50000 / 8.64e9) = 209.
     let dir = unique_dir("write_only");
     let (model_dir, gen) = (dir.join("model"), dir.join("gen"));
     copy_dir(&model("v1_0"), &model_dir);
@@ -579,21 +580,21 @@ fn write_only_keys_count_in_neither_the_queue_bound_nor_the_snapshot() {
     );
     edit(
         &contract,
-        "  { namespace = \"drive\", class = \"state\", access = \"r\" },\n]\n\n[[uid_caps]]",
-        "  { namespace = \"drive\", class = \"state\", access = \"r\" },\n  { key = \"drive.state.speed\", access = \"w\" },\n]\n\n[[uid_caps]]",
+        "# and submits a command\n]",
+        "# and submits a command\n  { key = \"drive.state.speed\", access = \"w\" },\n]",
     );
     let (ok, stderr) = generate(&contract, &gen, &[]);
     assert!(ok, "{stderr}");
-    assert_eq!(principal(&gen, "inproc")["queue_bound"], 107);
-    // the snapshot floor drops by speed's 2 bytes, from 60 to 58
+    assert_eq!(principal(&gen, "inproc")["queue_bound"], 209);
+    // the snapshot floor drops by speed's 2 bytes, from 68 to 66
     edit(
         &contract,
         "inproc_snapshot_bytes = 4096",
-        "inproc_snapshot_bytes = 57",
+        "inproc_snapshot_bytes = 65",
     );
     let (ok, stderr) = generate(&contract, &dir.join("refused"), &[]);
     assert!(
-        !ok && stderr.contains("inproc_snapshot_bytes 57 is below its lower bound 58"),
+        !ok && stderr.contains("inproc_snapshot_bytes 65 is below its lower bound 66"),
         "{stderr}"
     );
     let _ = fs::remove_dir_all(&dir);

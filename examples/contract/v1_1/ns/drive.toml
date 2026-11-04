@@ -192,6 +192,24 @@ shadow = "state.docked"
 forced = true                        # re-emitted on every delta
 telem = "dock"
 
+[[classes.keys]]
+id = "trip_count"
+key_index = 12
+type = "uint32"
+introduced_in = "1.0"
+persistence = "durable"              # a durable key in a state class: one integrator batch spans
+write_rate = "1/min"                 # durable, deferred (odometer, run_time) and volatile keys
+doc = "Completed trips."
+
+[[classes.keys]]
+id = "run_time"
+key_index = 13
+type = "uint32"
+introduced_in = "1.0"
+persistence = "deferred"
+deferred_ms = 60000                  # a second deferred interval next to the class's 5000
+write_rate = "1/s"
+
 [[classes]]
 id = "map"
 class_index = 2

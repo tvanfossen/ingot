@@ -40,7 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   major reserves removed IDs, and writes a release-review report. The
   tables state the ingot commit; a dirty build is refused unless
   `--allow-dirty-ingot`. `examples/contract/` holds a generic model at
-  1.0, 1.1 and 2.0.
+  1.0, 1.1 and 2.0. In each, one principal writes a durable key, deferred
+  keys at two intervals and volatile keys, so one batch can mix
+  persistence classes, and the in-process principal writes a key and
+  submits a command.
 
 ### Changed
 - Templates are compiled into the binary, so an ingot build always

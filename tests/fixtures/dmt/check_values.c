@@ -189,10 +189,10 @@ static void versioned(void)
     value(0x00C00138u, gain, sizeof gain, 0u);
     value(0x00C201C0u, label, sizeof label, 0u);
 #if DMT_CONTRACT_MINOR == 0
-    EXPECT(DMT_NUM_KEYS == 46 && DMT_NUM_PRINCIPALS == 8 && DMT_DEFAULT_BLOB_LEN == 18);
+    EXPECT(DMT_NUM_KEYS == 48 && DMT_NUM_PRINCIPALS == 8 && DMT_DEFAULT_BLOB_LEN == 18);
     key(0x00C20028u, 2u, 864000u, 20u, 0u, 0x0000u, 0u, DMT_T_I16, DMT_P_NONE, DMT_R_STATE, 0x07u);
 #else
-    EXPECT(DMT_NUM_KEYS == 48 && DMT_NUM_PRINCIPALS == 9);
+    EXPECT(DMT_NUM_KEYS == 50 && DMT_NUM_PRINCIPALS == 9);
     key(0x00C20028u, 2u, 864000u, 20u, 0u, 0x0004u, 0u, DMT_T_I16, DMT_P_NONE, DMT_R_STATE, 0x07u);
     value(0x00C20028u, NULL, 0u, 0x00C202A8u);
     key(0x00C202A8u, 2u, 864000u, 20u, 0u, 0x0000u, 1u, DMT_T_I16, DMT_P_NONE, DMT_R_STATE, 0x07u);
@@ -208,13 +208,46 @@ static void versioned(void)
 }
 
 /**
- * @brief   Run every check.
+ * @brief   Index of the first principal of `kind`, or DMT_NUM_PRINCIPALS when there is none.
  * @version 1
+ * @return  the index
+ */
+static size_t principal_of_kind(uint8_t kind)
+{
+    size_t p;
+    for (p = 0u; p < DMT_NUM_PRINCIPALS && dmt_principals[p].kind != kind; p++) {
+    }
+    return p;
+}
+
+/**
+ * @brief   The combinations a keystore batch and an in-process client need, in every version:
+ *          the integrator writes a durable key (trip_count), deferred keys at two intervals
+ *          (odometer 5000 ms, run_time 60000 ms) and volatile keys of drive.state; the in-process
+ *          role writes drive.settings.mode (durable), submits the drive command and reads the rest.
+ * @version 1
+ */
+static void batches(void)
+{
+    size_t inproc = principal_of_kind(DMT_PK_INPROC);
+    key(0x00C20618u, 4u, 1440u, 4u, 0u, 0x0000u, 0u, DMT_T_U32, DMT_P_DURABLE, DMT_R_STATE, 0x07u);
+    key(0x00C20698u, 4u, 86400u, 4u, 60000u, 0x0000u, 0u, DMT_T_U32, DMT_P_DEFERRED, DMT_R_STATE, 0x07u);
+    EXPECT(rights(0u, 0x00C20618u) == 3u && rights(0u, 0x00C20698u) == 3u);
+    EXPECT(rights(0u, 0x00C20098u) == 3u && rights(0u, 0x00C20100u) == 3u);
+    EXPECT(inproc < DMT_NUM_PRINCIPALS && dmt_principals[inproc].uid == 10u);
+    EXPECT(rights(inproc, 0x00C00088u) == 3u && rights(inproc, 0x00C601C8u) == 2u);
+    EXPECT(rights(inproc, 0x00C20618u) == 1u && rights(inproc, 0x00C60248u) == 0u);
+}
+
+/**
+ * @brief   Run every check.
+ * @version 2
  * @return  0 when every value matches.
  */
 int main(void)
 {
     common();
     versioned();
+    batches();
     return bad == 0 ? 0 : 1;
 }
