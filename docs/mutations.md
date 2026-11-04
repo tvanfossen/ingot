@@ -794,3 +794,36 @@ Each mutation edits `examples/contract/v1_0` alone; the tables are generated and
 | GM04 | contract.toml | drop the inproc `drive.command.drive` write | an in-process role submits a command | KILLED | check_values `batches` |
 | GM05 | contract.toml | drop the inproc `drive.settings.mode` write | an in-process role writes a key | KILLED | check_values `batches` |
 | GM06 | contract.toml | drop the integrator's `drive.state` rw | one principal writes every class | KILLED | generation refuses: the error group writer (integrator) no longer writes drive.state.error_overcurrent |
+
+## Per-path wire form and document scope (REQ-ING-SHD-003, and `ignore` of REQ-ING-SHD-001)
+
+Same procedure and test command as the main table; applied to `e49e86e`.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| SF01 | src/contract/schema_shadow.rs | `self.form == Some(WireForm::Integer)` | `self.form.is_some()` | only an integer form carries the code | KILLED | one_key_is_reported_as_a_string_and_as_an_integer |
+| SF02 | src/contract/schema_shadow.rs | `self.scope != Some(Scope::Delta)` | `true` | a delta-only path is not in the full document | KILLED | a_path_takes_its_full_and_its_delta_value_from_two_keys a_scope_places_a_row_in_the_full_document_or_the_delta |
+| SF03 | src/contract/schema_shadow.rs | `self.scope != Some(Scope::Full)` | `true` | a full-only path is not in the delta | KILLED | every_refusal_has_a_triggering_model |
+| SF04 | src/contract/schema_shadow.rs | `self.form.is_none() && self.scope.is_none()` | `self.form.is_none()` | a scope makes a path's form written | KILLED | a_path_takes_its_full_and_its_delta_value_from_two_keys |
+| SF05 | src/contract/schema_shadow.rs | `self.form.is_none() && self.scope.is_none()` | `self.scope.is_none()` | an as makes a path's form written | KILLED | an_integer_only_enum_key_needs_no_wire_strings_or_unknown_rules one_key_is_reported_as_a_string_and_as_an_integer |
+| SF06 | src/contract/schema_shadow.rs | `Paths::Many(list) => list.iter().map(PathDecl::form).collect(),` | `Paths::Many(list) => list.iter().take(1).map(PathDecl::form).collect(),` | every entry of a list | KILLED | every_refusal_has_a_triggering_model |
+| SF07 | src/contract/schema_shadow.rs | `PathDecl::Form(f) => f.clone(),` | `PathDecl::Form(f) => PathForm { path: f.path.clone(), form: None, scope: None },` | a table entry keeps its form and scope | KILLED | every_refusal_has_a_triggering_model |
+| SF08 | src/contract/wire.rs | `#[serde(skip_serializing_if = "all_plain")]` | `#[serde(skip_serializing_if = "Vec::is_empty")]` | forms written only when declared | KILLED | one_key_is_reported_as_a_string_and_as_an_integer |
+| SF09 | src/contract/wire.rs | `forms.iter().all(PathForm::plain)` | `forms.iter().any(PathForm::plain)` | one declared form writes them all | KILLED | contract_json_carries_every_header_and_key_field |
+| SF10 | src/contract/refuse_shadow.rs | `if key.enum_values.is_none() && forms.iter().any(\|f\| f.form.is_some()) {` | `if false {` | as is for enum keys | KILLED | every_refusal_has_a_triggering_model |
+| SF11 | src/contract/refuse_shadow.rs | `if key.role != Role::State && forms.iter().any(\|f\| f.scope.is_some()) {` | `if false {` | scope is for STATE keys | KILLED | every_refusal_has_a_triggering_model |
+| SF12 | src/contract/refuse_shadow.rs | `if key.wire.forced && !forms.iter().any(PathForm::in_delta) {` | `if false {` | a forced key has a delta path | KILLED | every_refusal_has_a_triggering_model |
+| SF13 | src/contract/refuse_shadow.rs | `key.wire.shadow_forms.iter().any(\|f\| !f.integer())` | `!key.wire.shadow_forms.is_empty()` | an integer-only key has no wire-string path | KILLED | every_refusal_has_a_triggering_model |
+| SF14 | src/contract/refuse_shadow.rs | `key.enum_values.as_ref().filter(\|_\| strings),\n` | `key.enum_values.as_ref(),\n` | S3 only where wire strings are carried | KILLED | an_integer_only_enum_key_needs_no_wire_strings_or_unknown_rules |
+| SF15 | src/contract/refuse_shadow.rs | `let e = key.enum_values.as_ref().filter(\|_\| strings);` | `let e = key.enum_values.as_ref();` | S4 only where wire strings are carried | KILLED | every_refusal_has_a_triggering_model |
+| SF16 | src/contract/refuse_shadow.rs | `matches!(v, "reject" \| "ignore")` | `v == "reject"` | ignore is an inbound rule | KILLED | unknown_rules_accept_aliases_reject_and_raw |
+| SF17 | src/contract/refuse_shadow.rs | `form_rules(key, errors);\n` | `\n` | form rules run | KILLED | every_refusal_has_a_triggering_model |
+| SF18 | src/contract/shadow_size.rs | `let strings = key.enum_values.as_ref().filter(\|_\| !f.integer());` | `let strings = key.enum_values.as_ref();` | an integer path counts digits | KILLED | one_key_is_reported_as_a_string_and_as_an_integer |
+| SF19 | src/contract/shadow_size.rs | `t.delta.add("shadow_echo", &e.path, echo_text(e));\n` | `\n` | echo paths in the delta | KILLED | every_refusal_has_a_triggering_model |
+| SF20 | src/contract/shadow_size.rs | `t.delta.add("shadow_constant", &c.path, size);\n` | `\n` | forced constants in the delta | KILLED | every_refusal_has_a_triggering_model |
+| SF21 | src/contract/shadow_size.rs | `t.delta.add(&key.path, &f.path, size);\n` | `\n` | delta key rows | KILLED | every_refusal_has_a_triggering_model |
+| SF22 | src/contract/shadow_size.rs | `if f.in_delta() {\n` | `if true {\n` | full-only paths are neither delta nor forced | KILLED | a_path_takes_its_full_and_its_delta_value_from_two_keys a_scope_places_a_row_in_the_full_document_or_the_delta |
+| SF23 | src/contract/shadow_size.rs | `if f.in_full() {\n` | `if true {\n` | delta-only paths are not in the full document | KILLED | a_path_takes_its_full_and_its_delta_value_from_two_keys a_scope_places_a_row_in_the_full_document_or_the_delta |
+| SF24 | src/contract/shadow.rs | `errors.extend(delta_only);\n` | `\n` | delta conflicts reported | KILLED | every_refusal_has_a_triggering_model |
+| SF25 | src/contract/shadow.rs | `.filter(\|e\| !t.reported.errors.contains(e))\n` | `\n` | a conflict in both documents once | KILLED | a_conflict_in_both_documents_is_reported_once |
+| SF26 | src/contract/shadow_size.rs | `Role::State => state_row(t, key, f),` | `Role::State => {}` | STATE key rows | KILLED | every_refusal_has_a_triggering_model |
