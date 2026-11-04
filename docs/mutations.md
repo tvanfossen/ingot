@@ -780,3 +780,17 @@ table_types --test shadow --test keyspace` (the last two since the shadow mappin
 | CM05 | src/contract/refuse_commands.rs | `if forms(&r.selector) != 1 {` | `if forms(&r.selector) > 1 {` | a selector form is required | KILLED | every_refusal_has_a_triggering_model |
 | CM53 | src/contract/snapshot.rs | `internal: c.internal.clone(),` | `internal: None,` | internal reason in contract.json | KILLED | contract_json_names_why_a_command_is_internal |
 | TP07 | src/contract/topics.rs | `t.subscribe_order.map(\|o\| o.to_string())` | `None::<String>` | subscribe orders unique | KILLED | every_refusal_has_a_triggering_model |
+
+## Generic model combinations (data mutations, REQ-ING-TIV-014)
+
+Each mutation edits `examples/contract/v1_0` alone; the tables are generated and
+`tests/fixtures/dmt/check_values.c` (`batches`) runs against them, as `generic_model_versions_and_previous_checks` does for every version.
+
+| ID | File | Mutation | Mechanism | Status | Killed by |
+|---|---|---|---|---|---|
+| GM01 | ns/drive.toml | drop `persistence = "durable"` of trip_count | a durable key in the integrator's batch | KILLED | check_values `batches` |
+| GM02 | ns/drive.toml | drop `deferred_ms = 60000` of run_time | a second deferred interval | KILLED | check_values `batches` |
+| GM03 | ns/drive.toml | `deferred_ms = 5000` on run_time | the two intervals differ | KILLED | check_values `batches` |
+| GM04 | contract.toml | drop the inproc `drive.command.drive` write | an in-process role submits a command | KILLED | check_values `batches` |
+| GM05 | contract.toml | drop the inproc `drive.settings.mode` write | an in-process role writes a key | KILLED | check_values `batches` |
+| GM06 | contract.toml | drop the integrator's `drive.state` rw | one principal writes every class | KILLED | generation refuses: the error group writer (integrator) no longer writes drive.state.error_overcurrent |
