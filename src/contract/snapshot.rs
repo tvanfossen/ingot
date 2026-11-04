@@ -10,6 +10,7 @@ use super::model::Tables;
 use super::ranges::Range;
 use super::schema::{ErrorRef, Kind, UnitDef};
 use super::types::WK_RULES;
+use super::wire::KeyWire;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -36,6 +37,9 @@ pub struct Snapshot {
     /// principal -> key path -> "r" | "w" | "rw" (absent: none)
     pub rights: BTreeMap<String, BTreeMap<String, String>>,
     pub commands: Vec<CommandJson>,
+    /// The shadow wire mapping's rows and sizes (G2 1.4); absent when the model maps nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shadow: Option<serde_json::Value>,
 }
 
 /// Contract name and version.
@@ -85,9 +89,37 @@ pub struct KeyJson {
     pub limits: Limits,
 }
 
-/// The G2 limits of a key in contract.json (written flat, beside the other key fields).
+/// The shadow wire mapping of a key in contract.json (G2 1.2.1, 1.4).
+#[derive(Debug, Serialize, PartialEq, Default)]
+pub struct Mapping {
+    /// Number to the accept aliases of the values that have any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enum_accept: Option<BTreeMap<i64, Vec<String>>>,
+    #[serde(flatten)]
+    pub wire: KeyWire,
+}
+
+impl Mapping {
+    /// The mapping of key `k`.
+    ///
+    /// @version 1
+    /// @req REQ-ING-SHD-001
+    fn of(k: &super::keys::Key) -> Self {
+        Mapping {
+            enum_accept: k.enum_values.as_ref().and_then(enum_accepts),
+            wire: k.wire.clone(),
+        }
+    }
+}
+
+/// The G2 limits and shadow wire mapping of a key in contract.json (written flat, beside the
+/// other key fields).
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Limits {
+    /// The shadow wire mapping, only where declared; not read back (no previous-contract check
+    /// reads it yet).
+    #[serde(flatten, skip_deserializing)]
+    pub mapping: Mapping,
     #[serde(default)]
     pub range: Option<Range>,
     #[serde(default)]
@@ -102,13 +134,16 @@ pub struct Limits {
 }
 
 impl Limits {
-    /// The limits of key `k`.
+    /// The limits and mapping of key `k`.
     ///
-    /// @version 1
+    /// v2: the shadow wire mapping.
+    /// @version 2
     /// @req REQ-ING-RNG-001
     /// @req REQ-ING-ERR-001
+    /// @req REQ-ING-SHD-001
     fn of(k: &super::keys::Key) -> Self {
         Limits {
+            mapping: Mapping::of(k),
             range: k.range,
             allowed: k.allowed.clone(),
             unset: k.unset,
@@ -180,7 +215,9 @@ fn access_name(bits: u8) -> Option<String> {
 /// v2: the declared variants.
 /// v3: the unit vocabulary; principals from principals_json.
 /// v4: the error groups.
-/// @version 4
+/// v5: the shadow wire mapping.
+/// @version 5
+/// @req REQ-ING-SHD-002
 /// @req REQ-ING-ERR-001
 /// @req REQ-ING-TIV-015
 /// @req REQ-ING-RNG-001
@@ -203,6 +240,7 @@ pub fn snapshot(tables: &Tables, commit: &str) -> Snapshot {
         principals: principals_json(tables),
         rights: rights_json(tables),
         commands: commands_json(tables),
+        shadow: super::shadow::json(tables),
     }
 }
 
@@ -271,6 +309,19 @@ fn key_json(k: &super::keys::Key) -> KeyJson {
         unit: k.unit.clone(),
         limits: Limits::of(k),
     }
+}
+
+/// Number to accept aliases of the values of a resolved enum that have any; `None` when none do.
+///
+/// @version 1
+/// @req REQ-ING-SHD-001
+fn enum_accepts(e: &ResolvedEnum) -> Option<BTreeMap<i64, Vec<String>>> {
+    let map: BTreeMap<i64, Vec<String>> = e
+        .values()
+        .filter(|m| !m.accept.is_empty())
+        .map(|m| (m.value, m.accept.clone()))
+        .collect();
+    (!map.is_empty()).then_some(map)
 }
 
 /// Name to number of a resolved enum.

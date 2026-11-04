@@ -92,7 +92,7 @@ fn the_resolved_body_declares_enums_commands_rights_and_no_values() {
     let gen = dir.join("gen");
     generate_ok("v1_1", &gen, &["--variant", "sku_b"]);
     let body = json(&gen, "keyspace.sku_b.json");
-    let codes: Vec<&serde_json::Value> = body["enums"][0]["values"]
+    let codes: Vec<&serde_json::Value> = body["enums"][1]["values"] // enums sort by name: fan, mode
         .as_array()
         .unwrap()
         .iter()
@@ -122,7 +122,7 @@ fn the_all_variants_file_overrides_the_base_per_variant() {
     let gen = dir.join("gen");
     generate_ok("v1_0", &gen, &[]);
     let all = json(&gen, "keyspace.json");
-    let mode = &all["enums"].as_array().unwrap()[0];
+    let mode = &all["enums"].as_array().unwrap()[1]; // enums sort by name: fan, mode
     assert_eq!(mode["name"], "drive::mode");
     assert_eq!(
         mode["values"][2],

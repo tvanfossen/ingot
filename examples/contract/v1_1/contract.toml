@@ -217,3 +217,34 @@ uid = 2003
 inflight_fd = 1
 inflight_bytes = 65536
 open_fds = 4
+
+# -- shadow wire mapping (G2 1.4): apply groups, echo-only paths, constant reported rows -------
+[[apply_groups]]
+id = "motion"
+doc = "Drive settings one desired update writes as one keystore batch."
+
+[[shadow_echo]]
+path = "settings.planExists"         # app metadata: echoed back so the delta clears, no key
+type = "bool"
+
+[[shadow_echo]]
+path = "settings.trim"
+type = "float"
+command_key = "drive.settings.gain"  # the delta path echoes it; command bodies apply it
+
+[[shadow_constant]]
+path = "state.connected"
+value = true
+forced = true                        # re-emitted on every delta
+
+[[shadow_constant]]
+path = "sv"
+value = "1.0-gen"
+
+[[shadow_constant]]
+path = "config.cv"
+image = "contract_version"
+
+[[shadow_constant]]
+path = "config.cvHash"
+image = "contract_hash"

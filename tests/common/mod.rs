@@ -163,3 +163,27 @@ pub fn edited_copy(version: &str, dir: &Path, edits: &[(&str, &str, &str)]) {
         edit(&dir.join(file), from, to);
     }
 }
+
+/// @brief Assert two generations have the same store tables (dmt_types.h, dmt_tables.c, and
+/// dmt_tables.h apart from the model hash) and the same digests for every principal.
+/// v2: shared by the test crates; dmt_types.h too.
+/// @version 2
+pub fn assert_same_store_tables(a: &Path, b: &Path) {
+    let read = |d: &Path, f: &str| fs::read_to_string(d.join(f)).unwrap();
+    assert_eq!(read(a, "dmt_types.h"), read(b, "dmt_types.h"));
+    assert_eq!(read(a, "dmt_tables.c"), read(b, "dmt_tables.c"));
+    let hash_free = |d: &Path| {
+        read(d, "dmt_tables.h")
+            .lines()
+            .filter(|l| !l.contains("MODEL_HASH"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    assert_eq!(hash_free(a), hash_free(b));
+    let principals = contract_json(a)["principals"].as_array().unwrap().clone();
+    assert!(!principals.is_empty());
+    for p in principals {
+        let name = p["name"].as_str().unwrap();
+        assert_eq!(digests(a, name), digests(b, name), "{name}");
+    }
+}

@@ -100,11 +100,19 @@ static void command(size_t c, const uint32_t keys[3], uint32_t payload, uint32_t
 /**
  * @brief   Values every version of the generic model shares.
  *          v2: the enum key drive.settings.mode (KF_ENUM) and the contract patch.
- * @version 2
+ *          v3: the keys the shadow mapping of 1.x uses (fan, its twins, tones, docked).
+ * @version 3
  */
 static void common(void)
 {
     static const uint8_t mode[] = { 1 };
+    static const uint8_t fan[] = { 1 };
+    key(0x00C00288u, 1u, 1440u, 4u, 0u, 0x0008u, 0u, DMT_T_U8, DMT_P_DURABLE, DMT_R_SETTINGS, 0x07u);
+    value(0x00C00288u, fan, sizeof fan, 0u);
+    key(0x00C20388u, 1u, 0u, 0u, 0u, 0x0008u, 0u, DMT_T_U8, DMT_P_NONE, DMT_R_STATE, 0x07u);
+    key(0x00C20410u, 2u, 0u, 0u, 0u, 0x0000u, 0u, DMT_T_U16, DMT_P_NONE, DMT_R_STATE, 0x07u);
+    key(0x00C20540u, 8u, 0u, 0u, 0u, 0x0000u, 0u, DMT_T_STRING, DMT_P_NONE, DMT_R_STATE, 0x07u);
+    key(0x00C20580u, 1u, 0u, 0u, 0u, 0x0000u, 0u, DMT_T_BOOL, DMT_P_NONE, DMT_R_STATE, 0x07u);
     static const uint8_t serial[] = { 'u', 'n', 's', 'e', 't' };
     EXPECT(strcmp(DMT_CONTRACT_NAME, "generic") == 0 && strcmp(DMT_VARIANT, "sku_a") == 0);
     EXPECT(DMT_CONTRACT_PATCH == 0);
@@ -171,10 +179,10 @@ static void versioned(void)
     value(0x00C00138u, gain, sizeof gain, 0u);
     value(0x00C201C0u, label, sizeof label, 0u);
 #if DMT_CONTRACT_MINOR == 0
-    EXPECT(DMT_NUM_KEYS == 34 && DMT_NUM_PRINCIPALS == 8 && DMT_DEFAULT_BLOB_LEN == 17);
+    EXPECT(DMT_NUM_KEYS == 39 && DMT_NUM_PRINCIPALS == 8 && DMT_DEFAULT_BLOB_LEN == 18);
     key(0x00C20028u, 2u, 864000u, 20u, 0u, 0x0000u, 0u, DMT_T_I16, DMT_P_NONE, DMT_R_STATE, 0x07u);
 #else
-    EXPECT(DMT_NUM_KEYS == 36 && DMT_NUM_PRINCIPALS == 9);
+    EXPECT(DMT_NUM_KEYS == 41 && DMT_NUM_PRINCIPALS == 9);
     key(0x00C20028u, 2u, 864000u, 20u, 0u, 0x0004u, 0u, DMT_T_I16, DMT_P_NONE, DMT_R_STATE, 0x07u);
     value(0x00C20028u, NULL, 0u, 0x00C202A8u);
     key(0x00C202A8u, 2u, 864000u, 20u, 0u, 0x0000u, 1u, DMT_T_I16, DMT_P_NONE, DMT_R_STATE, 0x07u);

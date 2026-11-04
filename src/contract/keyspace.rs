@@ -14,8 +14,10 @@ pub const SCHEMA_VERSION: &str = "1.0";
 /// The SKU-resolved declaration of one variant's tables.
 ///
 /// v2: the error groups.
-/// @version 2
+/// v3: the shadow rows and sizes.
+/// @version 3
 /// @req REQ-ING-KSP-001
+/// @req REQ-ING-SHD-002
 pub fn resolved(tables: &Tables, commit: &str) -> Value {
     let mut doc = header(tables, commit);
     doc.insert("sku".into(), json!(tables.variant));
@@ -30,14 +32,27 @@ pub fn resolved(tables: &Tables, commit: &str) -> Value {
         "error_groups".into(),
         error_groups(tables, &[], &|_| json!(true)),
     );
+    insert_shadow(&mut doc, tables);
     Value::Object(doc)
+}
+
+/// The shadow rows and sizes of `tables`, when the model maps anything.
+///
+/// @version 1
+/// @req REQ-ING-SHD-002
+fn insert_shadow(doc: &mut Map<String, Value>, tables: &Tables) {
+    if let Some(shadow) = super::shadow::json(tables) {
+        doc.insert("shadow".into(), shadow);
+    }
 }
 
 /// The all-variants declaration: the base model plus, per enum, what each variant changes.
 ///
 /// v2: the error groups.
-/// @version 2
+/// v3: the shadow rows, with the base's sizes (an upper bound of every variant's).
+/// @version 3
 /// @req REQ-ING-KSP-001
+/// @req REQ-ING-SHD-002
 pub fn combined(base: &Tables, variants: &[Tables], commit: &str) -> Value {
     let mut doc = header(base, commit);
     let present = |path: &str| presence(variants, path);
@@ -47,6 +62,7 @@ pub fn combined(base: &Tables, variants: &[Tables], commit: &str) -> Value {
     doc.insert("rights".into(), rights(base));
     let groups = error_groups(base, variants, &present);
     doc.insert("error_groups".into(), groups);
+    insert_shadow(&mut doc, base);
     Value::Object(doc)
 }
 
@@ -132,38 +148,53 @@ fn class(
     json!({"index": index, "name": name, "role": role, "keys": keys})
 }
 
-/// One key: identity, type, role, unit and limits, rate, persistence, secrecy, enum and doc.
+/// One key: identity, type, role, unit and limits, rate, persistence, secrecy, enum, doc and
+/// the shadow wire attributes it declares.
 ///
-/// @version 1
+/// v2: the shadow wire attributes.
+/// @version 2
 /// @req REQ-ING-KSP-001
+/// @req REQ-ING-SHD-001
 fn key(k: &super::keys::Key, present: Value) -> Value {
     let range = k
         .range
         .map(|r| json!({"min": r.min, "max": r.max, "step": r.step}));
-    json!({
+    let mut v = json!({
         "id": k.id, "name": k.path, "type": k.ty.name(),
         "role": format!("{:?}", k.role).to_lowercase(),
         "unit": k.unit, "scale": k.scale, "range": range, "allowed": k.allowed, "unset": k.unset,
         "doc": k.doc, "secret": k.secret, "write_rate_per_day": k.rate_per_day,
         "persist": k.persist.name(), "enum": k.enum_name, "present": present,
-    })
+    });
+    if let (Some(obj), Value::Object(wire)) = (v.as_object_mut(), json!(k.wire)) {
+        obj.extend(wire);
+    }
+    v
 }
 
 /// Every enum the keys use, resolved for the tables' variant, by name.
 ///
-/// @version 1
+/// v2: each value's accept aliases, where it has any.
+/// @version 2
 /// @req REQ-ING-KSP-001
+/// @req REQ-ING-SHD-001
 fn enums(tables: &Tables) -> BTreeMap<String, Value> {
     let mut out = BTreeMap::new();
     for k in &tables.keys {
         if let (Some(name), Some(e)) = (&k.enum_name, &k.enum_values) {
             out.entry(name.clone()).or_insert_with(|| {
-                let mut values: Vec<(i64, &String, &String)> =
-                    e.iter().map(|(n, m)| (m.value, n, &m.wire)).collect();
-                values.sort();
+                let mut values: Vec<(i64, &String, &super::enums::Member)> =
+                    e.iter().map(|(n, m)| (m.value, n, m)).collect();
+                values.sort_by_key(|(code, _, _)| *code);
                 let values: Vec<Value> = values
                     .into_iter()
-                    .map(|(code, n, wire)| json!({"code": code, "name": n, "wire": wire}))
+                    .map(|(code, n, m)| {
+                        let mut v = json!({"code": code, "name": n, "wire": m.wire});
+                        if !m.accept.is_empty() {
+                            v["accept"] = json!(m.accept);
+                        }
+                        v
+                    })
                     .collect();
                 json!({"name": name, "values": values})
             });
@@ -227,16 +258,19 @@ fn by_code(v: &Value) -> BTreeMap<i64, Value> {
 
 /// Per code: what `variant` changes in `base` values (absent codes are `present: false`).
 ///
-/// @version 1
+/// v2: the variant's value as a whole (accept aliases too), without its code.
+/// @version 2
 /// @req REQ-ING-KSP-001
+/// @req REQ-ING-SHD-001
 fn diff(base: &Value, variant: Option<&Value>) -> Value {
     let (b, v) = (by_code(base), variant.map(by_code).unwrap_or_default());
     let mut out = Map::new();
     for (code, m) in v.iter().filter(|(c, m)| b.get(c) != Some(m)) {
-        out.insert(
-            code.to_string(),
-            json!({"name": m["name"], "wire": m["wire"]}),
-        );
+        let mut changed = m.clone();
+        if let Some(obj) = changed.as_object_mut() {
+            obj.remove("code");
+        }
+        out.insert(code.to_string(), changed);
     }
     for code in b.keys().filter(|c| !v.contains_key(c)) {
         out.insert(code.to_string(), json!({"present": false}));

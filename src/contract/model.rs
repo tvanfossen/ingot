@@ -7,6 +7,7 @@ use super::rights::{self, Principal};
 use super::schema::{
     Bounds, CommandDef, ContractFile, NamespaceFile, Persist, Reserved, UidCapsDef, UnitsFile,
 };
+use super::shadow::{self, Shadow};
 use super::types::{Version, WK_RULES};
 use super::{enums, variants};
 use sha2::{Digest, Sha256};
@@ -56,6 +57,8 @@ pub struct Tables {
     pub commands: Vec<Command>,
     pub uid_caps: Vec<UidCapsDef>,
     pub bounds: Bounds,
+    /// The contract-level shadow rows (G2 1.4).
+    pub shadow: Shadow,
 }
 
 /// The parsed input files, each with its path relative to the contract file's directory.
@@ -64,6 +67,7 @@ struct Loaded {
     namespaces: Vec<NamespaceFile>,
     units: Option<Units>,
     files: Vec<(String, Vec<u8>)>,
+    shadow: Shadow,
 }
 
 /// Load and resolve the model whose contract file is `contract_path`, for `variant`
@@ -75,7 +79,10 @@ struct Loaded {
 /// (variants::check_selected), so the base can be resolved too.
 /// v5: the error groups, resolved for the variant.
 /// v6: grants are checked against the key paths of every variant.
-/// @version 6
+/// v7: the shadow wire mapping, resolved and checked for the variant.
+/// @version 7
+/// @req REQ-ING-SHD-001
+/// @req REQ-ING-SIZ-001
 /// @req REQ-ING-PRS-001
 /// @req REQ-ING-ERR-001
 /// @req REQ-ING-TIV-015
@@ -92,8 +99,6 @@ pub fn build(contract_path: &Path, variant: Option<&str>) -> Result<(Tables, Err
     rights::check_grants(&principals, &grants, &known, &mut errors);
     let rights = rights::resolve(&principals, &grants, &keys, &mut errors);
     let reserved = reserved_ids(&loaded.contract.reserved);
-    let mut uid_caps = loaded.contract.uid_caps;
-    uid_caps.sort_by_key(|c| c.uid);
     let meta = loaded.contract.contract;
     let tables = Tables {
         layout: loaded.namespaces.iter().map(layout).collect(),
@@ -113,9 +118,11 @@ pub fn build(contract_path: &Path, variant: Option<&str>) -> Result<(Tables, Err
         principals,
         rights,
         commands,
-        uid_caps,
+        uid_caps: loaded.contract.uid_caps,
         bounds: loaded.contract.bounds,
+        shadow: loaded.shadow,
     };
+    shadow::check(&tables, &mut errors);
     Ok((tables, errors))
 }
 
@@ -151,13 +158,17 @@ fn layout(ns: &NamespaceFile) -> NsLayout {
 /// vocabulary it names; every one is an input of the model hash.
 ///
 /// v2: the unit vocabulary.
-/// @version 2
+/// v3: the contract-level shadow rows, taken out of the contract file; uid caps sorted by uid.
+/// @version 3
 /// @req REQ-ING-TIV-002
 /// @req REQ-ING-RNG-001
+/// @req REQ-ING-SHD-002
 fn load(contract_path: &Path) -> Result<Loaded, String> {
     let base = contract_path.parent().unwrap_or(Path::new("."));
     let text = read(contract_path)?;
-    let contract: ContractFile = parse(contract_path, &text)?;
+    let mut contract: ContractFile = parse(contract_path, &text)?;
+    let shadow = shadow::rows(&mut contract);
+    contract.uid_caps.sort_by_key(|c| c.uid);
     let mut files = vec![(file_name(contract_path), text.into_bytes())];
     let namespaces = load_namespaces(base, &contract.contract.namespace_dir, &mut files)?;
     let units = load_units(base, contract.contract.units.as_deref(), &mut files)?;
@@ -166,6 +177,7 @@ fn load(contract_path: &Path) -> Result<Loaded, String> {
         contract,
         namespaces,
         units,
+        shadow,
         files,
     })
 }

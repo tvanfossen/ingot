@@ -264,7 +264,7 @@ fn the_last_key_grant_wins_and_none_removes() {
 
 #[test]
 fn queue_bound_is_computed_from_rates_and_latency() {
-    // ceil(200 * 1_127_550 writes/day * 50_000 ms / (100 * 86_400_000)) = 1306
+    // ceil(200 * 1_128_990 writes/day * 50_000 ms / (100 * 86_400_000)) = 1307
     let dir = unique_dir("bound");
     let model_dir = dir.join("model");
     copy_dir(&model("v1_0"), &model_dir);
@@ -276,7 +276,7 @@ fn queue_bound_is_computed_from_rates_and_latency() {
     let out = dir.join("bound");
     let (ok, stderr) = generate(&model_dir.join("contract.toml"), &out, &[]);
     assert!(ok, "{stderr}");
-    assert_eq!(principal(&out, "integrator")["queue_bound"], 1306);
+    assert_eq!(principal(&out, "integrator")["queue_bound"], 1307);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -567,7 +567,7 @@ fn flags_and_scope_grants_combine_and_secrets_keep_their_readers() {
 #[test]
 fn write_only_keys_count_in_neither_the_queue_bound_nor_the_snapshot() {
     // in-process principal with read on drive.settings and drive.state except speed (write
-    // only): 3 x 1440 + 86400 writes/day readable; ceil(200 * 90720 * 50000 / 8.64e9) = 105.
+    // only): 4 x 1440 + 86400 writes/day readable; ceil(200 * 92160 * 50000 / 8.64e9) = 107.
     let dir = unique_dir("write_only");
     let (model_dir, gen) = (dir.join("model"), dir.join("gen"));
     copy_dir(&model("v1_0"), &model_dir);
@@ -584,16 +584,16 @@ fn write_only_keys_count_in_neither_the_queue_bound_nor_the_snapshot() {
     );
     let (ok, stderr) = generate(&contract, &gen, &[]);
     assert!(ok, "{stderr}");
-    assert_eq!(principal(&gen, "inproc")["queue_bound"], 105);
-    // the snapshot floor drops by speed's 2 bytes, from 47 to 45
+    assert_eq!(principal(&gen, "inproc")["queue_bound"], 107);
+    // the snapshot floor drops by speed's 2 bytes, from 60 to 58
     edit(
         &contract,
         "inproc_snapshot_bytes = 4096",
-        "inproc_snapshot_bytes = 44",
+        "inproc_snapshot_bytes = 57",
     );
     let (ok, stderr) = generate(&contract, &dir.join("refused"), &[]);
     assert!(
-        !ok && stderr.contains("inproc_snapshot_bytes 44 is below its lower bound 45"),
+        !ok && stderr.contains("inproc_snapshot_bytes 57 is below its lower bound 58"),
         "{stderr}"
     );
     let _ = fs::remove_dir_all(&dir);
@@ -650,26 +650,6 @@ fn enums_resolve_per_variant_with_wire_strings() {
 
 /// sku_b's enum changes in the generic 1.0 model.
 const SKU_B_MODE: &str = "[enums.mode.variants.sku_b]              # sku_b renames 1, adds 3, has no sport\nremove = [\"sport\"]\n\n[enums.mode.variants.sku_b.values]\nsaver = 1\nturbo = 3\n";
-
-/// @brief Assert two generations have the same store tables (dmt_tables.h apart from the
-/// model hash) and the same digests for every principal.
-/// @version 1
-fn assert_same_store_tables(a: &Path, b: &Path) {
-    let read = |d: &Path, f: &str| fs::read_to_string(d.join(f)).unwrap();
-    assert_eq!(read(a, "dmt_tables.c"), read(b, "dmt_tables.c"));
-    let hash_free = |d: &Path| {
-        read(d, "dmt_tables.h")
-            .lines()
-            .filter(|l| !l.contains("MODEL_HASH"))
-            .collect::<Vec<_>>()
-            .join("\n")
-    };
-    assert_eq!(hash_free(a), hash_free(b));
-    for p in contract_json(a)["principals"].as_array().unwrap() {
-        let name = p["name"].as_str().unwrap();
-        assert_eq!(digests(a, name), digests(b, name), "{name}");
-    }
-}
 
 #[test]
 fn store_tables_and_digests_do_not_depend_on_enum_maps() {

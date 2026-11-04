@@ -16,6 +16,18 @@ remove = ["sport"]
 saver = 1
 turbo = 3
 
+[enums.fan.values]                       # a shadowed enum: explicit wire strings, an inbound alias
+quiet = { value = 0, wire = "quiet" }
+normal = { value = 1, wire = "normal" }
+boost = { value = 2, wire = "high", accept = ["max"] }   # reported "high"; "high" and "max" accepted
+
+[enums.fan.variants.sku_b.values]        # sku_b calls 0 whisper and still accepts "quiet"
+whisper = { value = 0, wire = "whisper", accept = ["quiet"] }
+
+[enums.tone.values]                      # the wire strings a rendered index list selects
+beep = { value = 0, wire = "beep" }
+chime = { value = 1, wire = "chime" }
+
 [[classes]]
 id = "settings"
 class_index = 0
@@ -34,6 +46,9 @@ introduced_in = "1.0"
 write_rate = "1/min"
 default = 100
 defaults = { sku_b = 80 }
+shadow = "settings.speedLimit"
+apply_group = "motion"
+on_reject = "clear_desired"
 
 [[classes.keys]]
 id = "mode"
@@ -52,6 +67,19 @@ introduced_in = "1.0"
 write_rate = "1/min"
 default = 1.5
 defaults = { sku_b = 0.75 }
+
+[[classes.keys]]
+id = "fan"
+key_index = 5
+type = "uint8"
+enum = "fan"
+introduced_in = "1.0"
+write_rate = "1/min"
+default = 1
+shadow = "settings.fanSpeed"
+apply_group = "motion"
+inbound_unknown = "quiet"            # an unmatched string is quiet (code 0), as today
+implies = [ { key = "drive.settings.speed_limit", value = 500 } ]
 
 [[classes]]
 id = "state"
@@ -106,6 +134,43 @@ introduced_in = "1.0"
 variants = ["sku_b"]                 # exists on sku_b only
 error = { group = "dock", bit = 0 }
 doc = "Dock error of sku_b (wire id e50)."
+
+[[classes.keys]]
+id = "fan_applied"
+key_index = 7
+type = "uint8"
+enum = "fan"
+introduced_in = "1.0"
+shadow = ["state.fanSpeed", "settings.fanSpeed"]   # one STATE key at two reported paths
+applies = "drive.settings.fan"
+outbound_unknown = "normal"          # a code past the enum reports "normal"
+
+[[classes.keys]]
+id = "speed_limit_applied"
+key_index = 8
+type = "uint16"
+introduced_in = "1.0"
+shadow = "settings.speedLimit"
+applies = "drive.settings.speed_limit"
+
+[[classes.keys]]
+id = "tones"
+key_index = 10
+type = "string"
+max_size = 8
+introduced_in = "1.0"
+shadow = "state.tones"
+render = { kind = "csv_index_list", enum = "tone", max_items = 4 }   # "0,1" reports ["beep","chime"]
+telem = "tones"
+
+[[classes.keys]]
+id = "docked"
+key_index = 11
+type = "bool"
+introduced_in = "1.0"
+shadow = "state.docked"
+forced = true                        # re-emitted on every delta
+telem = "dock"
 
 [[classes]]
 id = "map"

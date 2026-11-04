@@ -1,6 +1,7 @@
 //! Contract-mode input: `contract.toml` and the namespace files it names (table-interface
 //! specification section 7). Unknown fields are errors; every index is explicit.
 
+pub use super::schema_shadow::*;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
@@ -18,6 +19,12 @@ pub struct ContractFile {
     pub uid_caps: Vec<UidCapsDef>,
     #[serde(default)]
     pub error_groups: Vec<ErrorGroupDef>,
+    #[serde(default)]
+    pub apply_groups: Vec<ApplyGroup>,
+    #[serde(default)]
+    pub shadow_echo: Vec<Echo>,
+    #[serde(default)]
+    pub shadow_constant: Vec<Constant>,
 }
 
 /// `[contract]`: name, version and where the namespace files are.
@@ -203,12 +210,15 @@ pub enum EnumValueDef {
     Wire(WireValue),
 }
 
-/// `{ value = n, wire = "..." }`.
+/// `{ value = n, wire = "...", accept = [...] }`: the outbound wire string and the other inbound
+/// strings that also mean this value.
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct WireValue {
     pub value: i64,
     pub wire: String,
+    #[serde(default)]
+    pub accept: Vec<String>,
 }
 
 /// A variant's changes to an enum: values merged over the base by number, base names removed.
@@ -323,6 +333,24 @@ pub struct KeyDef {
     pub variants: Option<Vec<String>>,
     /// The error group and bit of a one-bool-per-error STATE key (R24).
     pub error: Option<ErrorRef>,
+    /// The shadow path or paths (desired for SETTINGS, reported for STATE).
+    pub shadow: Option<Paths>,
+    /// The SETTINGS key this STATE key reports as applied.
+    pub applies: Option<String>,
+    pub apply_group: Option<String>,
+    #[serde(default)]
+    pub implies: Vec<Implies>,
+    pub on_reject: Option<OnReject>,
+    /// The code an unmatched inbound string becomes (an inbound string), or `reject`.
+    pub inbound_unknown: Option<String>,
+    /// The string an unknown code reports (a wire string), or `raw`.
+    pub outbound_unknown: Option<String>,
+    /// Re-emitted on every delta.
+    #[serde(default)]
+    pub forced: bool,
+    pub render: Option<Render>,
+    /// The telemetry name.
+    pub telem: Option<String>,
     #[serde(default)]
     pub read_only: bool,
     #[serde(default)]

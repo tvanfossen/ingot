@@ -17,12 +17,17 @@ pub mod previous;
 pub mod ranges;
 pub mod refuse_model;
 pub mod refuse_rights;
+pub mod refuse_shadow;
 pub mod rights;
 pub mod schema;
+pub mod schema_shadow;
+pub mod shadow;
+pub mod shadow_size;
 pub mod snapshot;
 pub mod types;
 pub mod value;
 pub mod variants;
+pub mod wire;
 
 use crate::codegen::{tables::write_table_types, write_generated};
 use std::path::Path;

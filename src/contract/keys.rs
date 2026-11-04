@@ -11,6 +11,7 @@ use super::types::{
     X_UART, X_UNIX,
 };
 use super::value::{encode_default, parse_rate};
+use super::wire::{self, KeyWire};
 use crate::model::key::KeyEncoding;
 use std::collections::BTreeMap;
 
@@ -59,6 +60,8 @@ pub struct Key {
     pub scale: f64,
     /// The error group and bit of an error key (R24).
     pub error: Option<ErrorRef>,
+    /// The shadow wire attributes (G2 1.4).
+    pub wire: KeyWire,
 }
 
 impl Key {
@@ -150,7 +153,8 @@ impl ClassCtx<'_> {
     /// v2: no range, allowed set or sentinel, scale 1.
     /// v3: no enum name.
     /// v4: no error group.
-    /// @version 4
+    /// v5: no shadow wire attributes.
+    /// @version 5
     /// @req REQ-ING-TIV-003
     fn base(&self, name: &str, index: u16, ty: KeyType, introduced: Version) -> Key {
         Key {
@@ -183,6 +187,7 @@ impl ClassCtx<'_> {
             unset: None,
             scale: 1.0,
             error: None,
+            wire: KeyWire::default(),
         }
     }
 }
@@ -210,9 +215,11 @@ fn check_index(ctx: &ClassCtx, name: &str, index: u16, errors: &mut Errors) {
 ///
 /// v2: units, ranges, allowed sets, sentinels and scale (G2 1.3).
 /// v3: the enum name, for the keyspace.
-/// @version 3
+/// v4: the shadow wire attributes (G2 1.4).
+/// @version 4
 /// @req REQ-ING-TIV-003
 /// @req REQ-ING-RNG-001
+/// @req REQ-ING-SHD-001
 pub fn declared_key(ctx: &ClassCtx, def: &KeyDef, errors: &mut Errors) -> Key {
     check_index(ctx, &def.id, def.key_index, errors);
     let mut key = ctx.base(
@@ -244,6 +251,7 @@ pub fn declared_key(ctx: &ClassCtx, def: &KeyDef, errors: &mut Errors) -> Key {
     );
     default_key(&mut key, ctx.variant, def, errors);
     ranges::apply(&mut key, def, ctx.units, errors);
+    key.wire = wire::of(ctx, &key.path, def, errors);
     key
 }
 

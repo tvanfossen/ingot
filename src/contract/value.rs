@@ -243,6 +243,8 @@ mod tests {
         let member = |value| crate::contract::enums::Member {
             value,
             wire: String::new(),
+            accept: Vec::new(),
+            explicit: false,
         };
         let enums: ResolvedEnum = [
             ("off".to_string(), member(0)),

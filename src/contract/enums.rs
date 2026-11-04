@@ -9,7 +9,12 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Member {
     pub value: i64,
+    /// The outbound wire string (also accepted inbound).
     pub wire: String,
+    /// The other inbound strings that mean this value.
+    pub accept: Vec<String>,
+    /// Whether the wire string was declared (not defaulted to the name).
+    pub explicit: bool,
 }
 
 /// A resolved enum: member name to member.
@@ -17,18 +22,34 @@ pub type ResolvedEnum = BTreeMap<String, Member>;
 
 /// The member a value definition declares under `name` (its wire string is the name unless given).
 ///
-/// @version 1
+/// v2: accept aliases, and whether the wire string was declared.
+/// @version 2
 /// @req REQ-ING-TIV-016
+/// @req REQ-ING-SHD-001
 fn member(name: &str, def: &EnumValueDef) -> Member {
     match def {
         EnumValueDef::Number(value) => Member {
             value: *value,
             wire: name.to_string(),
+            accept: Vec::new(),
+            explicit: false,
         },
         EnumValueDef::Wire(w) => Member {
             value: w.value,
             wire: w.wire.clone(),
+            accept: w.accept.clone(),
+            explicit: true,
         },
+    }
+}
+
+impl Member {
+    /// Every inbound string of the member: its wire string, then its accept aliases.
+    ///
+    /// @version 1
+    /// @req REQ-ING-SHD-001
+    pub fn inbound(&self) -> impl Iterator<Item = &String> {
+        std::iter::once(&self.wire).chain(&self.accept)
     }
 }
 
@@ -107,19 +128,36 @@ fn apply_variant(
     }
 }
 
-/// Numbers and wire strings of a resolved enum are unique.
+/// Numbers and wire strings of a resolved enum are unique, and each inbound string (a wire
+/// string or an accept alias) means one code.
 ///
-/// @version 1
+/// v2: inbound strings (S5).
+/// @version 2
 /// @req REQ-ING-TIV-016
+/// @req REQ-ING-SHD-001
 fn check_unique(path: &str, resolved: &ResolvedEnum, errors: &mut Errors) {
     let mut values = BTreeSet::new();
     let mut wires = BTreeSet::new();
+    let mut inbound = BTreeMap::new();
     for m in resolved.values() {
         if !values.insert(m.value) {
             errors.push(format!("{path}: number {} has two names", m.value));
         }
         if !wires.insert(&m.wire) {
             errors.push(format!("{path}: wire string {} is used twice", m.wire));
+        }
+        for s in &m.accept {
+            if *inbound.entry(s).or_insert(m.value) != m.value {
+                errors.push(format!("{path}: inbound string {s} maps to two codes"));
+            }
+        }
+    }
+    for m in resolved.values() {
+        if inbound.get(&m.wire).is_some_and(|v| *v != m.value) {
+            errors.push(format!(
+                "{path}: inbound string {} maps to two codes",
+                m.wire
+            ));
         }
     }
 }
@@ -194,6 +232,7 @@ mod tests {
         let wire = WireValue {
             value: 14,
             wire: "mapDiscovery".to_string(),
+            accept: Vec::new(),
         };
         d.values
             .insert("map_discovery".to_string(), EnumValueDef::Wire(wire));
@@ -259,6 +298,7 @@ mod tests {
         let wire = WireValue {
             value: 1,
             wire: "a".to_string(),
+            accept: Vec::new(),
         };
         d.values.insert("b".to_string(), EnumValueDef::Wire(wire));
         let mut errors = Errors::new();
