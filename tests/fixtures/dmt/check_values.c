@@ -100,7 +100,8 @@ static void command(size_t c, const uint32_t keys[3], uint32_t payload, uint32_t
 /**
  * @brief   Values every version of the generic model shares.
  *          v2: the enum key drive.settings.mode (KF_ENUM) and the contract patch.
- *          v3: the keys the shadow mapping of 1.x uses (fan, its twins, tones, docked).
+ *          v3: the keys the shadow mapping of 1.x uses (fan, its twins, tones, docked), the
+ *              drive command and its argument keys.
  * @version 3
  */
 static void common(void)
@@ -113,6 +114,13 @@ static void common(void)
     key(0x00C20410u, 2u, 0u, 0u, 0u, 0x0000u, 0u, DMT_T_U16, DMT_P_NONE, DMT_R_STATE, 0x07u);
     key(0x00C20540u, 8u, 0u, 0u, 0u, 0x0000u, 0u, DMT_T_STRING, DMT_P_NONE, DMT_R_STATE, 0x07u);
     key(0x00C20580u, 1u, 0u, 0u, 0u, 0x0000u, 0u, DMT_T_BOOL, DMT_P_NONE, DMT_R_STATE, 0x07u);
+    key(0x00C601C8u, 72u, 0u, 0u, 0u, 0x0010u, 0u, DMT_T_BINARY, DMT_P_NONE, DMT_R_COMMAND, 0x07u);
+    key(0x00C60248u, 28u, 0u, 0u, 0u, 0x0020u, 0u, DMT_T_BINARY, DMT_P_NONE, DMT_R_COMMAND, 0x07u);
+    key(0x00C602C8u, 256u, 0u, 0u, 0u, 0x0040u, 0u, DMT_T_BINARY, DMT_P_NONE, DMT_R_COMMAND, 0x07u);
+    key(0x00C60318u, 4u, 0u, 0u, 0u, 0x0000u, 0u, DMT_T_U32, DMT_P_NONE, DMT_R_COMMAND, 0x07u);
+    key(0x00C60390u, 2u, 0u, 0u, 0u, 0x0000u, 0u, DMT_T_U16, DMT_P_NONE, DMT_R_COMMAND, 0x07u);
+    key(0x00C60410u, 2u, 0u, 0u, 0u, 0x0000u, 0u, DMT_T_U16, DMT_P_NONE, DMT_R_COMMAND, 0x07u);
+    key(0x00C604C0u, 512u, 0u, 0u, 0u, 0x0000u, 0u, DMT_T_STRING, DMT_P_NONE, DMT_R_COMMAND, 0x07u);
     static const uint8_t serial[] = { 'u', 'n', 's', 'e', 't' };
     EXPECT(strcmp(DMT_CONTRACT_NAME, "generic") == 0 && strcmp(DMT_VARIANT, "sku_a") == 0);
     EXPECT(DMT_CONTRACT_PATCH == 0);
@@ -151,10 +159,12 @@ static void common(void)
     static const uint32_t pre_reset[3] = { 0x004401C8u, 0x00440248u, 0x004402C8u };
     static const uint32_t trace[3] = { 0x00440348u, 0x004403C8u, 0x00440448u };
     static const uint32_t map_edit[3] = { 0x00C60050u, 0x00C600C8u, 0x00C60148u };
+    static const uint32_t drive[3] = { 0x00C601C8u, 0x00C60248u, 0x00C602C8u };
     command(0u, reset, 0u, 0u, 0u, 4u, DMT_OWNER_CORE, DMT_P_DURABLE);
     command(1u, pre_reset, 0u, 0u, 0u, 4u, 0u, DMT_P_DURABLE);
     command(2u, trace, 118u, 0u, 0u, 4u, DMT_OWNER_CORE, DMT_P_NONE);
     command(3u, map_edit, 32768u, 256u, 32u, 8u, 4u, DMT_P_DURABLE);
+    command(4u, drive, 64u, 16u, 0u, 4u, 0u, DMT_P_NONE);
     EXPECT(dmt_wk[DMT_WK_RESET_REQUEST] == 0x00440048u && dmt_wk[DMT_WK_TRACE_ENABLE] == 0x00440348u);
     EXPECT(dmt_wk[DMT_WK_RESET_PRE_COMMAND] == 0x004401C8u && dmt_wk[DMT_WK_DEVICE_ID] == 0x00800040u);
     EXPECT(dmt_wk[DMT_WK_DIAG_FSYNC_COUNT] == 0x00400218u && dmt_wk[DMT_WK_DIAG_BYTES_WRITTEN_KIB] == 0u);
@@ -179,10 +189,10 @@ static void versioned(void)
     value(0x00C00138u, gain, sizeof gain, 0u);
     value(0x00C201C0u, label, sizeof label, 0u);
 #if DMT_CONTRACT_MINOR == 0
-    EXPECT(DMT_NUM_KEYS == 39 && DMT_NUM_PRINCIPALS == 8 && DMT_DEFAULT_BLOB_LEN == 18);
+    EXPECT(DMT_NUM_KEYS == 46 && DMT_NUM_PRINCIPALS == 8 && DMT_DEFAULT_BLOB_LEN == 18);
     key(0x00C20028u, 2u, 864000u, 20u, 0u, 0x0000u, 0u, DMT_T_I16, DMT_P_NONE, DMT_R_STATE, 0x07u);
 #else
-    EXPECT(DMT_NUM_KEYS == 41 && DMT_NUM_PRINCIPALS == 9);
+    EXPECT(DMT_NUM_KEYS == 48 && DMT_NUM_PRINCIPALS == 9);
     key(0x00C20028u, 2u, 864000u, 20u, 0u, 0x0004u, 0u, DMT_T_I16, DMT_P_NONE, DMT_R_STATE, 0x07u);
     value(0x00C20028u, NULL, 0u, 0x00C202A8u);
     key(0x00C202A8u, 2u, 864000u, 20u, 0u, 0x0000u, 1u, DMT_T_I16, DMT_P_NONE, DMT_R_STATE, 0x07u);

@@ -19,6 +19,7 @@ const WIRE_ATTRIBUTES: &[&str] = &[
     "forced =",
     "render =",
     "telem =",
+    "internal =",
 ];
 
 /// @brief `text` without the mapping: no attribute lines, no accept aliases, nothing after the
@@ -53,17 +54,30 @@ fn key(gen: &Path, path: &str) -> serde_json::Value {
         .clone()
 }
 
-#[test]
-fn store_tables_and_digests_do_not_depend_on_the_mapping() {
-    let dir = unique_dir("shadow_neutral");
-    let (mapped, model_dir, plain) = (dir.join("mapped"), dir.join("model"), dir.join("plain"));
-    copy_dir(&model("v1_1"), &model_dir);
-    for file in ["contract.toml", "ns/drive.toml"] {
-        let path = model_dir.join(file);
+/// @brief Copy `version` of the generic model into `dir` without its mapping, asserting every
+/// mapped file carried one.
+/// @version 1
+fn unmapped_copy(version: &str, dir: &Path) {
+    copy_dir(&model(version), dir);
+    for file in ["contract.toml", "ns/drive.toml", "ns/core.toml"] {
+        let path = dir.join(file);
         let text = fs::read_to_string(&path).unwrap();
         assert_ne!(unmapped(&text), text, "{file} carries a mapping");
         fs::write(&path, unmapped(&text)).unwrap();
     }
+}
+
+/// @brief A generated keyspace file of `gen`, parsed.
+/// @version 1
+fn read_json(gen: &Path, file: &str) -> serde_json::Value {
+    serde_json::from_str(&fs::read_to_string(gen.join(file)).unwrap()).unwrap()
+}
+
+#[test]
+fn store_tables_and_digests_do_not_depend_on_the_mapping() {
+    let dir = unique_dir("shadow_neutral");
+    let (mapped, model_dir, plain) = (dir.join("mapped"), dir.join("model"), dir.join("plain"));
+    unmapped_copy("v1_1", &model_dir);
     for variant in ["sku_a", "sku_b"] {
         generate_ok("v1_1", &mapped, &["--variant", variant]);
         let (ok, stderr) = generate(
@@ -219,5 +233,172 @@ fn unknown_rules_accept_aliases_reject_and_raw() {
             assert!(ok, "{to} ({variant}): {stderr}");
         }
     }
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn every_command_is_enumerated_with_its_wire_rows() {
+    let dir = unique_dir("shadow_commands");
+    let gen = dir.join("gen");
+    generate_ok("v1_0", &gen, &["--variant", "sku_b"]);
+    let tables = contract_json(&gen)["commands"].as_array().unwrap().len();
+    for file in ["keyspace.sku_b.json", "keyspace.json"] {
+        let doc = read_json(&gen, file);
+        let commands = doc["commands"].as_array().unwrap();
+        assert_eq!(commands.len(), tables, "{file}: every command is listed");
+        for c in commands {
+            assert!(c["id"].is_u64() && c["result"].is_u64() && c["dedupe"].is_u64());
+            assert!(c["name"].is_string() && c["owner"].is_string());
+            let rows = c["wire"].as_array().unwrap().len();
+            assert!((rows > 0) != c["internal"].is_string(), "{}", c["name"]);
+        }
+    }
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// @brief The wire rows of drive.command.drive in a keyspace document.
+/// @version 1
+fn drive_rows(doc: &serde_json::Value) -> Vec<serde_json::Value> {
+    doc["commands"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["name"] == "drive.command.drive")
+        .unwrap()["wire"]
+        .as_array()
+        .unwrap()
+        .clone()
+}
+
+/// @brief The selector wire strings of rows.
+/// @version 1
+fn verbs(rows: &[serde_json::Value]) -> Vec<&str> {
+    rows.iter()
+        .map(|r| r["selector"]["wire"].as_str().unwrap())
+        .collect()
+}
+
+#[test]
+fn rows_resolve_per_variant_with_their_arguments() {
+    let dir = unique_dir("shadow_rows");
+    let (a, b) = (dir.join("a"), dir.join("b"));
+    generate_ok("v1_0", &a, &["--variant", "sku_a"]);
+    generate_ok("v1_0", &b, &["--variant", "sku_b"]);
+    let (sku_a, sku_b) = (
+        read_json(&a, "keyspace.sku_a.json"),
+        read_json(&b, "keyspace.sku_b.json"),
+    );
+    assert_eq!(
+        verbs(&drive_rows(&sku_a)),
+        ["go", "stop"],
+        "approvePlan is sku_b's"
+    );
+    assert_eq!(verbs(&drive_rows(&sku_b)), ["go", "stop", "approvePlan"]);
+    assert_eq!(
+        verbs(&drive_rows(&read_json(&a, "keyspace.json"))),
+        ["go", "stop", "approvePlan"]
+    );
+    let plan = &drive_rows(&sku_b)[2];
+    assert_eq!(plan["variants"], serde_json::json!(["sku_b"]));
+    assert_eq!(plan["args"][0]["key"], "drive.command.plan_epoch");
+    assert_eq!(plan["args"][0]["absent"], 0);
+    let shadow = &sku_b["shadow"];
+    assert_eq!(
+        shadow["topics"][2]["envelope"]["source"]["absent"],
+        "unspecified"
+    );
+    assert_eq!(shadow["commands"].as_array().unwrap().len(), 10);
+    let split = &shadow["commands"][9];
+    assert_eq!(split["protocol"], "command_array");
+    assert_eq!(split["args"][1]["required"], true);
+    assert_eq!(split["args"][1]["ec"], 5);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn accepted_topic_and_row_forms() {
+    let dir = unique_dir("shadow_accepted");
+    let cases: [&[(&str, &str, &str)]; 2] = [
+        &[(
+            "contract.toml",
+            "shadow/name/{shadow_name}/update/delta\"",
+            "shadow/name/robot/update/delta\"\nliteral_shadow_name = true",
+        )],
+        &[(
+            "ns/drive.toml",
+            "args = [ { field = \"planOfferEpoch\", key = \"drive.command.plan_epoch\", absent = 0 } ]",
+            "args = [ { field = \"planOfferEpoch\", key = \"drive.command.plan_epoch\", absent = 0 } ]\n\n[[shadow_commands]]\ntopic = \"command_topic\"\nvariants = [\"sku_a\"]\ngrounded_in = \"the sku_a library build\"\nselector = { field = \"state\", wire = \"approvePlan\" }\ncommand = \"drive.command.drive\"",
+        )],
+    ];
+    for (i, edits) in cases.iter().enumerate() {
+        let case = dir.join(format!("case{i}"));
+        edited_copy("v1_0", &case, edits);
+        for variant in ["sku_a", "sku_b"] {
+            let out = case.join(variant);
+            let (ok, stderr) = generate(&case.join("contract.toml"), &out, &["--variant", variant]);
+            assert!(ok, "case {i} ({variant}): {stderr}");
+        }
+    }
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn any_one_row_kind_declares_a_mapping() {
+    let dir = unique_dir("shadow_declared");
+    let rows = [
+        "[[apply_groups]]\nid = \"g\"\n",
+        "[[shadow_echo]]\npath = \"settings.x\"\ntype = \"bool\"\n",
+        "[[shadow_constant]]\npath = \"sv\"\nvalue = \"1\"\n",
+        "[[topics]]\nid = \"t\"\ntemplate = \"{duid}/t\"\ndirection = \"pub\"\n",
+    ];
+    for (i, row) in rows.iter().enumerate() {
+        let case = dir.join(format!("case{i}"));
+        unmapped_copy("v1_0", &case);
+        let contract = case.join("contract.toml");
+        let text = fs::read_to_string(&contract).unwrap();
+        fs::write(&contract, format!("{text}\n{row}")).unwrap();
+        let (ok, stderr) = generate(&contract, &case.join("out"), &[]);
+        assert!(ok, "case {i}: {stderr}");
+        let shadow = contract_json(&case.join("out")).get("shadow").cloned();
+        assert!(shadow.is_some(), "case {i}");
+    }
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// @brief full_max_bytes of `v1_0` for sku_b after `edits`.
+/// @version 1
+fn full_bytes(dir: &Path, tag: &str, edits: &[(&str, &str, &str)]) -> u64 {
+    let case = dir.join(tag);
+    edited_copy("v1_0", &case, edits);
+    let out = case.join("out");
+    let (ok, stderr) = generate(&case.join("contract.toml"), &out, &["--variant", "sku_b"]);
+    assert!(ok, "{tag}: {stderr}");
+    contract_json(&out)["shadow"]["full_max_bytes"]
+        .as_u64()
+        .unwrap()
+}
+
+#[test]
+fn a_raw_code_and_an_unreported_group_change_the_size() {
+    let dir = unique_dir("shadow_size_rules");
+    let code = |rule: &str| {
+        format!("telem = \"dock\"\n\n[[classes.keys]]\nid = \"code\"\nkey_index = 12\ntype = \"int32\"\nenum = \"tone\"\nintroduced_in = \"1.0\"\nshadow = \"state.code\"\noutbound_unknown = \"{rule}\"")
+    };
+    let (beep, raw) = (code("beep"), code("raw"));
+    let named = full_bytes(
+        &dir,
+        "beep",
+        &[("ns/drive.toml", "telem = \"dock\"", &beep)],
+    );
+    let coded = full_bytes(&dir, "raw", &[("ns/drive.toml", "telem = \"dock\"", &raw)]);
+    assert_eq!(
+        coded - named,
+        "-2147483648".len() as u64 - "\"chime\"".len() as u64
+    );
+    let all = full_bytes(&dir, "all", &[]);
+    let dock = "wire_bases = { sku_b = 50 }          # sku_b numbers its dock errors from 50\nwriter = \"integrator\"\nshadow = \"state.errors\"\n";
+    let unreported = dock.replace("shadow = \"state.errors\"\n", "");
+    let product = full_bytes(&dir, "product", &[("contract.toml", dock, &unreported)]);
+    assert_eq!(all - product, ",{\"ec\":\"e50\"}".len() as u64);
     let _ = fs::remove_dir_all(&dir);
 }

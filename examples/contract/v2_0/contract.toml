@@ -74,6 +74,8 @@ grants = [
   { key = "core.command.pre_reset", access = "r" },
   { key = "core.command.pre_reset_result", access = "rw" },
   { key = "core.command.trace_enable", access = "r" },
+  { key = "drive.command.drive", access = "r" },
+  { key = "drive.command.drive_result", access = "rw" },
 ]
 
 # -- iotd: the library process; its FSMs connect with tokens 1..3 ------------------------------
@@ -113,6 +115,7 @@ grants = [
   { key = "core.command.factory_reset", access = "rw" },
   { key = "core.command.trace_enable", access = "rw" },
   { key = "drive.command.map_edit", access = "rw" },
+  { key = "drive.command.drive", access = "rw" },
 ]
 
 [[principals]]

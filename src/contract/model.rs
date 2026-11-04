@@ -1,17 +1,19 @@
 //! Load a contract-mode model and resolve it into the content of the generated tables.
 
+use super::enums::{self, ResolvedEnum};
 use super::error_groups::{self, ErrorGroup};
 use super::keys::{command_key_names, command_keys, declared_key, ClassCtx, Errors, Key};
 use super::ranges::Units;
 use super::rights::{self, Principal};
 use super::schema::{
-    Bounds, CommandDef, ContractFile, NamespaceFile, Persist, Reserved, UidCapsDef, UnitsFile,
+    Bounds, CommandDef, ContractFile, NamespaceFile, Persist, PrincipalDef, Reserved, UidCapsDef,
+    UnitsFile,
 };
 use super::shadow::{self, Shadow};
 use super::types::{Version, WK_RULES};
-use super::{enums, variants};
+use super::variants;
 use sha2::{Digest, Sha256};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 /// One `dmt_commands` row.
@@ -25,6 +27,8 @@ pub struct Command {
     pub dedupe_ring: u16,
     pub owner: String,
     pub persist: Persist,
+    /// Why the command is not on the wire, when it is internal.
+    pub internal: Option<String>,
 }
 
 /// A namespace's name, ID and classes `(name, class_index)`, for the layout checks.
@@ -59,6 +63,8 @@ pub struct Tables {
     pub bounds: Bounds,
     /// The contract-level shadow rows (G2 1.4).
     pub shadow: Shadow,
+    /// Every enum, resolved for the variant, by `namespace::name`.
+    pub enums: BTreeMap<String, ResolvedEnum>,
 }
 
 /// The parsed input files, each with its path relative to the contract file's directory.
@@ -80,7 +86,8 @@ struct Loaded {
 /// v5: the error groups, resolved for the variant.
 /// v6: grants are checked against the key paths of every variant.
 /// v7: the shadow wire mapping, resolved and checked for the variant.
-/// @version 7
+/// v8: every resolved enum is kept; rights resolved by principal_rights.
+/// @version 8
 /// @req REQ-ING-SHD-001
 /// @req REQ-ING-SIZ-001
 /// @req REQ-ING-PRS-001
@@ -88,16 +95,16 @@ struct Loaded {
 /// @req REQ-ING-TIV-015
 /// @req REQ-ING-TIV-002
 /// @req REQ-ING-TIV-003
+/// @req REQ-ING-CMD-001
 pub fn build(contract_path: &Path, variant: Option<&str>) -> Result<(Tables, Errors), String> {
-    let loaded = load(contract_path)?;
+    let loaded = load(contract_path, variant)?;
     let mut errors = Errors::new();
     let declared = &loaded.contract.contract.variants;
     variants::check_entries(declared, &loaded.namespaces, &mut errors);
-    let (keys, commands) = collect_keys(&loaded, variant, &mut errors);
+    let (keys, commands, enums) = collect_keys(&loaded, variant, &mut errors);
     let known = declared_paths(&loaded);
-    let (principals, grants) = rights::principals(loaded.contract.principals, &mut errors);
-    rights::check_grants(&principals, &grants, &known, &mut errors);
-    let rights = rights::resolve(&principals, &grants, &keys, &mut errors);
+    let (principals, rights) =
+        principal_rights(loaded.contract.principals, &known, &keys, &mut errors);
     let reserved = reserved_ids(&loaded.contract.reserved);
     let meta = loaded.contract.contract;
     let tables = Tables {
@@ -121,9 +128,28 @@ pub fn build(contract_path: &Path, variant: Option<&str>) -> Result<(Tables, Err
         uid_caps: loaded.contract.uid_caps,
         bounds: loaded.contract.bounds,
         shadow: loaded.shadow,
+        enums,
     };
     shadow::check(&tables, &mut errors);
     Ok((tables, errors))
+}
+
+/// The principals, their grants checked against every declared key path, and their resolved
+/// rights on `keys`.
+///
+/// @version 1
+/// @req REQ-ING-TIV-011
+/// @req REQ-ING-PRS-001
+fn principal_rights(
+    defs: Vec<PrincipalDef>,
+    known: &BTreeSet<String>,
+    keys: &[Key],
+    errors: &mut Errors,
+) -> (Vec<Principal>, Vec<Vec<u8>>) {
+    let (principals, grants) = rights::principals(defs, errors);
+    rights::check_grants(&principals, &grants, known, errors);
+    let rights = rights::resolve(&principals, &grants, keys, errors);
+    (principals, rights)
 }
 
 /// The reserved IDs, sorted, always including ID 0 (R-K2).
@@ -159,18 +185,20 @@ fn layout(ns: &NamespaceFile) -> NsLayout {
 ///
 /// v2: the unit vocabulary.
 /// v3: the contract-level shadow rows, taken out of the contract file; uid caps sorted by uid.
-/// @version 3
+/// v4: the shadow command rows of the variant, from the namespace files.
+/// @version 4
 /// @req REQ-ING-TIV-002
 /// @req REQ-ING-RNG-001
 /// @req REQ-ING-SHD-002
-fn load(contract_path: &Path) -> Result<Loaded, String> {
+/// @req REQ-ING-CMD-001
+fn load(contract_path: &Path, variant: Option<&str>) -> Result<Loaded, String> {
     let base = contract_path.parent().unwrap_or(Path::new("."));
     let text = read(contract_path)?;
     let mut contract: ContractFile = parse(contract_path, &text)?;
-    let shadow = shadow::rows(&mut contract);
     contract.uid_caps.sort_by_key(|c| c.uid);
     let mut files = vec![(file_name(contract_path), text.into_bytes())];
     let namespaces = load_namespaces(base, &contract.contract.namespace_dir, &mut files)?;
+    let shadow = shadow::rows(&mut contract, &namespaces, variant);
     let units = load_units(base, contract.contract.units.as_deref(), &mut files)?;
     files.sort();
     Ok(Loaded {
@@ -300,20 +328,27 @@ pub fn hex(bytes: &[u8]) -> String {
 /// v2: each namespace's enums are resolved once, for the variant.
 /// v3: keys see the unit vocabulary.
 /// v4: keys and commands limited to other variants are left out.
-/// @version 4
+/// v5: and every resolved enum, by `namespace::name`.
+/// @version 5
 /// @req REQ-ING-PRS-001
 /// @req REQ-ING-TIV-003
 /// @req REQ-ING-TIV-005
 /// @req REQ-ING-TIV-016
+/// @req REQ-ING-TOP-001
 fn collect_keys(
     loaded: &Loaded,
     variant: Option<&str>,
     errors: &mut Errors,
-) -> (Vec<Key>, Vec<Command>) {
+) -> (Vec<Key>, Vec<Command>, BTreeMap<String, ResolvedEnum>) {
     let mut keys = Vec::new();
     let mut commands = Vec::new();
+    let mut all = BTreeMap::new();
     for ns in &loaded.namespaces {
         let enums = enums::resolve_all(ns, &loaded.contract.contract.variants, variant, errors);
+        let named = enums
+            .iter()
+            .map(|(n, e)| (format!("{}::{n}", ns.meta.id), e));
+        all.extend(named.map(|(n, e)| (n, e.clone())));
         for class in &ns.classes {
             let ctx = ClassCtx {
                 ns,
@@ -328,7 +363,7 @@ fn collect_keys(
     }
     keys.sort_by_key(|k| k.id);
     commands.sort_by_key(|c| c.keys[0]);
-    (keys, commands)
+    (keys, commands, all)
 }
 
 /// The keys and commands of one class that exist on the context's variant.
@@ -368,11 +403,14 @@ fn declared_paths(loaded: &Loaded) -> BTreeSet<String> {
     }
     paths
 }
-/// Whether a key or command limited to `only` exists on `variant` (the base has every one).
+/// Whether a key, command or shadow command row limited to `only` exists on `variant` (the base
+/// has every one).
 ///
-/// @version 1
+/// v2: visible to the shadow rows.
+/// @version 2
 /// @req REQ-ING-PRS-001
-fn present_on(only: Option<&[String]>, variant: Option<&str>) -> bool {
+/// @req REQ-ING-CMD-001
+pub(super) fn present_on(only: Option<&[String]>, variant: Option<&str>) -> bool {
     match (only, variant) {
         (Some(list), Some(v)) => list.iter().any(|x| x == v),
         _ => true,
@@ -381,8 +419,10 @@ fn present_on(only: Option<&[String]>, variant: Option<&str>) -> bool {
 
 /// The `dmt_commands` row of a command type.
 ///
-/// @version 1
+/// v2: and why it is internal.
+/// @version 2
 /// @req REQ-ING-TIV-005
+/// @req REQ-ING-CMD-001
 fn command_row(def: &CommandDef, keys: &[Key; 3]) -> Command {
     Command {
         path: keys[0]
@@ -397,6 +437,7 @@ fn command_row(def: &CommandDef, keys: &[Key; 3]) -> Command {
         dedupe_ring: def.dedupe_ring,
         owner: def.owner.clone(),
         persist: def.persistence,
+        internal: def.internal.clone(),
     }
 }
 

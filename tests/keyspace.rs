@@ -438,7 +438,7 @@ const MAP_EDIT_SKU_B: &[(&str, &str, &str)] = &[(
 fn a_command_limited_to_a_variant_exists_only_there() {
     let dir = unique_dir("ks_cmd_presence");
     let case = dir.join("model");
-    edited_copy("v1_0", &case, MAP_EDIT_SKU_B);
+    edited_copy("v2_0", &case, MAP_EDIT_SKU_B); // 2.0 maps no commands to the wire
     let (a, b) = (case.join("a"), case.join("b"));
     for (out, v) in [(&a, "sku_a"), (&b, "sku_b")] {
         let (ok, stderr) = generate(&case.join("contract.toml"), out, &["--variant", v]);

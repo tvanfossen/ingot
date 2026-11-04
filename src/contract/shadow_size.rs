@@ -308,6 +308,24 @@ mod tests {
     }
 
     #[test]
+    fn longest_value_texts_of_each_type() {
+        assert_eq!(type_text(KeyType::Bool, 0), "false".len());
+        assert_eq!(type_text(KeyType::Int8, 0), "-128".len());
+        assert_eq!(type_text(KeyType::Uint16, 0), "65535".len());
+        assert_eq!(type_text(KeyType::Float32, 0), FLOAT_TEXT);
+        assert_eq!(type_text(KeyType::String, 3), 3 * 6 + 2);
+        let echo = |ty, max_size| Echo {
+            path: "a".to_string(),
+            ty,
+            max_size,
+            command_key: None,
+        };
+        assert_eq!(echo_text(&echo(EchoType::Bool, None)), 5);
+        assert_eq!(echo_text(&echo(EchoType::Int, None)), "-2147483648".len());
+        assert_eq!(echo_text(&echo(EchoType::Float, None)), FLOAT_TEXT);
+        assert_eq!(echo_text(&echo(EchoType::String, Some(2))), 2 * 6 + 2);
+    }
+    #[test]
     fn paths_are_dotted_identifiers() {
         for ok in ["a", "_a.b1", "state.fanSpeed"] {
             assert!(valid_path(ok), "{ok}");

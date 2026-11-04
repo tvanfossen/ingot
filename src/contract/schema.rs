@@ -25,6 +25,8 @@ pub struct ContractFile {
     pub shadow_echo: Vec<Echo>,
     #[serde(default)]
     pub shadow_constant: Vec<Constant>,
+    #[serde(default)]
+    pub topics: Vec<Topic>,
 }
 
 /// `[contract]`: name, version and where the namespace files are.
@@ -175,6 +177,9 @@ pub struct NamespaceFile {
     pub enums: BTreeMap<String, EnumDef>,
     #[serde(default)]
     pub classes: Vec<ClassDef>,
+    /// How requests reach commands (G2 1.4.6, 1.4.7).
+    #[serde(default)]
+    pub shadow_commands: Vec<ShadowCommand>,
 }
 
 /// `[meta]` of a namespace file.
@@ -389,6 +394,8 @@ pub struct CommandDef {
     pub write_rate: Option<String>,
     pub wk: Option<String>,
     pub doc: Option<String>,
+    /// Not on the wire, with the reason (a model mapping commands enumerates every other one).
+    pub internal: Option<String>,
     /// The variants the command exists on; absent: every variant.
     pub variants: Option<Vec<String>>,
 }

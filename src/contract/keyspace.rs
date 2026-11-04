@@ -278,17 +278,26 @@ fn diff(base: &Value, variant: Option<&Value>) -> Value {
     Value::Object(out)
 }
 
-/// Command types: path, command, result and dedupe key IDs, owner and persistence.
+/// Command types: path, command, result and dedupe key IDs, owner, persistence, the wire rows
+/// that reach each one and, for an internal command, why it is not on the wire.
 ///
-/// @version 1
+/// v2: the wire rows and the internal reason.
+/// @version 2
 /// @req REQ-ING-KSP-001
+/// @req REQ-ING-CMD-001
 fn commands(tables: &Tables) -> Value {
     let list: Vec<Value> = tables
         .commands
         .iter()
         .map(|c| {
+            let rows = &tables.shadow.commands;
+            let wire: Vec<_> = rows
+                .iter()
+                .filter(|r| r.command.as_ref() == Some(&c.path))
+                .collect();
             json!({"name": c.path, "id": c.keys[0], "result": c.keys[1], "dedupe": c.keys[2],
-                   "owner": c.owner, "persist": c.persist.name()})
+                   "owner": c.owner, "persist": c.persist.name(), "wire": wire,
+                   "internal": c.internal})
         })
         .collect();
     json!(list)

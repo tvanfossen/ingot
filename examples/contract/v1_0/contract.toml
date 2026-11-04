@@ -65,6 +65,8 @@ grants = [
   { key = "core.command.pre_reset", access = "r" },
   { key = "core.command.pre_reset_result", access = "rw" },
   { key = "core.command.trace_enable", access = "r" },
+  { key = "drive.command.drive", access = "r" },
+  { key = "drive.command.drive_result", access = "rw" },
 ]
 
 # -- iotd: the library process; its FSMs connect with tokens 1..3 ------------------------------
@@ -104,6 +106,7 @@ grants = [
   { key = "core.command.factory_reset", access = "rw" },
   { key = "core.command.trace_enable", access = "rw" },
   { key = "drive.command.map_edit", access = "rw" },
+  { key = "drive.command.drive", access = "rw" },
 ]
 
 [[principals]]
@@ -231,3 +234,55 @@ image = "contract_version"
 [[shadow_constant]]
 path = "config.cvHash"
 image = "contract_hash"
+
+[[topics]]
+id = "shadow_update"
+template = "$aws/things/{duid}/shadow/name/{shadow_name}/update"
+direction = "pub"
+
+[[topics]]
+id = "shadow_delta"
+template = "$aws/things/{duid}/shadow/name/{shadow_name}/update/delta"
+direction = "sub"
+subscribe_order = 1
+local_wrapper = "shadow_delta"
+
+[[topics]]
+id = "command_topic"
+template = "{stage}/{duid}/cmd/req"
+direction = "sub"
+subscribe_order = 2
+local_wrapper = "command_topic"
+ack = "command_resp"
+settings_in_every_body = true
+envelope = { id = { field = "id", required = true }, source = { field = "commandSource", enum = "core::origin", absent = "unspecified" } }
+
+[[topics]]
+id = "command_resp"
+template = "{stage}/{duid}/cmd/resp"
+direction = "pub"
+
+[[topics]]
+id = "mapcontrol_topic"
+template = "{stage}/{duid}/mapcontrol/req"
+direction = "sub"
+subscribe_order = 3
+local_wrapper = "mapcontrol_topic"
+ack = "mapcontrol_resp"
+envelope = { id = { field = "id", required = true }, source = { enum = "core::origin", absent = "unspecified" } }
+
+[[topics]]
+id = "mapcontrol_resp"
+template = "{stage}/{duid}/mapcontrol/resp"
+direction = "pub"
+
+[[topics]]
+id = "device_errors"
+template = "$aws/rules/device_errors_{stage}/{model}/{duid}/errors"
+direction = "pub"
+
+[[topics]]
+id = "telemetry"
+template = "{stage}/{duid}/telemetry"
+direction = "pub"
+connection = "telemetry"

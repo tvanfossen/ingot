@@ -2,6 +2,7 @@
 //! entry of the namespace files must name one of them.
 
 use super::keys::Errors;
+use super::refuse_commands::selector_text;
 use super::schema::{ClassDef, NamespaceFile};
 
 /// Refuse an undeclared or missing `--variant`. A model that declares no variants accepts any.
@@ -45,15 +46,26 @@ pub fn check_entries(declared: &[String], namespaces: &[NamespaceFile], errors: 
 /// variants keys and commands are limited to.
 ///
 /// v2: key and command `variants` lists.
-/// @version 2
+/// v3: shadow command rows' `variants` lists.
+/// @version 3
 /// @req REQ-ING-TIV-015
 /// @req REQ-ING-PRS-001
+/// @req REQ-ING-CMD-001
 fn uses(namespaces: &[NamespaceFile]) -> Vec<(String, String)> {
     let mut out = Vec::new();
     for ns in namespaces {
         for (name, def) in &ns.enums {
             let path = format!("{}::{name}", ns.meta.id);
             out.extend(def.variants.keys().map(|v| (path.clone(), v.clone())));
+        }
+        for r in &ns.shadow_commands {
+            let path = format!("shadow_commands {} {}", r.topic, selector_text(&r.selector));
+            out.extend(
+                r.variants
+                    .iter()
+                    .flatten()
+                    .map(|v| (path.clone(), v.clone())),
+            );
         }
         for class in &ns.classes {
             class_uses(&ns.meta.id, class, &mut out);

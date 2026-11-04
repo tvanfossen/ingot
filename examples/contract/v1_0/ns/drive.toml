@@ -203,3 +203,105 @@ result_max = 256
 max_edits = 32
 dedupe_ring = 8
 write_rate = "1/min"
+
+[[classes.commands]]
+id = "drive"
+cmd_index = 3
+result_index = 4
+dedupe_index = 5
+introduced_in = "1.0"
+persistence = "none"
+owner = "integrator"
+payload_max = 64
+result_max = 16
+dedupe_ring = 4
+doc = "A motion verb: go and stop; approvePlan on sku_b."
+
+[[classes.keys]]
+id = "plan_epoch"
+key_index = 6
+type = "uint32"
+introduced_in = "1.0"
+doc = "Argument of approvePlan."
+
+[[classes.keys]]
+id = "map_id"
+key_index = 7
+type = "uint16"
+introduced_in = "1.0"
+
+[[classes.keys]]
+id = "area_id"
+key_index = 8
+type = "uint16"
+introduced_in = "1.0"
+
+[[classes.keys]]
+id = "map_payload"
+key_index = 9
+type = "string"
+max_size = 512
+introduced_in = "1.0"
+doc = "Base64 text of a map request, passed through as text."
+
+# -- shadow wire mapping (G2 1.4): how requests reach the commands ---------------------------
+[[shadow_commands]]
+topic = "command_topic"
+selector = { field = "state", wire = "go" }
+command = "drive.command.drive"
+
+[[shadow_commands]]
+topic = "command_topic"
+selector = { field = "state", wire = "stop" }
+command = "drive.command.drive"
+
+[[shadow_commands]]                      # sku_b only: {"id":N,"state":"approvePlan","planOfferEpoch":E}
+topic = "command_topic"
+variants = [ "sku_b" ]
+grounded_in = "the sku_b library build"
+selector = { field = "state", wire = "approvePlan" }
+command = "drive.command.drive"
+args = [ { field = "planOfferEpoch", key = "drive.command.plan_epoch", absent = 0 } ]
+
+[[shadow_commands]]                      # {"state":{...}}: an object state is a settings body
+topic = "command_topic"
+selector = { field = "state", object = true }
+body = "settings"
+
+[[shadow_commands]]                      # {"state":"settings",...}
+topic = "command_topic"
+selector = { field = "state", wire = "settings" }
+body = "settings"
+
+[[shadow_commands]]                      # {"state":"mapcmd","map":{"cmd":"saveMap","mapid":M}}
+topic = "command_topic"
+selector = { field = "state", wire = "mapcmd" }
+body = { object = "map", selector = { field = "cmd", wire = "saveMap" } }
+command = "drive.command.map_edit"
+args = [ { field = "mapid", key = "drive.command.map_id", absent = 0 } ]
+
+[[shadow_commands]]                      # {"id":N,"cmd":["saveMap",...],"mapid":M,"data":"<base64>"}
+topic = "mapcontrol_topic"
+protocol = "command_array"
+selector = { field = "cmd", element = "saveMap" }
+command = "drive.command.map_edit"
+args = [
+  { field = "mapid", key = "drive.command.map_id", absent = 0 },
+  { field = "data", key = "drive.command.map_payload", omit_when_absent = true, encoding = "base64" },
+]
+
+[[shadow_commands]]                      # newMap cannot carry a map id
+topic = "mapcontrol_topic"
+protocol = "command_array"
+selector = { field = "cmd", element = "newMap" }
+command = "drive.command.map_edit"
+
+[[shadow_commands]]
+topic = "mapcontrol_topic"
+protocol = "command_array"
+selector = { field = "cmd", element = "splitArea" }
+command = "drive.command.map_edit"
+args = [
+  { field = "mapid", key = "drive.command.map_id", absent = 0 },
+  { field = "areaid", key = "drive.command.area_id", required = true, ec = 5 },
+]

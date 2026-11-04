@@ -188,9 +188,11 @@ fn known_unknown(e: &ResolvedEnum, v: &str, inbound: bool) -> bool {
 }
 
 /// S5: apply groups on SETTINGS keys, declared; implies writes of other keys of the same
-/// group, each value valid for its key.
+/// group, each value valid for its key (only a SETTINGS key may join a group, so the target is
+/// one).
 ///
-/// @version 1
+/// v2: no separate role check of the target (a STATE key in a group is refused already).
+/// @version 2
 /// @req REQ-ING-SHD-002
 fn group_rules(tables: &Tables, key: &Key, errors: &mut Errors) {
     let w = &key.wire;
@@ -206,10 +208,7 @@ fn group_rules(tables: &Tables, key: &Key, errors: &mut Errors) {
     for imp in &w.implies {
         let target = tables.key_index(&imp.key).map(|i| &tables.keys[i]);
         let same = target.filter(|t| {
-            t.role == Role::Settings
-                && t.path != key.path
-                && w.apply_group.is_some()
-                && t.wire.apply_group == w.apply_group
+            t.path != key.path && w.apply_group.is_some() && t.wire.apply_group == w.apply_group
         });
         match same {
             None => refuse(format!(

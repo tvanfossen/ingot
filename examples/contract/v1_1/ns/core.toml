@@ -100,6 +100,7 @@ owner = "integrator"
 dedupe_ring = 4
 write_rate = "1/day"
 wk = "RESET_PRE_COMMAND"
+internal = "sent by the core before a factory reset; never requested on the wire"
 
 [[classes.commands]]
 id = "trace_enable"
@@ -113,3 +114,18 @@ payload_max = 118
 dedupe_ring = 4
 wk = "TRACE_ENABLE"
 doc = "Signed trace-enable envelope; the core verifies it."
+internal = "a signed envelope a diagnostic tool delivers, not a shadow request"
+
+# -- shadow wire mapping (G2 1.4): the request origin enum and the core's command rows -------
+[enums.origin.values]                    # the envelope source; absent is unspecified
+unspecified = 0
+unknown = 1
+device = 2
+cloud = 3
+mobile = 4
+schedule = 5
+
+[[shadow_commands]]                      # {"net":{"factoryReset":true}}: no state field
+topic = "command_topic"
+selector = { field = "net.factoryReset", wire = true }
+command = "core.command.factory_reset"

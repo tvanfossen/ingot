@@ -182,6 +182,9 @@ pub struct CommandJson {
     pub path: String,
     pub persist: String,
     pub owner: String,
+    /// Why the command is not on the wire; absent unless internal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub internal: Option<String>,
 }
 
 /// Name of a principal kind in contract.json.
@@ -260,8 +263,10 @@ fn contract_json(tables: &Tables) -> ContractJson {
 /// Command types of the snapshot.
 ///
 /// v2: persistence names from Persist::name.
-/// @version 2
+/// v3: the internal reason.
+/// @version 3
 /// @req REQ-ING-TIV-009
+/// @req REQ-ING-CMD-001
 fn commands_json(tables: &Tables) -> Vec<CommandJson> {
     tables
         .commands
@@ -270,6 +275,7 @@ fn commands_json(tables: &Tables) -> Vec<CommandJson> {
             path: c.path.clone(),
             persist: c.persist.name().to_string(),
             owner: c.owner.clone(),
+            internal: c.internal.clone(),
         })
         .collect()
 }
