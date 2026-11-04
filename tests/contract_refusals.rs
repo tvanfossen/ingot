@@ -199,6 +199,10 @@ const CASES: &[Case] = &[
     ("v1_0", "ns/drive.toml", "{ key = \"drive.settings.speed_limit\", value = 500 }", "{ key = \"drive.settings.speed_limit\", value = 70000 }", "drive.settings.fan: implies drive.settings.speed_limit: default 70000 is out of range"),
     ("v1_0", "ns/drive.toml", "enum = \"mode\"\n", "enum = \"mode\"\nimplies = [ { key = \"drive.settings.gain\", value = 1.0 } ]\n", "drive.settings.mode: implies drive.settings.gain is outside the key's apply group"),
     ("v1_0", "ns/drive.toml", "max_size = 32\nintroduced_in = \"1.0\"\ndefault = \"idle\"", "max_size = 1400\nintroduced_in = \"1.0\"\ndefault = \"idle\"\nshadow = \"state.label\"", "over the 8192-byte AWS IoT shadow quota"),
+    ("v1_0", "ns/drive.toml", "selector = { field = \"state\", wire = \"stop\" }", "selector = { field = \"state\" }", "the selector has one of wire, element or object"),
+    ("v1_0", "ns/drive.toml", "on_reject = \"clear_desired\"", "on_reject = \"clear_desired\"\napplies = \"drive.settings.speed_limit\"", "drive.settings.speed_limit: applies must be on a STATE key"),
+    ("v1_0", "ns/drive.toml", "applies = \"drive.settings.speed_limit\"", "applies = \"drive.state.speed_limit_applied\"", "drive.state.speed_limit_applied: applies must be on a STATE key and name a SETTINGS key"),
+    ("v1_0", "ns/drive.toml", "applies = \"drive.settings.speed_limit\"", "applies = \"drive.settings.gain\"", "drive.state.speed_limit_applied: applies must be on a STATE key and name a SETTINGS key of the same type"),
     // -- topics and envelopes (G2 4, 1.4.8): T1, T2 -------------------------------------------
     ("v1_0", "contract.toml", "template = \"{stage}/{duid}/telemetry\"", "template = \"{stage}/{dui}/telemetry\"", "topic telemetry: template {stage}/{dui}/telemetry uses a placeholder outside {stage}, {duid}, {model}, {thing}, {shadow_name}"),
     ("v1_0", "contract.toml", "template = \"{stage}/{duid}/telemetry\"", "template = \"{stage}/duid}/telemetry\"", "topic telemetry: template {stage}/duid}/telemetry uses a placeholder outside"),

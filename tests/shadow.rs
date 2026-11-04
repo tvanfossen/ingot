@@ -402,3 +402,53 @@ fn a_raw_code_and_an_unreported_group_change_the_size() {
     assert_eq!(all - product, ",{\"ec\":\"e50\"}".len() as u64);
     let _ = fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn contract_json_names_why_a_command_is_internal() {
+    let dir = unique_dir("shadow_internal");
+    let gen = dir.join("gen");
+    generate_ok("v1_0", &gen, &[]);
+    let commands = contract_json(&gen)["commands"].as_array().unwrap().clone();
+    let internal = |path: &str| {
+        commands
+            .iter()
+            .find(|c| c["path"] == path)
+            .unwrap()
+            .get("internal")
+            .cloned()
+    };
+    let reason = "sent by the core before a factory reset; never requested on the wire";
+    assert_eq!(
+        internal("core.command.pre_reset"),
+        Some(serde_json::json!(reason))
+    );
+    assert_eq!(internal("drive.command.drive"), None);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// @brief `text` with its key wire attributes but without contract-level rows and groups.
+/// @version 1
+fn keys_only(text: &str) -> String {
+    let head = text.split("\n# -- shadow wire mapping").next().unwrap();
+    let grouped = |l: &&str| l.starts_with("apply_group =") || l.starts_with("implies =");
+    let kept: Vec<&str> = head.lines().filter(|l| !grouped(l)).collect();
+    format!("{}\n", kept.join("\n"))
+}
+
+#[test]
+fn mapped_keys_alone_declare_a_mapping() {
+    let dir = unique_dir("shadow_keys_only");
+    let case = dir.join("model");
+    copy_dir(&model("v1_0"), &case);
+    for file in ["contract.toml", "ns/drive.toml", "ns/core.toml"] {
+        let path = case.join(file);
+        let text = fs::read_to_string(&path).unwrap();
+        assert_ne!(keys_only(&text), text, "{file} has contract-level rows");
+        fs::write(&path, keys_only(&text)).unwrap();
+    }
+    let (ok, stderr) = generate(&case.join("contract.toml"), &case.join("out"), &[]);
+    assert!(ok, "{stderr}");
+    let shadow = &contract_json(&case.join("out"))["shadow"];
+    assert!(shadow["topics"].as_array().unwrap().is_empty());
+    let _ = fs::remove_dir_all(&dir);
+}
