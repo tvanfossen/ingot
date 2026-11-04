@@ -580,9 +580,10 @@ requirements:
     description: >-
       A SETTINGS or STATE key may name the shadow paths it maps to (one or several). An enum value
       may carry inbound accept aliases beside its wire string; within a resolved enum an inbound
-      string maps to one code. A shadowed enum key's values all have explicit wire strings; a
-      shadowed SETTINGS enum key declares inbound_unknown (an inbound string, or reject) and a
-      shadowed STATE enum key declares outbound_unknown (a wire string, or raw); index is refused.
+      string maps to one code. A shadowed enum key with a wire-string path has explicit wire
+      strings on every value; such a SETTINGS key declares inbound_unknown (an inbound string,
+      reject, or ignore: the unknown string is dropped and nothing is written) and such a STATE
+      key declares outbound_unknown (a wire string, or raw); index is refused.
       Every shadowed SETTINGS key has exactly one applies STATE twin of its type and enum, itself
       reported; on_reject (echo by default, or clear_desired) is for shadowed SETTINGS keys,
       forced and render for shadowed STATE keys, telem names are unique. Paths are dotted
@@ -604,6 +605,25 @@ requirements:
     acceptance_criteria: >-
       The generic model declares them; an undeclared group, an implies outside the group, a bad
       value and a malformed row are refused; the outputs carry them.
+  REQ-ING-SHD-003:
+    name: Per-path wire form and document scope
+    subsystem: Generated outputs (G2)
+    description: >-
+      Each shadow path of a key may be a table { path, as, scope }. `as` is for enum keys:
+      "enum" (the default) carries the wire string, "integer" carries the code as a JSON integer
+      inbound and outbound, so one key may be reported as a string at one path and as an integer
+      at another. `scope` is for reported paths of STATE keys: "full" (the full document only),
+      "delta" (the on-change delta only) or "both" (the default). A reported path is taken by at
+      most one row per document, so a path may take its value from one key in the full document
+      and from another key in the delta. A forced key has a path in the delta. The unknown rules
+      apply only where a wire-string path exists. The worst-case full size counts full-scope rows
+      at their form's longest text. contract.json and the keyspace carry the paths as before and
+      the forms (shadow_forms) only where one is declared.
+    acceptance_criteria: >-
+      A key at an integer path and an enum path, and one path with a full and a delta source,
+      generate; each misplaced form, a path taken twice in one document and a forced key without
+      a delta path are refused; the full size follows the forms and scopes; without forms the
+      outputs, store tables and digests are byte-identical.
   REQ-ING-CMD-001:
     name: Shadow commands enumerate every command
     subsystem: Generated outputs (G2)
