@@ -495,9 +495,13 @@ requirements:
     description: >-
       examples/contract holds a product-neutral model at contract 1.0, 1.1 and 2.0 that
       exercises every type, persistence class, principal kind and refusal-relevant feature, for
-      the keystore's conformance and handshake suites.
+      the keystore's conformance and handshake suites. In every version one principal may write
+      a durable key, deferred keys at two distinct intervals and volatile keys (a batch that
+      mixes persistence classes), and an in-process principal may write a key and submit a
+      command.
     acceptance_criteria: >-
-      All three versions generate; 1.1 passes against 1.0 and 2.0 against 1.1.
+      All three versions generate; 1.1 passes against 1.0 and 2.0 against 1.1. The generated
+      tables of every version pin those keys' persistence and intervals and those rights.
   REQ-ING-TIV-015:
     name: Declared variants
     subsystem: Table interface
