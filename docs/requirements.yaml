@@ -717,3 +717,80 @@ requirements:
     acceptance_criteria: >-
       The generic model's sizes equal an independent count; a model whose full document exceeds
       8192 bytes is refused.
+  REQ-ING-DSH-001:
+    name: Shadow table interface and binder tables
+    subsystem: Generated outputs (G2)
+    description: >-
+      dsh_types.h is the fixed shadow table interface (DSH 1.0, bytes independent of any model,
+      written by --table-types and by contract mode). For a model that maps anything to the shadow,
+      contract mode writes dsh_tables.h/.c for the variant; every table has a count define and at
+      least one row (a zero row when empty). The binder tables: dsh_desired, one row per desired
+      path of a SETTINGS key sorted by path (key, type, size, wire form, enum, range and step,
+      sentinel, discrete set, apply group, coupled writes with their values in the store's value
+      encoding, reject rule, and the unknown inbound rule with its code resolved); dsh_echo, the
+      echo-only paths sorted by path with the key command bodies apply them to; dsh_enums with
+      outbound wire strings sorted by code and inbound strings sorted by text, where a member that
+      reports as another is inbound only through its aliases.
+    acceptance_criteria: >-
+      The generic model's tables compile as strict C11 and from C++, and a C walker finds them
+      sorted and in range on every variant; each binder attribute of the model appears in its row.
+  REQ-ING-DSH-002:
+    name: Reporter tables
+    subsystem: Generated outputs (G2)
+    description: >-
+      dsh_reported holds every reported row in emission order: rows whose paths share an object
+      prefix are contiguous and siblings keep their first-declaration order (contract.toml's
+      constants, echo paths and error-group paths, then STATE keys by key ID). A row is a key
+      (wire form, enum, unknown outbound rule, applied SETTINGS key, telemetry name, rendered list
+      and its size), a constant as JSON text (an image constant filled with the contract version or
+      the keyspace body hash), an echo path or the error list; each says whether it is in the full
+      document, the delta, and forced.
+    acceptance_criteria: >-
+      The generic model's rows come in the stated order with their kinds, forms, scopes and forced
+      flags; a C walker finds every object prefix contiguous.
+  REQ-ING-DSH-003:
+    name: Command-router tables
+    subsystem: Generated outputs (G2)
+    description: >-
+      dsh_commands holds the variant's command rows in declaration order: topic, selector (text,
+      true, false, array element or object), body (fields, settings or a named object with its own
+      selector), protocol, and the action (steps, answer with its code, internal with its reason, or
+      a settings body). A row's steps (dsh_steps) each submit a command or none (STATE writes) with
+      their arguments (dsh_args): field or constant, key, type, size, element, enum, encoding,
+      required with its result code, absent value or nothing; a constant or absent value of an enum
+      key given by value name is resolved to its number.
+    acceptance_criteria: >-
+      Every row and argument form of the generic model and its edited copies appears with its
+      values; a C walker finds every step and argument in range.
+  REQ-ING-DSH-004:
+    name: Error-group tables
+    subsystem: Generated outputs (G2)
+    description: >-
+      dsh_error_groups holds each error group of the variant in declaration order with its reported
+      path, reserved-bit mask, variant wire base, width and highest published bit; its bits
+      (dsh_error_bits) are sorted by bit with their keys.
+    acceptance_criteria: >-
+      The generic model's groups carry the per-variant wire base and reserved bits, and bits come
+      in bit order whatever the key order.
+  REQ-ING-DSH-005:
+    name: Shadow table header constants and composer buffer
+    subsystem: Generated outputs (G2)
+    description: >-
+      dsh_tables.h states the contract version, the SHA-256 of the variant's resolved keyspace body
+      (the head's hash, also the ETag of a contract request), the variant, the ingot commit, and the
+      worst-case full document and forced delta sizes. --shadow-buffer names the shadow composer's
+      buffer; a full document that can exceed it is warned about.
+    acceptance_criteria: >-
+      The header's hash equals the head file's and the cvHash constant's; the sizes equal the
+      keyspace's; a buffer one byte short warns and an exact one does not.
+  REQ-ING-TOP-002:
+    name: Topic table
+    subsystem: Generated outputs (G2)
+    description: >-
+      dtp_topics holds every topic in declaration order: id, template, connection, local wrapper,
+      direction, subscribe order, the index of its ack topic, settings_in_every_body and literal
+      shadow name flags, and its envelope (id field, required, the JSON text of an absent id,
+      source field, source enum and the code of an absent source).
+    acceptance_criteria: >-
+      The generic model's topics, including the contract request and response of G2 2.5, carry
+      their envelopes and acks; an optional id and a non-default absent source appear when declared.
