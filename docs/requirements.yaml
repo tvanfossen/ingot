@@ -939,3 +939,14 @@ requirements:
     acceptance_criteria: >-
       Without a binding there is no sdk directory; a binding with a sub-directory or no file is
       refused; a template's file name and context render per principal.
+  REQ-ING-SDK-005:
+    name: Binding template names
+    subsystem: Generated outputs (G2)
+    description: >-
+      A binding template may carry a trailing `.tera`, stripped from its output name, so a
+      binding directory need hold no source file; a template without it keeps its own name. A
+      template whose output name is empty, or the same as another template's, is refused.
+    acceptance_criteria: >-
+      The neutral test binding renders and drives the store with and without the suffix; a
+      suffixed and a plain template render side by side; `.tera` alone and a name collision are
+      refused.
