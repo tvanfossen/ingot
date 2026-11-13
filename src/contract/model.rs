@@ -417,6 +417,19 @@ pub(super) fn present_on(only: Option<&[String]>, variant: Option<&str>) -> bool
     }
 }
 
+/// Whether two variant lists share a variant (absent: every variant).
+///
+/// v2: moved from the command rows, shared with the shadow paths.
+/// @version 2
+/// @req REQ-ING-CMD-001
+/// @req REQ-ING-SHD-004
+pub(super) fn variants_overlap(a: Option<&[String]>, b: Option<&[String]>) -> bool {
+    match (a, b) {
+        (Some(x), Some(y)) => x.iter().any(|v| y.contains(v)),
+        _ => true,
+    }
+}
+
 /// The `dmt_commands` row of a command type.
 ///
 /// v2: and why it is internal.

@@ -2,7 +2,7 @@
 
 use super::enums::ResolvedEnum;
 use super::keys::{Errors, Key};
-use super::model::Tables;
+use super::model::{variants_overlap, Tables};
 use super::schema::{EchoType, KeyType, PathForm, Role};
 use super::value::encode_default;
 use std::collections::BTreeSet;
@@ -35,10 +35,27 @@ fn shadowed(key: &Key, role: Role) -> bool {
     key.role == role && !key.wire.shadow.is_empty()
 }
 
-/// S1: shadow paths on SETTINGS and STATE keys of a JSON-valued type, each listed once.
+/// Whether a path is listed twice for one variant (entries limited to disjoint variants may
+/// share a path, each with its own form and scope).
 ///
 /// @version 1
 /// @req REQ-ING-SHD-001
+/// @req REQ-ING-SHD-004
+fn listed_twice(forms: &[PathForm]) -> bool {
+    forms.iter().enumerate().any(|(i, a)| {
+        forms[i + 1..].iter().any(|b| {
+            a.path == b.path && variants_overlap(a.variants.as_deref(), b.variants.as_deref())
+        })
+    })
+}
+
+/// S1: shadow paths on SETTINGS and STATE keys of a JSON-valued type, each listed once per
+/// variant.
+///
+/// v2: once per variant.
+/// @version 2
+/// @req REQ-ING-SHD-001
+/// @req REQ-ING-SHD-004
 fn placement(key: &Key, errors: &mut Errors) {
     let w = &key.wire;
     let mut refuse = |why: &str| errors.push(format!("{}: {why}", key.path));
@@ -49,7 +66,7 @@ fn placement(key: &Key, errors: &mut Errors) {
     if mapped && matches!(key.ty, KeyType::Binary | KeyType::Struct) {
         refuse("a binary or struct key has no shadow value");
     }
-    if w.shadow.iter().collect::<BTreeSet<_>>().len() != w.shadow.len() {
+    if listed_twice(&w.shadow_forms) {
         refuse("a shadow path is listed twice");
     }
     attribute_placement(key, errors);

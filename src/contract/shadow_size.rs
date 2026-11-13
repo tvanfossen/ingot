@@ -299,33 +299,44 @@ fn row_paths(t: &mut Trees, tables: &Tables) {
 /// the delta (and forced) by scope.
 ///
 /// v2: by scope, each at its form's text.
-/// @version 2
+/// v3: each path once (entries for disjoint variants share one, in the all-variants view).
+/// @version 3
 /// @req REQ-ING-SHD-001
 /// @req REQ-ING-SHD-003
+/// @req REQ-ING-SHD-004
 fn key_rows(t: &mut Trees, key: &Key) {
-    for f in &key.wire.shadow_forms {
+    for path in &key.wire.shadow {
         match key.role {
-            Role::Settings => t.desired.add(&key.path, &f.path, 0),
-            Role::State => state_row(t, key, f),
+            Role::Settings => t.desired.add(&key.path, path, 0),
+            Role::State => state_row(t, key, path),
             _ => {}
         }
     }
 }
 
-/// A STATE key's row at `f`: in the full document unless delta-only, in the delta (and the
-/// forced tree when forced) unless full-only.
+/// A STATE key's row at `path`, over its entries there: in the full document unless every one
+/// is delta-only, in the delta (and the forced tree when forced) unless every one is full-only,
+/// at the longest text.
 ///
-/// @version 1
+/// v2: over every entry at the path.
+/// @version 2
 /// @req REQ-ING-SHD-003
-fn state_row(t: &mut Trees, key: &Key, f: &PathForm) {
-    let size = key_text(key, f);
-    if f.in_full() {
-        t.reported.add(&key.path, &f.path, size);
+/// @req REQ-ING-SHD-004
+fn state_row(t: &mut Trees, key: &Key, path: &str) {
+    let entries: Vec<&PathForm> = key
+        .wire
+        .shadow_forms
+        .iter()
+        .filter(|f| f.path == path)
+        .collect();
+    let size = entries.iter().map(|f| key_text(key, f)).max().unwrap_or(0);
+    if entries.iter().any(|f| f.in_full()) {
+        t.reported.add(&key.path, path, size);
     }
-    if f.in_delta() {
-        t.delta.add(&key.path, &f.path, size);
+    if entries.iter().any(|f| f.in_delta()) {
+        t.delta.add(&key.path, path, size);
         if key.wire.forced {
-            t.forced.add(&key.path, &f.path, size);
+            t.forced.add(&key.path, path, size);
         }
     }
 }

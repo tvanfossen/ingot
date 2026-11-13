@@ -48,12 +48,20 @@ fn all_plain(forms: &[PathForm]) -> bool {
     forms.iter().all(PathForm::plain)
 }
 
-/// The paths of `forms`, in order.
+/// The paths of `forms`, in order, each once (entries for disjoint variants may share one).
 ///
-/// @version 1
+/// v2: each once.
+/// @version 2
 /// @req REQ-ING-SHD-003
+/// @req REQ-ING-SHD-004
 fn path_names(forms: &[PathForm]) -> Vec<String> {
-    forms.iter().map(|f| f.path.clone()).collect()
+    let mut names: Vec<String> = Vec::new();
+    for f in forms {
+        if !names.contains(&f.path) {
+            names.push(f.path.clone());
+        }
+    }
+    names
 }
 
 /// The declared paths of `def` that exist on `variant` (every path for the all-variants build).

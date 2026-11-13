@@ -2,7 +2,7 @@
 //! variant enumerated on the wire or marked internal with a reason.
 
 use super::keys::{Errors, Key};
-use super::model::Tables;
+use super::model::{variants_overlap, Tables};
 use super::schema::{
     Arg, Body, BodyKind, Direction, Encoding, KeyType, Protocol, Required, Role, Selector,
     ShadowCommand, WireLit,
@@ -262,11 +262,31 @@ fn encoding_rule(enc: Encoding, ty: KeyType) -> Option<&'static str> {
     }
 }
 
-/// An argument writes a key `arg_key` allows; its presence rules hold; an absent or constant
-/// value (an enum key's by value name too) suits the key; its encoding suits the key's type.
+/// An absent or constant value of an argument (an enum key's by value name too) suits the key.
+/// A row limited to variants is checked in each of its variants' passes, never against the
+/// base's enums (a variant may name values the base does not have).
+///
+/// @version 1
+/// @req REQ-ING-CMD-002
+fn value_rule(tables: &Tables, r: &ShadowCommand, key: &Key, a: &Arg) -> Option<String> {
+    let base_view = tables.variant.is_empty() && r.variants.is_some();
+    a.absent
+        .iter()
+        .chain(&a.value)
+        .filter(|_| !base_view)
+        .find_map(|v| {
+            by_name(key, v)
+                .and_then(|v| encode_default(key.ty, &v, key.max_size, key.enum_values.as_ref()))
+                .err()
+        })
+}
+
+/// An argument writes a key `arg_key` allows; its presence rules hold; its values suit the key
+/// (`value_rule`); its encoding suits the key's type.
 ///
 /// v2: constants, value names, STATE keys, decimal text and base64 into a binary key.
-/// @version 2
+/// v3: the value check moved to `value_rule`.
+/// @version 3
 /// @req REQ-ING-CMD-001
 /// @req REQ-ING-CMD-002
 fn arg_rules(tables: &Tables, r: &ShadowCommand, a: &Arg, refuse: &mut impl FnMut(String)) {
@@ -280,39 +300,24 @@ fn arg_rules(tables: &Tables, r: &ShadowCommand, a: &Arg, refuse: &mut impl FnMu
     if let Some(why) = presence_rule(a) {
         refuse(format!("arg {name}: {why}"));
     }
-    for v in a.absent.iter().chain(&a.value) {
-        let checked = by_name(key, v).and_then(|v| {
-            encode_default(key.ty, &v, key.max_size, key.enum_values.as_ref()).map(|_| ())
-        });
-        if let Err(e) = checked {
-            refuse(format!("arg {name}: {e}"));
-        }
+    if let Some(e) = value_rule(tables, r, key, a) {
+        refuse(format!("arg {name}: {e}"));
     }
     if let Some(why) = a.encoding.and_then(|enc| encoding_rule(enc, key.ty)) {
         refuse(format!("arg {name}: {why}"));
     }
 }
 
-/// Whether two rows' variant lists share a variant (absent: every variant).
-///
-/// @version 1
-/// @req REQ-ING-CMD-001
-fn overlap(a: &Option<Vec<String>>, b: &Option<Vec<String>>) -> bool {
-    match (a, b) {
-        (Some(x), Some(y)) => x.iter().any(|v| y.contains(v)),
-        _ => true,
-    }
-}
-
 /// No two rows select the same request on one variant.
 ///
-/// @version 1
+/// v2: the variant overlap is the shared `variants_overlap`.
+/// @version 2
 /// @req REQ-ING-CMD-001
 fn duplicates(rows: &[ShadowCommand], errors: &mut Errors) {
     for (i, a) in rows.iter().enumerate() {
-        let twice = rows[i + 1..]
-            .iter()
-            .any(|b| label(a) == label(b) && overlap(&a.variants, &b.variants));
+        let twice = rows[i + 1..].iter().any(|b| {
+            label(a) == label(b) && variants_overlap(a.variants.as_deref(), b.variants.as_deref())
+        });
         if twice {
             errors.push(format!(
                 "{}: the request is selected twice on one variant",

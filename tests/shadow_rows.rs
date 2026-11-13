@@ -173,3 +173,86 @@ fn rows_without_a_command_answer_stay_internal_or_write_state() {
     assert!(find("go").get("answer").is_none() && find("go").get("internal").is_none());
     let _ = fs::remove_dir_all(&dir);
 }
+
+/// The anchor `argument_edits` appends the argument keys after.
+const ARG_ANCHOR: &str = "id = \"map_payload\"\nkey_index = 9\ntype = \"string\"\nmax_size = 512\nintroduced_in = \"1.0\"\ndoc = \"Base64 text of a map request, passed through as text.\"";
+
+#[test]
+fn a_variant_row_s_values_resolve_in_its_variants_only() {
+    let dir = unique_dir("rows_variant_values");
+    let plan =
+        "args = [ { field = \"planOfferEpoch\", key = \"drive.command.plan_epoch\", absent = 0 } ]";
+    let named = "args = [\n  { field = \"planOfferEpoch\", key = \"drive.command.plan_epoch\", absent = 0 },\n  { key = \"drive.command.drive_mode\", value = \"saver\" },\n  { field = \"mode\", key = \"drive.command.drive_mode\", absent = 3 },\n]";
+    let edits = [
+        ("ns/drive.toml", ARG_ANCHOR, ARG_KEYS),
+        ("ns/drive.toml", plan, named),
+    ];
+    for variant in ["sku_a", "sku_b"] {
+        generated(&dir, variant, variant, &edits);
+    }
+    let rows = wire_rows(
+        &read(&dir.join("sku_b/sku_b"), "keyspace.sku_b.json"),
+        "drive.command.drive",
+    );
+    assert_eq!(rows[2]["args"][1]["value"], "saver");
+    let everywhere =
+        format!("{GO_ROW}\nargs = [ {{ key = \"drive.command.drive_mode\", value = \"saver\" }} ]");
+    let case = dir.join("everywhere");
+    edited_copy(
+        "v1_0",
+        &case,
+        &[
+            ("ns/drive.toml", ARG_ANCHOR, ARG_KEYS),
+            ("ns/drive.toml", GO_ROW, &everywhere),
+        ],
+    );
+    let (ok, stderr) = generate(
+        &case.join("contract.toml"),
+        &case.join("out"),
+        &["--variant", "sku_b"],
+    );
+    assert!(!ok && stderr.contains("variant sku_a: shadow_commands command_topic state=go: arg drive.command.drive_mode: saver is not a value name"), "{stderr}");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// The speed limit twin's path in the 1.0 model.
+const LIMIT_PATH: &str = "shadow = \"settings.speedLimit\"\napplies";
+
+#[test]
+fn one_key_takes_one_path_with_a_scope_per_variant() {
+    let dir = unique_dir("rows_path_per_variant");
+    let split = "shadow = [ { path = \"settings.speedLimit\", variants = [\"sku_a\"] }, { path = \"settings.speedLimit\", scope = \"delta\", variants = [\"sku_b\"] } ]\napplies";
+    for variant in ["sku_a", "sku_b"] {
+        generated(
+            &dir,
+            variant,
+            variant,
+            &[("ns/drive.toml", LIMIT_PATH, split)],
+        );
+    }
+    let all = read(&dir.join("sku_b/sku_b"), "keyspace.json");
+    let text = serde_json::to_string(&all).unwrap();
+    assert!(text.contains(r#""shadow":["settings.speedLimit"],"shadow_forms":[{"path":"settings.speedLimit","variants":["sku_a"]},{"path":"settings.speedLimit","scope":"delta","variants":["sku_b"]}]"#), "{text}");
+    let resolved = read(&dir.join("sku_b/sku_b"), "keyspace.sku_b.json");
+    let text = serde_json::to_string(&resolved).unwrap();
+    assert!(text.contains(r#""shadow_forms":[{"path":"settings.speedLimit","scope":"delta","variants":["sku_b"]}]"#), "{text}");
+    let both = "shadow = [ { path = \"settings.speedLimit\", variants = [\"sku_a\", \"sku_b\"] }, { path = \"settings.speedLimit\", scope = \"delta\", variants = [\"sku_b\"] } ]\napplies";
+    let case = dir.join("overlap");
+    edited_copy("v1_0", &case, &[("ns/drive.toml", LIMIT_PATH, both)]);
+    let (ok, stderr) = generate(
+        &case.join("contract.toml"),
+        &case.join("out"),
+        &["--variant", "sku_a"],
+    );
+    assert!(
+        !ok && stderr.contains(
+            "variant sku_b: drive.state.speed_limit_applied: a shadow path is listed twice"
+        ),
+        "{stderr}"
+    );
+    assert!(
+        !stderr.contains("variant sku_a: drive.state.speed_limit_applied: a shadow path"),
+        "{stderr}"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
