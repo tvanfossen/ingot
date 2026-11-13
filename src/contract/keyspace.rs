@@ -172,10 +172,28 @@ fn key(k: &super::keys::Key, present: Value) -> Value {
     v
 }
 
+/// One enum value: code, name and reported wire string, the member it reports as and its accept
+/// aliases where it has them.
+///
+/// @version 1
+/// @req REQ-ING-SHD-001
+/// @req REQ-ING-SHD-005
+fn value_json(code: i64, name: &str, m: &super::enums::Member) -> Value {
+    let mut v = json!({"code": code, "name": name, "wire": m.wire});
+    if let Some(target) = &m.report_as {
+        v["report_as"] = json!(target);
+    }
+    if !m.accept.is_empty() {
+        v["accept"] = json!(m.accept);
+    }
+    v
+}
+
 /// Every enum the keys use, resolved for the tables' variant, by name.
 ///
 /// v2: each value's accept aliases, where it has any.
-/// @version 2
+/// v3: one value by `value_json`.
+/// @version 3
 /// @req REQ-ING-KSP-001
 /// @req REQ-ING-SHD-001
 fn enums(tables: &Tables) -> BTreeMap<String, Value> {
@@ -188,13 +206,7 @@ fn enums(tables: &Tables) -> BTreeMap<String, Value> {
                 values.sort_by_key(|(code, _, _)| *code);
                 let values: Vec<Value> = values
                     .into_iter()
-                    .map(|(code, n, m)| {
-                        let mut v = json!({"code": code, "name": n, "wire": m.wire});
-                        if !m.accept.is_empty() {
-                            v["accept"] = json!(m.accept);
-                        }
-                        v
-                    })
+                    .map(|(code, n, m)| value_json(code, n, m))
                     .collect();
                 json!({"name": name, "values": values})
             });

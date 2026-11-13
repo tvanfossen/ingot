@@ -3,6 +3,7 @@
 
 use super::enums::ResolvedEnum;
 use super::keys::{ClassCtx, Errors};
+use super::model::present_on;
 use super::schema::{Implies, KeyDef, OnReject, PathForm, Render, Role};
 use serde::Serialize;
 
@@ -37,10 +38,12 @@ pub struct KeyWire {
     pub telem: Option<String>,
 }
 
-/// Whether no path declares a form or a scope (the forms are then left out of the outputs).
+/// Whether no path declares a form, a scope or variants (the forms are then left out of the
+/// outputs).
 ///
 /// @version 1
 /// @req REQ-ING-SHD-003
+/// @req REQ-ING-SHD-004
 fn all_plain(forms: &[PathForm]) -> bool {
     forms.iter().all(PathForm::plain)
 }
@@ -53,16 +56,30 @@ fn path_names(forms: &[PathForm]) -> Vec<String> {
     forms.iter().map(|f| f.path.clone()).collect()
 }
 
+/// The declared paths of `def` that exist on `variant` (every path for the all-variants build).
+///
+/// @version 1
+/// @req REQ-ING-SHD-003
+/// @req REQ-ING-SHD-004
+fn paths_on(def: &KeyDef, variant: Option<&str>) -> Vec<PathForm> {
+    let all = def.shadow.as_ref().map(|p| p.list()).unwrap_or_default();
+    all.into_iter()
+        .filter(|f| present_on(f.variants.as_deref(), variant))
+        .collect()
+}
+
 /// The wire attributes `def` declares; a shadowed SETTINGS key rejects by echo unless it says
 /// otherwise, and a rendered list's enum is resolved from the key's namespace.
 ///
 /// v2: each path's form and scope.
-/// @version 2
+/// v3: only the paths of the variant.
+/// @version 3
 /// @req REQ-ING-SHD-001
 /// @req REQ-ING-SHD-002
 /// @req REQ-ING-SHD-003
+/// @req REQ-ING-SHD-004
 pub fn of(ctx: &ClassCtx, path: &str, def: &KeyDef, errors: &mut Errors) -> KeyWire {
-    let shadow_forms = def.shadow.as_ref().map(|p| p.list()).unwrap_or_default();
+    let shadow_forms = paths_on(def, ctx.variant);
     let shadow = path_names(&shadow_forms);
     let echo_default = ctx.class.role == Role::Settings && !shadow.is_empty();
     let on_reject = def.on_reject.or(echo_default.then_some(OnReject::Echo));

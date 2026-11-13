@@ -15,6 +15,8 @@ pub struct Member {
     pub accept: Vec<String>,
     /// Whether the wire string was declared (not defaulted to the name).
     pub explicit: bool,
+    /// The member whose wire string this code reports (it then has no inbound wire string).
+    pub report_as: Option<String>,
 }
 
 /// A resolved enum: member name to member.
@@ -23,9 +25,11 @@ pub type ResolvedEnum = BTreeMap<String, Member>;
 /// The member a value definition declares under `name` (its wire string is the name unless given).
 ///
 /// v2: accept aliases, and whether the wire string was declared.
-/// @version 2
+/// v3: report_as (the reported wire string is filled in by `apply_reports`).
+/// @version 3
 /// @req REQ-ING-TIV-016
 /// @req REQ-ING-SHD-001
+/// @req REQ-ING-SHD-005
 fn member(name: &str, def: &EnumValueDef) -> Member {
     match def {
         EnumValueDef::Number(value) => Member {
@@ -33,23 +37,93 @@ fn member(name: &str, def: &EnumValueDef) -> Member {
             wire: name.to_string(),
             accept: Vec::new(),
             explicit: false,
+            report_as: None,
         },
         EnumValueDef::Wire(w) => Member {
             value: w.value,
-            wire: w.wire.clone(),
+            wire: w.wire.clone().unwrap_or_default(),
             accept: w.accept.clone(),
             explicit: true,
+            report_as: w.report_as.clone(),
         },
     }
 }
 
 impl Member {
-    /// Every inbound string of the member: its wire string, then its accept aliases.
+    /// Every inbound string of the member: its wire string (unless it reports as another
+    /// member), then its accept aliases.
     ///
-    /// @version 1
+    /// v2: a member that reports as another has only its aliases.
+    /// @version 2
     /// @req REQ-ING-SHD-001
+    /// @req REQ-ING-SHD-005
     pub fn inbound(&self) -> impl Iterator<Item = &String> {
-        std::iter::once(&self.wire).chain(&self.accept)
+        let own = self.report_as.is_none().then_some(&self.wire);
+        own.into_iter().chain(&self.accept)
+    }
+}
+
+/// Each value of `values` declares a wire string or report_as, not both and not neither.
+///
+/// @version 1
+/// @req REQ-ING-SHD-005
+fn check_forms(path: &str, values: &BTreeMap<String, EnumValueDef>, errors: &mut Errors) {
+    for (name, def) in values {
+        if let EnumValueDef::Wire(w) = def {
+            if w.wire.is_some() == w.report_as.is_some() {
+                errors.push(format!(
+                    "{path}: value {name} declares a wire string or report_as, not both and not neither"
+                ));
+            }
+        }
+    }
+}
+
+/// The member `target` names, by name or else by its wire string, among members that report
+/// their own wire string.
+///
+/// @version 1
+/// @req REQ-ING-SHD-005
+fn report_target<'a>(resolved: &'a ResolvedEnum, target: &str) -> Option<(&'a String, &'a Member)> {
+    resolved.get_key_value(target).or_else(|| {
+        resolved
+            .iter()
+            .find(|(_, m)| m.report_as.is_none() && m.wire == target)
+    })
+}
+
+/// Give each member that reports as another that member's wire string and name; the target is
+/// another member that does not itself report as another.
+///
+/// @version 1
+/// @req REQ-ING-SHD-005
+fn apply_reports(path: &str, resolved: &mut ResolvedEnum, errors: &mut Errors) {
+    let reporting: Vec<(String, String)> = resolved
+        .iter()
+        .filter_map(|(n, m)| m.report_as.clone().map(|t| (n.clone(), t)))
+        .collect();
+    for (name, target) in reporting {
+        let found = report_target(resolved, &target).map(|(n, m)| (n.clone(), m.clone()));
+        let resolved_to = match found {
+            Some((n, _)) if n == name => None,
+            Some((_, m)) if m.report_as.is_some() => {
+                errors.push(format!(
+                    "{path}: value {name} reports as {target}, which itself reports as another"
+                ));
+                continue;
+            }
+            other => other,
+        };
+        match resolved_to {
+            Some((n, m)) => {
+                let me = resolved.get_mut(&name).expect("a resolved member");
+                me.wire = m.wire;
+                me.report_as = Some(n);
+            }
+            None => errors.push(format!(
+                "{path}: value {name} reports as {target}, which is not another member"
+            )),
+        }
     }
 }
 
@@ -80,20 +154,25 @@ pub fn resolve_all(
     selected
 }
 
-/// One enum: its base values, then the selected variant's changes; numbers and wire strings
-/// unique.
+/// One enum: its base values, then the selected variant's changes, then the reported wire
+/// strings of report_as; numbers and wire strings unique.
 ///
-/// @version 1
+/// v2: value forms and report_as.
+/// @version 2
 /// @req REQ-ING-TIV-016
+/// @req REQ-ING-SHD-005
 fn resolve(path: &str, def: &EnumDef, variant: Option<&str>, errors: &mut Errors) -> ResolvedEnum {
+    check_forms(path, &def.values, errors);
     let mut resolved: ResolvedEnum = def
         .values
         .iter()
         .map(|(name, value)| (name.clone(), member(name, value)))
         .collect();
     if let Some(changes) = variant.and_then(|v| def.variants.get(v)) {
+        check_forms(path, &changes.values, errors);
         apply_variant(path, &mut resolved, changes, errors);
     }
+    apply_reports(path, &mut resolved, errors);
     check_unique(path, &resolved, errors);
     resolved
 }
@@ -132,9 +211,11 @@ fn apply_variant(
 /// string or an accept alias) means one code.
 ///
 /// v2: inbound strings (S5).
-/// @version 2
+/// v3: a member that reports as another shares its wire string and has no inbound wire string.
+/// @version 3
 /// @req REQ-ING-TIV-016
 /// @req REQ-ING-SHD-001
+/// @req REQ-ING-SHD-005
 fn check_unique(path: &str, resolved: &ResolvedEnum, errors: &mut Errors) {
     let mut values = BTreeSet::new();
     let mut wires = BTreeSet::new();
@@ -143,7 +224,7 @@ fn check_unique(path: &str, resolved: &ResolvedEnum, errors: &mut Errors) {
         if !values.insert(m.value) {
             errors.push(format!("{path}: number {} has two names", m.value));
         }
-        if !wires.insert(&m.wire) {
+        if m.report_as.is_none() && !wires.insert(&m.wire) {
             errors.push(format!("{path}: wire string {} is used twice", m.wire));
         }
         for s in &m.accept {
@@ -152,7 +233,7 @@ fn check_unique(path: &str, resolved: &ResolvedEnum, errors: &mut Errors) {
             }
         }
     }
-    for m in resolved.values() {
+    for m in resolved.values().filter(|m| m.report_as.is_none()) {
         if inbound.get(&m.wire).is_some_and(|v| *v != m.value) {
             errors.push(format!(
                 "{path}: inbound string {} maps to two codes",
@@ -185,6 +266,17 @@ mod tests {
             values: map(base),
             variants: BTreeMap::from([("v".to_string(), variant)]),
         }
+    }
+
+    /// @brief A value with an explicit wire string and no aliases.
+    /// @version 1
+    fn wired(value: i64, wire: &str) -> EnumValueDef {
+        EnumValueDef::Wire(WireValue {
+            value,
+            wire: Some(wire.to_string()),
+            report_as: None,
+            accept: Vec::new(),
+        })
     }
 
     /// @brief (number, name, wire) of every member, by number.
@@ -229,13 +321,8 @@ mod tests {
     #[test]
     fn wire_strings_default_to_the_name_and_can_be_given() {
         let mut d = def(&[("off", 0)], &[], &[]);
-        let wire = WireValue {
-            value: 14,
-            wire: "mapDiscovery".to_string(),
-            accept: Vec::new(),
-        };
         d.values
-            .insert("map_discovery".to_string(), EnumValueDef::Wire(wire));
+            .insert("map_discovery".to_string(), wired(14, "mapDiscovery"));
         let e = resolve("ns::state", &d, None, &mut Errors::new());
         assert_eq!(e["off"].wire, "off");
         assert_eq!(e["map_discovery"].wire, "mapDiscovery");
@@ -295,12 +382,7 @@ mod tests {
             }
         }
         let mut d = def(&[("a", 0)], &[], &[]);
-        let wire = WireValue {
-            value: 1,
-            wire: "a".to_string(),
-            accept: Vec::new(),
-        };
-        d.values.insert("b".to_string(), EnumValueDef::Wire(wire));
+        d.values.insert("b".to_string(), wired(1, "a"));
         let mut errors = Errors::new();
         resolve("ns::e", &d, None, &mut errors);
         assert!(errors

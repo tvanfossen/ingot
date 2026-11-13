@@ -239,13 +239,16 @@ pub struct Trees {
 
 /// Every shadow path of the tables in its trees: SETTINGS keys and echo paths desired; STATE
 /// keys by scope, echo paths, constants and error groups in the full document; delta-scope
-/// keys, echo paths and forced constants in the delta; forced rows in the forced tree too.
+/// keys, echo paths, forced constants and error groups in the delta; forced rows in the forced
+/// tree too.
 ///
 /// v2: the delta tree, and key rows by scope; the contract-level rows in `row_paths`.
-/// @version 2
+/// v3: the error groups' field in the delta.
+/// @version 3
 /// @req REQ-ING-SHD-001
 /// @req REQ-ING-SIZ-001
 /// @req REQ-ING-SHD-003
+/// @req REQ-ING-SHD-004
 pub fn trees(tables: &Tables) -> Trees {
     let mut t = Trees {
         desired: PathTree::default(),
@@ -263,7 +266,9 @@ pub fn trees(tables: &Tables) -> Trees {
         .filter_map(|g| g.shadow.as_deref())
         .collect();
     for p in paths {
-        t.reported.add("error groups", p, errors_text(tables, p));
+        let size = errors_text(tables, p);
+        t.reported.add("error groups", p, size);
+        t.delta.add("error groups", p, size);
     }
     t
 }
@@ -337,6 +342,7 @@ mod tests {
             wire: "a".to_string(),
             accept: Vec::new(),
             explicit: true,
+            report_as: None,
         };
         let e: ResolvedEnum = [("a".to_string(), m)].into();
         assert_eq!(enum_text(&e, false, KeyType::Int32), 3);

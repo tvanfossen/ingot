@@ -3,7 +3,7 @@
 
 use super::keys::Errors;
 use super::refuse_commands::selector_text;
-use super::schema::{ClassDef, NamespaceFile};
+use super::schema::{ClassDef, KeyDef, NamespaceFile};
 
 /// Refuse an undeclared or missing `--variant`. A model that declares no variants accepts any.
 ///
@@ -74,16 +74,33 @@ fn uses(namespaces: &[NamespaceFile]) -> Vec<(String, String)> {
     out
 }
 
-/// The (where, variant) pairs of one class: per-variant defaults and key and command limits.
+/// Every variant a key's shadow paths are limited to.
 ///
 /// @version 1
+/// @req REQ-ING-SHD-004
+fn path_variants(key: &KeyDef) -> Vec<String> {
+    let paths = key.shadow.as_ref().map(|p| p.list()).unwrap_or_default();
+    paths
+        .into_iter()
+        .flat_map(|f| f.variants)
+        .flatten()
+        .collect()
+}
+
+/// The (where, variant) pairs of one class: per-variant defaults, key, shadow path and command
+/// limits.
+///
+/// v2: shadow path limits.
+/// @version 2
 /// @req REQ-ING-TIV-015
 /// @req REQ-ING-PRS-001
+/// @req REQ-ING-SHD-004
 fn class_uses(ns: &str, class: &ClassDef, out: &mut Vec<(String, String)>) {
     let path = |id: &str| format!("{ns}.{}.{id}", class.id);
     for key in &class.keys {
+        let on_paths = path_variants(key);
         let named = key.defaults.keys().chain(key.variants.iter().flatten());
-        out.extend(named.map(|v| (path(&key.id), v.clone())));
+        out.extend(named.chain(&on_paths).map(|v| (path(&key.id), v.clone())));
     }
     for cmd in &class.commands {
         out.extend(

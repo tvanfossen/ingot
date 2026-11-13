@@ -216,12 +216,14 @@ pub enum EnumValueDef {
 }
 
 /// `{ value = n, wire = "...", accept = [...] }`: the outbound wire string and the other inbound
-/// strings that also mean this value.
+/// strings that also mean this value; or `report_as` (another member, by name or wire string)
+/// instead of a wire string: the code reports that member's wire string.
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct WireValue {
     pub value: i64,
-    pub wire: String,
+    pub wire: Option<String>,
+    pub report_as: Option<String>,
     #[serde(default)]
     pub accept: Vec<String>,
 }

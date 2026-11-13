@@ -245,6 +245,7 @@ mod tests {
             wire: String::new(),
             accept: Vec::new(),
             explicit: false,
+            report_as: None,
         };
         let enums: ResolvedEnum = [
             ("off".to_string(), member(0)),

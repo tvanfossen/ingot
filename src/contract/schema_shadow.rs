@@ -35,6 +35,9 @@ pub struct PathForm {
     pub form: Option<WireForm>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scope: Option<Scope>,
+    /// The variants the path exists on (absent: every variant).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variants: Option<Vec<String>>,
 }
 
 impl PathForm {
@@ -62,12 +65,14 @@ impl PathForm {
         self.scope != Some(Scope::Full)
     }
 
-    /// Whether the path declares neither a form nor a scope.
+    /// Whether the path declares no form, scope or variants.
     ///
-    /// @version 1
+    /// v2: variants.
+    /// @version 2
     /// @req REQ-ING-SHD-003
+    /// @req REQ-ING-SHD-004
     pub fn plain(&self) -> bool {
-        self.form.is_none() && self.scope.is_none()
+        self.form.is_none() && self.scope.is_none() && self.variants.is_none()
     }
 }
 
@@ -80,9 +85,11 @@ pub enum PathDecl {
 }
 
 impl PathDecl {
-    /// The entry as a path with its declared form and scope.
+    /// The entry as a path with its declared form, scope and variants.
     ///
-    /// @version 1
+    /// v2: variants.
+    /// @version 2
+    /// @req REQ-ING-SHD-004
     /// @req REQ-ING-SHD-003
     fn form(&self) -> PathForm {
         match self {
@@ -90,6 +97,7 @@ impl PathDecl {
                 path: path.clone(),
                 form: None,
                 scope: None,
+                variants: None,
             },
             PathDecl::Form(f) => f.clone(),
         }
@@ -380,15 +388,24 @@ impl Default for Required {
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Encoding {
-    /// Base64 text, passed through as text (never decoded).
+    /// Base64 text: passed through as text into a string key, decoded into a binary key.
     Base64,
+    /// A JSON string holding a decimal integer, into an integer key.
+    DecimalText,
 }
 
-/// One argument of a row: the request field and the key it is written to.
+/// One argument of a row: the request field (or a constant value) and the key it is written to.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Arg {
-    pub field: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub field: Option<String>,
+    /// The element of an array field the argument takes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub element: Option<u16>,
+    /// A constant written into the key when the row is selected (instead of a field).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<toml::Value>,
     pub key: String,
     #[serde(default)]
     pub required: Required,
@@ -416,8 +433,15 @@ pub struct ShadowCommand {
     pub selector: Selector,
     #[serde(default)]
     pub body: Body,
-    /// The command type's path (`namespace.class.command`); none for a settings body.
+    /// The command type's path (`namespace.class.command`); none for a settings body, an
+    /// answer, an internal verb or a row that writes STATE keys.
     pub command: Option<String>,
     #[serde(default)]
     pub args: Vec<Arg>,
+    /// The result code the verb is answered with, and nothing else is done.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub answer: Option<u8>,
+    /// Why the library handles the verb itself.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub internal: Option<String>,
 }

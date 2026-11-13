@@ -4,10 +4,10 @@
 use super::keys::{Errors, Key};
 use super::model::Tables;
 use super::schema::{
-    Arg, Body, BodyKind, Direction, Encoding, KeyType, Protocol, Required, Selector, ShadowCommand,
-    WireLit,
+    Arg, Body, BodyKind, Direction, Encoding, KeyType, Protocol, Required, Role, Selector,
+    ShadowCommand, WireLit,
 };
-use super::value::encode_default;
+use super::value::{encode_default, int_range};
 
 /// Every command-row refusal.
 ///
@@ -114,54 +114,110 @@ fn object_rule(r: &ShadowCommand, refuse: &mut impl FnMut(String)) {
     }
 }
 
-/// A settings body has no command and no args; any other body names a command of the variant;
-/// a binary body is refused.
+/// A settings body has no command and no args; a row with a command names a command of the
+/// variant and declares neither answer nor internal; a row without one follows
+/// `commandless_rules`; a binary body is refused.
 ///
-/// @version 1
+/// v2: rows without a command.
+/// @version 2
 /// @req REQ-ING-CMD-001
+/// @req REQ-ING-CMD-003
 fn body_rules(tables: &Tables, r: &ShadowCommand, refuse: &mut impl FnMut(String)) {
     let known = |c: &String| tables.commands.iter().any(|x| &x.path == c);
+    let outcome = r.answer.is_some() || r.internal.is_some();
     match (&r.body, &r.command) {
         (Body::Kind(BodyKind::Binary), _) => {
             refuse("no library build accepts a binary body; send base64 text in a field".into())
         }
-        (Body::Kind(BodyKind::Settings), c) if c.is_some() || !r.args.is_empty() => {
+        (Body::Kind(BodyKind::Settings), c) if c.is_some() || !r.args.is_empty() || outcome => {
             refuse("a settings body has no command and no args".into())
         }
         (Body::Kind(BodyKind::Settings), _) => {}
+        (_, Some(_)) if outcome => {
+            refuse("a row with a command declares neither answer nor internal".into())
+        }
         (_, Some(c)) if known(c) => {}
-        (_, c) => refuse(format!(
-            "command {} is not a command of this variant",
-            c.as_deref().unwrap_or("(none)")
-        )),
+        (_, Some(c)) => refuse(format!("command {c} is not a command of this variant")),
+        (_, None) => commandless_rules(r, refuse),
     }
 }
 
-/// The plain key of the row command's class that `path` names.
+/// A row without a command answers (`answer`), is handled by the library (`internal`, with a
+/// reason), or writes STATE keys through its args (checked by `arg_key`); an answer or internal
+/// row has no args, and declares one of the two.
 ///
 /// @version 1
-/// @req REQ-ING-CMD-001
-fn arg_key<'a>(tables: &'a Tables, r: &ShadowCommand, path: &str) -> Option<&'a Key> {
-    let class = r.command.as_deref()?.rsplit_once('.')?.0;
-    let key = &tables.keys[tables.key_index(path)?];
-    let in_class = path.rsplit_once('.').is_some_and(|(c, _)| c == class);
-    (in_class && key.command.is_none()).then_some(key)
+/// @req REQ-ING-CMD-003
+fn commandless_rules(r: &ShadowCommand, refuse: &mut impl FnMut(String)) {
+    let outcome = r.answer.is_some() || r.internal.is_some();
+    let why = if r.answer.is_some() && r.internal.is_some() {
+        Some("a row declares answer or internal, not both")
+    } else if outcome && !r.args.is_empty() {
+        Some("an answer or internal row has no args")
+    } else if r.internal.as_ref().is_some_and(|w| w.trim().is_empty()) {
+        Some("internal needs a reason")
+    } else if !outcome && r.args.is_empty() {
+        Some("command (none) is not a command of this variant")
+    } else {
+        None
+    };
+    if let Some(why) = why {
+        refuse(why.into());
+    }
 }
 
-/// An argument writes a plain key of the command's class; a required one has its result code
-/// and no absent rule; an optional one has exactly one absent rule and no code; an absent value
-/// suits the key; base64 text goes into a string key.
+/// The key `path` names when an argument may write it: a plain key of the row command's class,
+/// or a STATE key.
+///
+/// v2: a STATE key.
+/// @version 2
+/// @req REQ-ING-CMD-001
+/// @req REQ-ING-CMD-002
+fn arg_key<'a>(tables: &'a Tables, r: &ShadowCommand, path: &str) -> Option<&'a Key> {
+    let key = &tables.keys[tables.key_index(path)?];
+    let class = r.command.as_deref().and_then(|c| c.rsplit_once('.'));
+    let in_class =
+        class.is_some_and(|(cls, _)| path.rsplit_once('.').is_some_and(|(c, _)| c == cls));
+    let plain = key.command.is_none() && (in_class || key.role == Role::State);
+    plain.then_some(key)
+}
+
+/// The name an argument is reported under: its field, or its key for a constant.
+///
+/// @version 1
+/// @req REQ-ING-CMD-002
+fn arg_name(a: &Arg) -> &str {
+    a.field.as_deref().unwrap_or(&a.key)
+}
+
+/// An argument takes a field or a constant; a constant has no required rule, ec, absent rule,
+/// encoding or element; a field argument follows `field_rule`.
 ///
 /// @version 1
 /// @req REQ-ING-CMD-001
-fn arg_rules(tables: &Tables, r: &ShadowCommand, a: &Arg, refuse: &mut impl FnMut(String)) {
-    let Some(key) = arg_key(tables, r, &a.key) else {
-        return refuse(format!(
-            "arg {}: {} is not a plain key of the command's class",
-            a.field, a.key
-        ));
-    };
-    let rule = match a.required {
+/// @req REQ-ING-CMD-002
+fn presence_rule(a: &Arg) -> Option<&'static str> {
+    let constant = a.value.is_some();
+    let declared = a.required != Required::Flag(false) || a.ec.is_some() || a.absent.is_some();
+    let extra = a.omit_when_absent || a.encoding.is_some() || a.element.is_some();
+    if a.field.is_some() == constant {
+        Some("an argument takes a field or a constant value, not both and not neither")
+    } else if constant && (declared || extra) {
+        Some("a constant has no required rule, ec, absent rule, encoding or element")
+    } else if constant {
+        None
+    } else {
+        field_rule(a)
+    }
+}
+
+/// The required and absent rules of a field argument: a required one has its result code and
+/// no absent rule; an optional one has exactly one absent rule and no code.
+///
+/// @version 1
+/// @req REQ-ING-CMD-001
+fn field_rule(a: &Arg) -> Option<&'static str> {
+    match a.required {
         Required::Unresolved(_) => Some("required = per_handler must be resolved from the handler"),
         Required::Flag(true) if a.ec.is_none() || a.absent.is_some() || a.omit_when_absent => {
             Some("a required argument has its ec and no absent rule")
@@ -170,22 +226,68 @@ fn arg_rules(tables: &Tables, r: &ShadowCommand, a: &Arg, refuse: &mut impl FnMu
             Some("an optional argument has an absent value or omit_when_absent, and no ec")
         }
         _ => None,
-    };
-    if let Some(why) = rule {
-        refuse(format!("arg {}: {why}", a.field));
     }
-    let value = a
-        .absent
-        .as_ref()
-        .map(|v| encode_default(key.ty, v, key.max_size, key.enum_values.as_ref()).map(|_| ()));
-    if let Some(Err(e)) = value {
-        refuse(format!("arg {}: {e}", a.field));
+}
+
+/// `v` for key `key`: a value name of the key's enum becomes its number.
+///
+/// @version 1
+/// @req REQ-ING-CMD-002
+fn by_name(key: &Key, v: &toml::Value) -> Result<toml::Value, String> {
+    match (v.as_str(), &key.enum_values) {
+        (Some(name), Some(e)) => e
+            .get(name)
+            .map(|m| toml::Value::Integer(m.value))
+            .ok_or_else(|| format!("{name} is not a value name of the key's enum")),
+        _ => Ok(v.clone()),
     }
-    if a.encoding == Some(Encoding::Base64) && key.ty != KeyType::String {
-        refuse(format!(
-            "arg {}: base64 text goes into a string key",
-            a.field
+}
+
+/// Whether encoding `enc` suits a key of type `ty`: base64 into a string (text) or binary
+/// (decoded) key, decimal text into an integer key.
+///
+/// @version 1
+/// @req REQ-ING-CMD-002
+fn encoding_rule(enc: Encoding, ty: KeyType) -> Option<&'static str> {
+    match enc {
+        Encoding::Base64 if !matches!(ty, KeyType::String | KeyType::Binary) => {
+            Some("base64 text goes into a string or binary key")
+        }
+        Encoding::DecimalText if int_range(ty).is_none() => {
+            Some("decimal_text goes into an integer key")
+        }
+        _ => None,
+    }
+}
+
+/// An argument writes a key `arg_key` allows; its presence rules hold; an absent or constant
+/// value (an enum key's by value name too) suits the key; its encoding suits the key's type.
+///
+/// v2: constants, value names, STATE keys, decimal text and base64 into a binary key.
+/// @version 2
+/// @req REQ-ING-CMD-001
+/// @req REQ-ING-CMD-002
+fn arg_rules(tables: &Tables, r: &ShadowCommand, a: &Arg, refuse: &mut impl FnMut(String)) {
+    let name = arg_name(a);
+    let Some(key) = arg_key(tables, r, &a.key) else {
+        return refuse(format!(
+            "arg {name}: {} is neither a plain key of the command's class nor a STATE key",
+            a.key
         ));
+    };
+    if let Some(why) = presence_rule(a) {
+        refuse(format!("arg {name}: {why}"));
+    }
+    for v in a.absent.iter().chain(&a.value) {
+        let checked = by_name(key, v).and_then(|v| {
+            encode_default(key.ty, &v, key.max_size, key.enum_values.as_ref()).map(|_| ())
+        });
+        if let Err(e) = checked {
+            refuse(format!("arg {name}: {e}"));
+        }
+    }
+    if let Some(why) = a.encoding.and_then(|enc| encoding_rule(enc, key.ty)) {
+        refuse(format!("arg {name}: {why}"));
     }
 }
 
