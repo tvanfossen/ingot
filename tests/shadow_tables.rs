@@ -332,6 +332,20 @@ fn echo_rows_are_sorted_with_the_key_commands_apply() {
         echo[1]
     );
     assert!(echo[1].contains(".command_key_type = 7u"));
+    let later = "type = \"float\"\ncommand_key = \"drive.settings.gain\"  # the delta path echoes it; command bodies apply it\n\n[[shadow_echo]]\npath = \"settings.alpha\"\ntype = \"string\"\nmax_size = 4";
+    let anchor = "type = \"float\"\ncommand_key = \"drive.settings.gain\"  # the delta path echoes it; command bodies apply it";
+    let gen = generated(&dir, "later", "sku_a", &[("contract.toml", anchor, later)]);
+    let echo = table(&gen, "dsh_echo");
+    assert!(
+        echo[0].contains("\"settings.alpha\"")
+            && echo[0].contains(".max_size = 4u, .type = DSH_ECHO_STRING"),
+        "sorted by path: {echo:?}"
+    );
+    let reported = table(&gen, "dsh_reported");
+    assert!(
+        row(&reported, "\"settings.trim\"").contains(".ref = 2u"),
+        "{reported:?}"
+    );
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -436,8 +450,18 @@ fn a_raw_unknown_an_integer_path_and_a_scope_reach_the_reporter() {
             "shadow = \"state.tones\"",
             "shadow = { path = \"state.tones\", scope = \"full\" }",
         ),
+        (
+            "ns/drive.toml",
+            "shadow = \"state.docked\"\nforced",
+            "shadow = [\"state.docked\", { path = \"state.dockedFull\", scope = \"full\" }]\nforced",
+        ),
     ];
     let gen = generated(&dir, "forms", "sku_a", &edits);
+    let full_only = row(&table(&gen, "dsh_reported"), "\"state.dockedFull\"");
+    assert!(
+        full_only.contains(".scope = DSH_SC_FULL, .flags = 0u"),
+        "a forced key's full-only path is not forced: {full_only}"
+    );
     let rows = table(&gen, "dsh_reported");
     let at = |p: &str| row(&rows, &format!(".path = \"{p}\""));
     assert!(at("state.fanSpeed").contains(".outbound_unknown = DSH_OUT_RAW"));
@@ -712,6 +736,20 @@ fn topics_carry_envelopes_acks_and_the_contract_request() {
             && map.contains(".source_absent = 3,")
             && map.contains(".flags = DTP_F_ENVELOPE }"),
         "{map}"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_kept_literal_shadow_name_is_flagged() {
+    let dir = unique_dir("dsh_literal_name");
+    let delta = "template = \"$aws/things/{duid}/shadow/name/{shadow_name}/update/delta\"";
+    let robot = "template = \"$aws/things/{duid}/shadow/name/robot/update/delta\"\nliteral_shadow_name = true";
+    let gen = generated(&dir, "robot", "sku_a", &[("contract.toml", delta, robot)]);
+    let topic = row(&table(&gen, "dtp_topics"), "\"shadow_delta\"");
+    assert!(
+        topic.contains(".flags = DTP_F_LITERAL_SHADOW_NAME }"),
+        "{topic}"
     );
     let _ = fs::remove_dir_all(&dir);
 }
