@@ -78,13 +78,13 @@ grants = [
   { key = "drive.command.drive_result", access = "rw" },
 ]
 
-# -- iotd: the library process; its FSMs connect with tokens 1..3 ------------------------------
+# -- app: the library process; its FSMs connect with tokens 1..3 ------------------------------
 [[principals]]
-name = "iotd"
+name = "app"
 uid = 2002
 kind = "unix"
 flags = ["token_issuer"]
-heartbeat = "net.health.iotd_hb"
+heartbeat = "net.health.app_hb"
 heartbeat_window_ms = 5000
 latency_budget_ms = 100
 caps = { inflight_fd = 4, inflight_bytes = 1048576, open_fds = 16, trace_share_pct = 25 }
@@ -96,11 +96,11 @@ grants = [
   { namespace = "drive", class = "settings", access = "rw" },
   { namespace = "drive", class = "state", access = "r" },
   { namespace = "core", class = "diag", access = "r" },
-  { key = "net.health.iotd_hb", access = "rw" },
+  { key = "net.health.app_hb", access = "rw" },
 ]
 
 [[principals]]
-name = "iotd.cloud"
+name = "app.cloud"
 uid = 2002
 token = 1
 kind = "unix"
@@ -119,7 +119,7 @@ grants = [
 ]
 
 [[principals]]
-name = "iotd.net"
+name = "app.net"
 uid = 2002
 token = 2
 kind = "unix"
@@ -134,7 +134,7 @@ grants = [
 ]
 
 [[principals]]
-name = "iotd.map"
+name = "app.map"
 uid = 2002
 token = 3
 kind = "unix"
@@ -197,9 +197,9 @@ grants = [
   { key = "drive.command.drive", access = "w" },    # and submits a command
 ]
 
-# -- new in 1.1: the OTA FSM of iotd -----------------------------------------------------------
+# -- new in 1.1: the OTA FSM of app -----------------------------------------------------------
 [[principals]]
-name = "iotd.ota"
+name = "app.ota"
 uid = 2002
 token = 4
 kind = "unix"

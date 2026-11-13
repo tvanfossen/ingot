@@ -295,12 +295,12 @@ fn rows_resolve_per_variant_with_their_arguments() {
     assert_eq!(
         verbs(&drive_rows(&sku_a)),
         ["go", "stop"],
-        "approvePlan is sku_b's"
+        "approve is sku_b's"
     );
-    assert_eq!(verbs(&drive_rows(&sku_b)), ["go", "stop", "approvePlan"]);
+    assert_eq!(verbs(&drive_rows(&sku_b)), ["go", "stop", "approve"]);
     assert_eq!(
         verbs(&drive_rows(&read_json(&a, "keyspace.json"))),
-        ["go", "stop", "approvePlan"]
+        ["go", "stop", "approve"]
     );
     let plan = &drive_rows(&sku_b)[2];
     assert_eq!(plan["variants"], serde_json::json!(["sku_b"]));
@@ -330,8 +330,8 @@ fn accepted_topic_and_row_forms() {
         )],
         &[(
             "ns/drive.toml",
-            "args = [ { field = \"planOfferEpoch\", key = \"drive.command.plan_epoch\", absent = 0 } ]",
-            "args = [ { field = \"planOfferEpoch\", key = \"drive.command.plan_epoch\", absent = 0 } ]\n\n[[shadow_commands]]\ntopic = \"command_topic\"\nvariants = [\"sku_a\"]\ngrounded_in = \"the sku_a library build\"\nselector = { field = \"state\", wire = \"approvePlan\" }\ncommand = \"drive.command.drive\"",
+            "args = [ { field = \"offerEpoch\", key = \"drive.command.plan_epoch\", absent = 0 } ]",
+            "args = [ { field = \"offerEpoch\", key = \"drive.command.plan_epoch\", absent = 0 } ]\n\n[[shadow_commands]]\ntopic = \"command_topic\"\nvariants = [\"sku_a\"]\ngrounded_in = \"the sku_a library build\"\nselector = { field = \"state\", wire = \"approve\" }\ncommand = \"drive.command.drive\"",
         )],
     ];
     for (i, edits) in cases.iter().enumerate() {

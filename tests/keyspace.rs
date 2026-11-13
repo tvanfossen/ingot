@@ -106,7 +106,7 @@ fn the_resolved_body_declares_enums_commands_rights_and_no_values() {
         .as_array()
         .unwrap()
         .iter()
-        .find(|r| r["principal"] == "iotd.net")
+        .find(|r| r["principal"] == "app.net")
         .unwrap();
     assert!(any(&net["keys"], |k| k["key"]
         == "net.credentials.wifi_psk"
@@ -430,8 +430,8 @@ fn group_bits_are_listed_by_bit() {
 /// The map_edit command limited to sku_b (the key grants naming its keys grant nothing on sku_a).
 const MAP_EDIT_SKU_B: &[(&str, &str, &str)] = &[(
     "ns/drive.toml",
-    "owner = \"iotd.map\"",
-    "owner = \"iotd.map\"\nvariants = [\"sku_b\"]",
+    "owner = \"app.map\"",
+    "owner = \"app.map\"\nvariants = [\"sku_b\"]",
 )];
 
 #[test]

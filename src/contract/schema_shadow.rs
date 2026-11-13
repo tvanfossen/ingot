@@ -131,7 +131,7 @@ impl Paths {
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum OnReject {
-    /// Today: the value is reported back as received, with the outcome.
+    /// The default: the value is reported back as received, with the outcome.
     Echo,
     /// `desired.<path> = null` plus the outcome (a wire change).
     ClearDesired,
@@ -161,11 +161,11 @@ pub struct Render {
     /// The enum (of the key's namespace) whose wire strings the indices select.
     #[serde(rename = "enum")]
     pub enum_ref: String,
-    /// The most items the list holds (today's `MAX_LANGUAGES`).
+    /// The most items the list holds.
     pub max_items: u16,
 }
 
-/// `[[apply_groups]]`: SETTINGS keys one desired update writes as one keystore batch.
+/// `[[apply_groups]]`: SETTINGS keys one desired update writes as one store batch.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct ApplyGroup {

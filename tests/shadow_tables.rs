@@ -604,7 +604,7 @@ fn command_array_and_field_arguments_carry_their_presence_rules() {
             && data.contains(".encoding = DSH_ENC_BASE64"),
         "{data}"
     );
-    let plan = &steps(&gen, &row(&rows, "\"approvePlan\""))[0].1[0];
+    let plan = &steps(&gen, &row(&rows, "\"approve\""))[0].1[0];
     assert!(plan.contains(".type = 3u") && plan.contains(".max_size = 4u"));
     assert_eq!(value(&gen, plan), vec![0, 0, 0, 0]);
     let _ = fs::remove_dir_all(&dir);
@@ -701,7 +701,7 @@ fn topics_carry_envelopes_acks_and_the_contract_request() {
         ".pattern = \"{stage}/{duid}/cmd/req\"",
         ".id_field = \"id\"",
         ".id_absent = NULL",
-        ".source_field = \"commandSource\"",
+        ".source_field = \"source\"",
         ".source_absent = 0,",
         ".source_enum = 0u",
         ".subscribe_order = 2u",
@@ -730,7 +730,7 @@ fn topics_carry_envelopes_acks_and_the_contract_request() {
         "sku_a",
         &[("contract.toml", required, optional)],
     );
-    let map = row(&table(&edited, "dtp_topics"), "\"mapcontrol_topic\"");
+    let map = row(&table(&edited, "dtp_topics"), "\"mapjob_topic\"");
     assert!(
         map.contains(".id_absent = \"0\"")
             && map.contains(".source_absent = 3,")

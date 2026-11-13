@@ -234,7 +234,7 @@ result_index = 1
 dedupe_index = 2
 introduced_in = "1.0"
 persistence = "durable"
-owner = "iotd.map"
+owner = "app.map"
 payload = "struct"
 payload_max = 32768
 result_max = 256
@@ -253,14 +253,14 @@ owner = "integrator"
 payload_max = 64
 result_max = 16
 dedupe_ring = 4
-doc = "A motion verb: go and stop; approvePlan on sku_b."
+doc = "A motion verb: go and stop; approve on sku_b."
 
 [[classes.keys]]
 id = "plan_epoch"
 key_index = 6
 type = "uint32"
 introduced_in = "1.0"
-doc = "Argument of approvePlan."
+doc = "Argument of approve."
 
 [[classes.keys]]
 id = "map_id"
@@ -293,13 +293,13 @@ topic = "command_topic"
 selector = { field = "state", wire = "stop" }
 command = "drive.command.drive"
 
-[[shadow_commands]]                      # sku_b only: {"id":N,"state":"approvePlan","planOfferEpoch":E}
+[[shadow_commands]]                      # sku_b only: {"id":N,"state":"approve","offerEpoch":E}
 topic = "command_topic"
 variants = [ "sku_b" ]
 grounded_in = "the sku_b library build"
-selector = { field = "state", wire = "approvePlan" }
+selector = { field = "state", wire = "approve" }
 command = "drive.command.drive"
-args = [ { field = "planOfferEpoch", key = "drive.command.plan_epoch", absent = 0 } ]
+args = [ { field = "offerEpoch", key = "drive.command.plan_epoch", absent = 0 } ]
 
 [[shadow_commands]]                      # {"state":{...}}: an object state is a settings body
 topic = "command_topic"
@@ -319,7 +319,7 @@ command = "drive.command.map_edit"
 args = [ { field = "mapid", key = "drive.command.map_id", absent = 0 } ]
 
 [[shadow_commands]]                      # {"id":N,"cmd":["saveMap",...],"mapid":M,"data":"<base64>"}
-topic = "mapcontrol_topic"
+topic = "mapjob_topic"
 protocol = "command_array"
 selector = { field = "cmd", element = "saveMap" }
 command = "drive.command.map_edit"
@@ -329,13 +329,13 @@ args = [
 ]
 
 [[shadow_commands]]                      # newMap cannot carry a map id
-topic = "mapcontrol_topic"
+topic = "mapjob_topic"
 protocol = "command_array"
 selector = { field = "cmd", element = "newMap" }
 command = "drive.command.map_edit"
 
 [[shadow_commands]]
-topic = "mapcontrol_topic"
+topic = "mapjob_topic"
 protocol = "command_array"
 selector = { field = "cmd", element = "splitArea" }
 command = "drive.command.map_edit"

@@ -327,7 +327,7 @@ mod tests {
 
     #[test]
     fn a_base_name_moves_to_a_new_number_in_any_order() {
-        // B11 RGB: 19 is renamed and the base name "unknown" moves from 19 to 22; the result
+        // A variant renames 19 and the base name "unknown" moves from 19 to 22; the result
         // must not depend on the order the variant's names sort in
         for (renamed, moved) in [
             ("adding_water", "unknown"),

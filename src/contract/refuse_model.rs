@@ -220,7 +220,7 @@ fn wk_mismatches(rule: WkRule, key: &Key) -> Vec<String> {
     out
 }
 
-/// The key is at least as large as the keystore reads it (`min_size + per_principal * N`).
+/// The key is at least as large as the store core reads it (`min_size + per_principal * N`).
 ///
 /// @version 1
 /// @req REQ-ING-TIV-010
@@ -235,7 +235,7 @@ fn wk_size(tables: &Tables, rule: WkRule, key: &Key, errors: &mut Errors) {
     }
 }
 
-/// Size of the signed trace-enable envelope (keystore `docs/trace-enable-envelope.md`).
+/// Size of the signed trace-enable envelope (the store core's trace-enable envelope).
 const TRACE_ENVELOPE_BYTES: u32 = 118;
 
 /// The trace-enable command: non-persistent, binary, with room for the signed envelope.

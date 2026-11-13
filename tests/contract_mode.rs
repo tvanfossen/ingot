@@ -121,9 +121,9 @@ fn generic_model_versions_and_previous_checks() {
     let review = fs::read_to_string(g11.join("release-review.txt")).unwrap();
     assert_eq!(
         review.trim(),
-        "new principal iotd.ota: r on existing net.credentials.cloud_token"
+        "new principal app.ota: r on existing net.credentials.cloud_token"
     );
-    for name in ["integrator", "iotd", "mcu", "inproc"] {
+    for name in ["integrator", "app", "mcu", "inproc"] {
         assert_eq!(
             digests(&g10, name)[0],
             digests(&g11, name)[0],
@@ -230,7 +230,7 @@ fn rights_are_resolved() {
     let gen = dir.join("gen");
     generate_ok("v1_0", &gen, &[]);
     // read on a secret comes from its reader list only; write from grants
-    assert_eq!(right(&gen, "iotd.net", "net.credentials.wifi_psk"), "rw");
+    assert_eq!(right(&gen, "app.net", "net.credentials.wifi_psk"), "rw");
     assert_eq!(right(&gen, "integrator", "net.credentials.wifi_psk"), "");
     assert_eq!(
         right(&gen, "integrator", "net.credentials.cloud_token"),
@@ -239,7 +239,7 @@ fn rights_are_resolved() {
     // a key grant replaces the class grant; class grants combine
     assert_eq!(right(&gen, "mcu", "drive.state.speed"), "rw");
     assert_eq!(right(&gen, "mcu", "drive.state.odometer"), "");
-    assert_eq!(right(&gen, "integrator", "net.health.iotd_hb"), "r");
+    assert_eq!(right(&gen, "integrator", "net.health.app_hb"), "r");
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -250,15 +250,15 @@ fn the_last_key_grant_wins_and_none_removes() {
     copy_dir(&model("v1_0"), &model_dir);
     edit(
         &model_dir.join("contract.toml"),
-        "  { key = \"net.health.iotd_hb\", access = \"rw\" },\n]",
-        "  { key = \"net.health.iotd_hb\", access = \"rw\" },\n  { key = \"drive.state.odometer\", access = \"rw\" },\n  { key = \"drive.state.odometer\", access = \"none\" },\n  { key = \"drive.state.enabled\", access = \"none\" },\n  { key = \"drive.state.enabled\", access = \"rw\" },\n]",
+        "  { key = \"net.health.app_hb\", access = \"rw\" },\n]",
+        "  { key = \"net.health.app_hb\", access = \"rw\" },\n  { key = \"drive.state.odometer\", access = \"rw\" },\n  { key = \"drive.state.odometer\", access = \"none\" },\n  { key = \"drive.state.enabled\", access = \"none\" },\n  { key = \"drive.state.enabled\", access = \"rw\" },\n]",
     );
     let gen = dir.join("gen");
     let (ok, stderr) = generate(&model_dir.join("contract.toml"), &gen, &[]);
     assert!(ok, "{stderr}");
-    assert_eq!(right(&gen, "iotd", "drive.state.odometer"), "");
-    assert_eq!(right(&gen, "iotd", "drive.state.enabled"), "rw");
-    assert_eq!(right(&gen, "iotd", "drive.state.label"), "r");
+    assert_eq!(right(&gen, "app", "drive.state.odometer"), "");
+    assert_eq!(right(&gen, "app", "drive.state.enabled"), "rw");
+    assert_eq!(right(&gen, "app", "drive.state.label"), "r");
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -361,13 +361,13 @@ fn contract_json_carries_every_principal_command_and_rights_field() {
         "path": "core.command.factory_reset", "persist": "durable", "owner": "core"})
     );
     assert_eq!(json["commands"][2]["persist"], "none");
-    assert_eq!(right(&gen, "iotd", "drive.settings.mode"), "rw");
-    assert_eq!(right(&gen, "iotd.net", "net.credentials.cloud_token"), "rw");
-    assert_eq!(right(&gen, "iotd.cloud", "core.command.trace_enable"), "rw");
-    assert_eq!(right(&gen, "iotd.net", "net.credentials.wifi_psk"), "rw");
+    assert_eq!(right(&gen, "app", "drive.settings.mode"), "rw");
+    assert_eq!(right(&gen, "app.net", "net.credentials.cloud_token"), "rw");
+    assert_eq!(right(&gen, "app.cloud", "core.command.trace_enable"), "rw");
+    assert_eq!(right(&gen, "app.net", "net.credentials.wifi_psk"), "rw");
     assert_eq!(right(&gen, "mcu", "drive.settings.mode"), "r");
     assert_eq!(
-        right(&gen, "iotd.map", "drive.command.map_edit_result"),
+        right(&gen, "app.map", "drive.command.map_edit_result"),
         "rw"
     );
     assert_eq!(right(&gen, "integrator", "core.command.factory_reset"), "r");
@@ -553,7 +553,7 @@ fn flags_and_scope_grants_combine_and_secrets_keep_their_readers() {
     );
     let (ok, stderr) = generate(&contract, &gen, &[]);
     assert!(ok, "{stderr}");
-    assert_eq!(principal(&gen, "iotd")["flags"], 0x04 | 0x02);
+    assert_eq!(principal(&gen, "app")["flags"], 0x04 | 0x02);
     assert_eq!(right(&gen, "tool", "drive.settings.mode"), "rw");
     assert_eq!(right(&gen, "tool", "drive.state.odometer"), "r");
     assert_eq!(

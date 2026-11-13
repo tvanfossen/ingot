@@ -154,7 +154,7 @@ fn trace_enable_writers(tables: &Tables, errors: &mut Errors) {
     }
 }
 
-/// Commands the core answers itself (REQ-KS-CMD-003): owner must be `core`.
+/// Commands the core answers itself: owner must be `core`.
 const CORE_ANSWERED: [&str; 2] = ["RESET_REQUEST", "TRACE_ENABLE"];
 
 /// Command owners (amended refusal C, 2026-11-03): the core answers RESET_REQUEST and

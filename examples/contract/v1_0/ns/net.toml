@@ -18,7 +18,7 @@ max_size = 64
 introduced_in = "1.0"
 write_rate = "1/day"
 secret = true
-readers = ["iotd.net"]
+readers = ["app.net"]
 
 [[classes.keys]]
 id = "cloud_token"
@@ -28,7 +28,7 @@ max_size = 128
 introduced_in = "1.0"
 write_rate = "1/day"
 secret = true
-readers = ["iotd.net", "integrator"]
+readers = ["app.net", "integrator"]
 
 [[classes]]
 id = "health"
@@ -43,7 +43,7 @@ introduced_in = "1.0"
 write_rate = "1/s"
 
 [[classes.keys]]
-id = "iotd_hb"
+id = "app_hb"
 key_index = 1
 type = "uint32"
 introduced_in = "1.0"

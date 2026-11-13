@@ -69,13 +69,13 @@ grants = [
   { key = "drive.command.drive_result", access = "rw" },
 ]
 
-# -- iotd: the library process; its FSMs connect with tokens 1..3 ------------------------------
+# -- app: the library process; its FSMs connect with tokens 1..3 ------------------------------
 [[principals]]
-name = "iotd"
+name = "app"
 uid = 2002
 kind = "unix"
 flags = ["token_issuer"]
-heartbeat = "net.health.iotd_hb"
+heartbeat = "net.health.app_hb"
 heartbeat_window_ms = 5000
 latency_budget_ms = 100
 caps = { inflight_fd = 4, inflight_bytes = 1048576, open_fds = 16, trace_share_pct = 25 }
@@ -87,11 +87,11 @@ grants = [
   { namespace = "drive", class = "settings", access = "rw" },
   { namespace = "drive", class = "state", access = "r" },
   { namespace = "core", class = "diag", access = "r" },
-  { key = "net.health.iotd_hb", access = "rw" },
+  { key = "net.health.app_hb", access = "rw" },
 ]
 
 [[principals]]
-name = "iotd.cloud"
+name = "app.cloud"
 uid = 2002
 token = 1
 kind = "unix"
@@ -110,7 +110,7 @@ grants = [
 ]
 
 [[principals]]
-name = "iotd.net"
+name = "app.net"
 uid = 2002
 token = 2
 kind = "unix"
@@ -125,7 +125,7 @@ grants = [
 ]
 
 [[principals]]
-name = "iotd.map"
+name = "app.map"
 uid = 2002
 token = 3
 kind = "unix"
@@ -209,7 +209,7 @@ open_fds = 4
 # -- shadow wire mapping (G2 1.4): apply groups, echo-only paths, constant reported rows -------
 [[apply_groups]]
 id = "motion"
-doc = "Drive settings one desired update writes as one keystore batch."
+doc = "Drive settings one desired update writes as one store batch."
 
 [[shadow_echo]]
 path = "settings.planExists"         # app metadata: echoed back so the delta clears, no key
@@ -257,7 +257,7 @@ subscribe_order = 2
 local_wrapper = "command_topic"
 ack = "command_resp"
 settings_in_every_body = true
-envelope = { id = { field = "id", required = true }, source = { field = "commandSource", enum = "core::origin", absent = "unspecified" } }
+envelope = { id = { field = "id", required = true }, source = { field = "source", enum = "core::origin", absent = "unspecified" } }
 
 [[topics]]
 id = "command_resp"
@@ -265,22 +265,22 @@ template = "{stage}/{duid}/cmd/resp"
 direction = "pub"
 
 [[topics]]
-id = "mapcontrol_topic"
-template = "{stage}/{duid}/mapcontrol/req"
+id = "mapjob_topic"
+template = "{stage}/{duid}/mapjob/req"
 direction = "sub"
 subscribe_order = 3
-local_wrapper = "mapcontrol_topic"
-ack = "mapcontrol_resp"
+local_wrapper = "mapjob_topic"
+ack = "mapjob_resp"
 envelope = { id = { field = "id", required = true }, source = { enum = "core::origin", absent = "unspecified" } }
 
 [[topics]]
-id = "mapcontrol_resp"
-template = "{stage}/{duid}/mapcontrol/resp"
+id = "mapjob_resp"
+template = "{stage}/{duid}/mapjob/resp"
 direction = "pub"
 
 [[topics]]
-id = "device_errors"
-template = "$aws/rules/device_errors_{stage}/{model}/{duid}/errors"
+id = "error_topic"
+template = "{stage}/{model}/{duid}/errors"
 direction = "pub"
 
 [[topics]]

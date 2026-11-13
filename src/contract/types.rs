@@ -210,7 +210,7 @@ pub struct WkRule {
     pub survives_reset: bool,
     /// Written only by the core: no principal may have write on it (R-V5).
     pub core_written: bool,
-    /// Smallest `max_size` the keystore reads the key with: `min_size + per_principal * N`.
+    /// Smallest `max_size` the store core reads the key with: `min_size + per_principal * N`.
     pub min_size: u32,
     pub per_principal: u32,
 }
@@ -257,7 +257,7 @@ pub const WK_RULES: [WkRule; 26] = [
         Some(KeyType::Uint32),
         Persist::Deferred,
     ),
-    // "M.m.p+<12 hex commit>" is at most 30 bytes; "M.m.p" at most 17 (keystore REQ-KS-VER-001).
+    // "M.m.p+<12 hex commit>" is at most 30 bytes; "M.m.p" at most 17.
     WkRule {
         min_size: 30,
         ..wk(
@@ -296,7 +296,7 @@ pub const WK_RULES: [WkRule; 26] = [
     diag("DIAG_TORN_TAILS", KeyType::Uint32),
     diag("DIAG_ALLOC_GAPS", KeyType::Uint32),
     diag("DIAG_CONNECTED", KeyType::Uint32),
-    // 4-byte header, then 20 bytes per principal (keystore REQ-KS-TRC-003).
+    // 4-byte header, then 20 bytes per principal.
     WkRule {
         min_size: 4,
         per_principal: 20,

@@ -19,7 +19,7 @@
       "items": { "type": "string" }
     },
     "field": {
-      "description": "A request field: dotted identifiers, each dot one nested JSON object (wifi.factoryReset is {\"wifi\":{\"factoryReset\":...}}).",
+      "description": "A request field: dotted identifiers, each dot one nested JSON object (net.reset is {\"net\":{\"reset\":...}}).",
       "type": "string",
       "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$"
     },
@@ -125,7 +125,7 @@
         "direction": { "enum": ["pub", "sub"] },
         "connection": { "type": "string" },
         "settings_in_every_body": {
-          "description": "Every body on this topic, whatever its verb, also runs the settings binder on its top-level fields before the verb (today: processState runs update_drive_settings on every cmd/req body, except a wifi.factoryReset body, which process_new_command handles first).",
+          "description": "Every body on this topic, whatever its verb, also runs the settings binder on its top-level fields before the verb.",
           "type": "boolean"
         }
       }

@@ -201,7 +201,7 @@ result_index = 1
 dedupe_index = 2
 introduced_in = "1.0"
 persistence = "durable"
-owner = "iotd.map"
+owner = "app.map"
 payload = "struct"
 payload_max = 32768
 result_max = 256
@@ -220,14 +220,14 @@ owner = "integrator"
 payload_max = 64
 result_max = 16
 dedupe_ring = 4
-doc = "A motion verb: go and stop; approvePlan on sku_b."
+doc = "A motion verb: go and stop; approve on sku_b."
 
 [[classes.keys]]
 id = "plan_epoch"
 key_index = 6
 type = "uint32"
 introduced_in = "1.0"
-doc = "Argument of approvePlan."
+doc = "Argument of approve."
 
 [[classes.keys]]
 id = "map_id"

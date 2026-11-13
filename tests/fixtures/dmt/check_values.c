@@ -146,7 +146,7 @@ static void common(void)
     value(0x00C00088u, mode, sizeof mode, 0u);
     value(0x00400098u, NULL, 0u, 0u);
     principal(0u, 2001u, 0u, DMT_PK_UNIX, 0x01u, 0x01020018u, 2000u, 50u, "integrator");
-    principal(1u, 2002u, 0u, DMT_PK_UNIX, 0x04u, 0x01020098u, 5000u, 100u, "iotd");
+    principal(1u, 2002u, 0u, DMT_PK_UNIX, 0x04u, 0x01020098u, 5000u, 100u, "app");
     principal(2u, 2002u, 1u, DMT_PK_UNIX, 0x00u, 0u, 0u, 100u, NULL);
     EXPECT(dmt_principals[0].cap_inflight_fd == 4u && dmt_principals[0].cap_inflight_bytes == 1048576u);
     EXPECT(dmt_principals[0].cap_open_fds == 16u && dmt_principals[0].cap_trace_share_pct == 25u);
@@ -175,7 +175,7 @@ static void common(void)
 
 /**
  * @brief   Values of one version: 1.0 has the speed key and gain; 1.1 adds velocity (speed is
- *          its alias) and iotd.ota; 2.0 drops speed, label and gain and adds gain_pct.
+ *          its alias) and app.ota; 2.0 drops speed, label and gain and adds gain_pct.
  * @version 1
  */
 static void versioned(void)
@@ -221,7 +221,7 @@ static size_t principal_of_kind(uint8_t kind)
 }
 
 /**
- * @brief   The combinations a keystore batch and an in-process client need, in every version:
+ * @brief   The combinations a store batch and an in-process client need, in every version:
  *          the integrator writes a durable key (trip_count), deferred keys at two intervals
  *          (odometer 5000 ms, run_time 60000 ms) and volatile keys of drive.state; the in-process
  *          role writes drive.settings.mode (durable), submits the drive command and reads the rest.

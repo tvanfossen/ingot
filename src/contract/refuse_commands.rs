@@ -132,8 +132,8 @@ fn selector_rules(tables: &Tables, r: &ShadowCommand, refuse: &mut impl FnMut(St
 }
 
 /// Every request field of a row (selector, body object and its selector, each argument's) is
-/// dotted identifiers: each dot is one nested JSON object (`wifi.factoryReset` is
-/// `{"wifi":{"factoryReset":...}}`; a member literally named "wifi.factoryReset" never matches).
+/// dotted identifiers: each dot is one nested JSON object (`net.reset` is
+/// `{"net":{"reset":...}}`; a member literally named "net.reset" never matches).
 ///
 /// @version 1
 /// @req REQ-ING-CMD-005

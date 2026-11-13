@@ -427,7 +427,7 @@ requirements:
     description: >-
       For every principal and every minor 0..contract minor, the SHA-256 KSET v1 digest of the
       (key ID, type) pairs it may read or write as of that minor, per docs/handshake-digest.md of
-      the keystore.
+      the store core.
     acceptance_criteria: >-
       Golden vectors V0-V5 reproduce; the generic model's 1.0 digests reappear unchanged in 1.1.
   REQ-ING-TIV-009:
@@ -450,7 +450,7 @@ requirements:
       interval, struct keys without max_size, bad aliases, introduced-in later than the
       contract, bad defaults, well-known role errors, duplicate or unheartbeated principals,
       and budget violations; and
-      the sizes the keystore reads well-known keys with: DIAG_SUBSCRIBERS max_size at least
+      the sizes the store core reads well-known keys with: DIAG_SUBSCRIBERS max_size at least
       4 + 20 per principal, DIAG_KEYSTORE_VERSION at least 30, DIAG_CONTRACT_VERSION at least 17,
       and the TRACE_ENABLE command's payload_max at least 118 (its signed envelope).
     acceptance_criteria: >-
@@ -465,7 +465,7 @@ requirements:
       writes to core-written well-known keys, a trace-enable command without exactly one writer,
       RESET_REQUEST or TRACE_ENABLE not owned by the core (and core ownership anywhere else), a
       principal owner without read on its command and write on its result, and any write on a
-      dedupe key or on the result of a core-answered command (keystore REQ-KS-CMD-003).
+      dedupe key or on the result of a core-answered command.
     acceptance_criteria: >-
       Each refusal has a model that triggers it.
   REQ-ING-TIV-012:
@@ -495,7 +495,7 @@ requirements:
     description: >-
       examples/contract holds a product-neutral model at contract 1.0, 1.1 and 2.0 that
       exercises every type, persistence class, principal kind and refusal-relevant feature, for
-      the keystore's conformance and handshake suites. In every version one principal may write
+      a store core's conformance and handshake suites. In every version one principal may write
       a durable key, deferred keys at two distinct intervals and volatile keys (a batch that
       mixes persistence classes), and an in-process principal may write a key and submit a
       command.
@@ -635,7 +635,7 @@ requirements:
       The all-variants view holds every variant's rows: rows of disjoint variants may share a path
       there, and path conflicts, the document size and a variant-only command row's values are
       checked in each variant's own pass. The error groups' shadow field is in the delta as well as
-      the full document (today's error reactor publishes it on change).
+      the full document (the error list is published on change).
     acceptance_criteria: >-
       A key reported at one path on one variant and another path on the other generates each
       variant's own path; one path with a scope per variant generates, and the same path twice on

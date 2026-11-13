@@ -1,4 +1,4 @@
-//! KSET v1 handshake digests (keystore `docs/handshake-digest.md`, normative).
+//! KSET v1 handshake digests (the store core's handshake-digest specification, normative).
 
 use super::model::Tables;
 use super::rights::{READ, WRITE};
@@ -67,7 +67,7 @@ mod tests {
     use super::*;
     use crate::contract::model::hex;
 
-    // Golden vectors V0-V5 of docs/handshake-digest.md (keystore), KSET v1.
+    // Golden vectors V0-V5 of the KSET v1 handshake-digest specification.
     const KA: (u32, u8) = (0x0042_0000, 0);
     const KB: (u32, u8) = (0x0042_0090, 2);
     const KC: (u32, u8) = (0x0042_0140, 8);

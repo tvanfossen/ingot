@@ -181,8 +181,8 @@ const ARG_ANCHOR: &str = "id = \"map_payload\"\nkey_index = 9\ntype = \"string\"
 fn a_variant_row_s_values_resolve_in_its_variants_only() {
     let dir = unique_dir("rows_variant_values");
     let plan =
-        "args = [ { field = \"planOfferEpoch\", key = \"drive.command.plan_epoch\", absent = 0 } ]";
-    let named = "args = [\n  { field = \"planOfferEpoch\", key = \"drive.command.plan_epoch\", absent = 0 },\n  { key = \"drive.command.drive_mode\", value = \"saver\" },\n  { field = \"mode\", key = \"drive.command.drive_mode\", absent = 3 },\n]";
+        "args = [ { field = \"offerEpoch\", key = \"drive.command.plan_epoch\", absent = 0 } ]";
+    let named = "args = [\n  { field = \"offerEpoch\", key = \"drive.command.plan_epoch\", absent = 0 },\n  { key = \"drive.command.drive_mode\", value = \"saver\" },\n  { field = \"mode\", key = \"drive.command.drive_mode\", absent = 3 },\n]";
     let edits = [
         ("ns/drive.toml", ARG_ANCHOR, ARG_KEYS),
         ("ns/drive.toml", plan, named),
