@@ -1066,3 +1066,21 @@ Same procedure; the test command is `--test contract_sdk`. SX04 replaces BD03 ab
 | SX02 | src/contract/sdk.rs | `if out.is_empty() {` | `if false {` | an empty output name refused | KILLED | a_tera_suffix_is_stripped_and_output_names_stay_unique |
 | SX03 | src/contract/sdk.rs | `} else if outputs.iter().any(\|(_, o)\| o == &out) {` | `} else if false {` | a collision refused | KILLED | a_tera_suffix_is_stripped_and_output_names_stay_unique |
 | SX04 | src/contract/sdk.rs | `let file = output.replace(PRINCIPAL_PLACEHOLDER, &name);` | `let file = template.replace(PRINCIPAL_PLACEHOLDER, &name);` | files named after the output name | KILLED | a_tera_suffix_is_stripped_and_output_names_stay_unique the_generic_sdks_drive_the_runtime |
+
+## A bool reported as 0/1 in one document (REQ-ING-SHD-010)
+
+Same procedure; the test command is `--no-fail-fast --test contract_refusals --test shadow_tables --test shadow`.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| BI01 | src/contract/refuse_shadow.rs | `&& scopes_meet(a.scope, b.scope)` | `&& true` | disjoint scopes share a path | KILLED | a_bool_path_as_integer_is_sized_per_document a_bool_path_reports_0_1_in_one_document_and_true_false_in_the_other |
+| BI02 | src/contract/schema_shadow.rs | `(in_full(a) && in_full(b)) \|\| (in_delta(a) && in_delta(b))` | `in_full(a) && in_full(b)` | two delta entries meet | KILLED | every_refusal_has_a_triggering_model |
+| BI03 | src/contract/refuse_shadow.rs | `} else if key.ty != KeyType::Bool {` | `} else if false {` | as on a non-enum, non-bool key refused | KILLED | every_refusal_has_a_triggering_model |
+| BI04 | src/contract/refuse_shadow.rs | `} else if forms.contains(&WireForm::Enum) {` | `} else if false {` | as = enum on a bool key refused | KILLED | every_refusal_has_a_triggering_model |
+| BI05 | src/contract/refuse_shadow.rs | `} else if !key.role.reported() {` | `} else if false {` | as on a bool desired path refused (inbound stays bool) | KILLED | every_refusal_has_a_triggering_model |
+| BI06 | src/contract/dsh/desired.rs | `None if f.integer() => "DSH_FORM_BOOL_INTEGER",` | `None if false => "DSH_FORM_BOOL_INTEGER",` | the bool 0/1 form in the reporter row | KILLED | a_bool_path_reports_0_1_in_one_document_and_true_false_in_the_other |
+| BI07 | src/contract/shadow_size.rs | `_ if key.ty == KeyType::Bool && f.integer() => 1,` | `_ if false => 1,` | a 0/1 value is one digit | KILLED | a_bool_path_as_integer_is_sized_per_document |
+| BI08 | src/contract/shadow_size.rs | `doc_text(key, &entries, PathForm::in_full)` | `doc_text(key, &entries, \|_\| true)` | each document sized at its own entries | KILLED | a_bool_path_as_integer_is_sized_per_document a_path_takes_its_full_and_its_delta_value_from_two_keys a_scope_places_a_row_in_the_full_document_or_the_delta |
+| BI09 | src/contract/shadow_size.rs | `EchoType::Bool => key.ty == KeyType::Bool && !f.integer(),` | `EchoType::Bool => key.ty == KeyType::Bool,` | a bool echo shares no 0/1 member | KILLED | every_refusal_has_a_triggering_model |
+| BI10 | templates/dsh_types.h | `DSH_FORM_BOOL_INTEGER = 4` | `DSH_FORM_BOOL_INTEGER = 5` | the appended form value | KILLED | a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header |
+| BI11 | templates/dsh_types.h | `#define DSH_IF_MINOR 2` | `#define DSH_IF_MINOR 1` | the interface minor | KILLED | a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header |
