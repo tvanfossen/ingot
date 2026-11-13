@@ -1055,3 +1055,14 @@ Same procedure; the test command adds `--test contract_sdk`. Removed as equivale
 | BD03 | src/contract/sdk.rs | `let file = template.replace(PRINCIPAL_PLACEHOLDER, &name);` | `let file = template.to_string();` | the principal in the file name | KILLED | a_binding_file_renders_once_per_principal_under_its_name a_read_only_struct_and_a_write_only_key_have_no_getter accessors_follow_rights_kinds_and_command_parts every_principal_s_sdk_compiles the_generic_sdks_drive_the_runtime the_identity_is_the_principal_s_digest_and_keyset | |
 | BD04 | src/contract/mod.rs | `if let Some(binding) = opts.sdk_binding {` | `if let Some(binding) = opts.sdk_binding.filter(\|_\| false) {` | SDKs through the binding | KILLED | a_binding_file_renders_once_per_principal_under_its_name a_read_only_struct_and_a_write_only_key_have_no_getter accessors_follow_rights_kinds_and_command_parts every_principal_s_sdk_compiles the_generic_sdks_drive_the_runtime the_identity_is_the_principal_s_digest_and_keyset without_a_binding_there_is_no_sdk_and_a_binding_holds_templates_only |
 | BD05 | src/contract/sdk.rs | `ctx.insert("token", &pr.token);` | `ctx.insert("token", &0u16);` | the token in the identity | KILLED | a_binding_file_renders_once_per_principal_under_its_name |
+
+## Binding template names (REQ-ING-SDK-005)
+
+Same procedure; the test command is `--test contract_sdk`. SX04 replaces BD03 above: the file name now comes from the output name (the template name less `.tera`).
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| SX01 | src/contract/sdk.rs | `name.strip_suffix(TEMPLATE_SUFFIX).unwrap_or(name)` | `name` | the suffix stripped | KILLED | a_tera_suffix_is_stripped_and_output_names_stay_unique the_generic_sdks_drive_the_runtime |
+| SX02 | src/contract/sdk.rs | `if out.is_empty() {` | `if false {` | an empty output name refused | KILLED | a_tera_suffix_is_stripped_and_output_names_stay_unique |
+| SX03 | src/contract/sdk.rs | `} else if outputs.iter().any(\|(_, o)\| o == &out) {` | `} else if false {` | a collision refused | KILLED | a_tera_suffix_is_stripped_and_output_names_stay_unique |
+| SX04 | src/contract/sdk.rs | `let file = output.replace(PRINCIPAL_PLACEHOLDER, &name);` | `let file = template.replace(PRINCIPAL_PLACEHOLDER, &name);` | files named after the output name | KILLED | a_tera_suffix_is_stripped_and_output_names_stay_unique the_generic_sdks_drive_the_runtime |
