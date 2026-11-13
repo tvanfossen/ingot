@@ -27,6 +27,8 @@ pub struct ContractFile {
     pub shadow_constant: Vec<Constant>,
     #[serde(default)]
     pub topics: Vec<Topic>,
+    #[serde(default)]
+    pub topic_payload: Vec<PayloadRow>,
 }
 
 /// `[contract]`: name, version and where the namespace files are.

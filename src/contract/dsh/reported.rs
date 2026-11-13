@@ -3,7 +3,7 @@
 
 use super::super::keys::Key;
 use super::super::model::Tables;
-use super::super::schema::{Constant, Image, PathForm, Role};
+use super::super::schema::{in_delta, in_full, Constant, Image, PathForm};
 use super::desired::{echo_order, form};
 use super::{id, index16, text, ty, Pools};
 use std::collections::BTreeMap;
@@ -14,10 +14,12 @@ const NOT_A_KEY: &str = ".outbound_unknown_wire = NULL, .telem = NULL, .key = 0x
 
 /// The JSON text of a constant row: its value, or the image's `"M.m.p"` or body hash.
 ///
-/// @version 1
+/// v2: shared with the topic payload rows.
+/// @version 2
+/// @req REQ-ING-TOP-003
 /// @req REQ-ING-DSH-002
 /// @req REQ-ING-DSH-005
-fn constant_json(tables: &Tables, c: &Constant, hash: &str) -> String {
+pub(super) fn constant_json(tables: &Tables, c: &Constant, hash: &str) -> String {
     let v = &tables.version;
     match (&c.value, c.image) {
         (Some(value), _) => serde_json::to_string(value).unwrap_or_default(),
@@ -31,9 +33,11 @@ fn constant_json(tables: &Tables, c: &Constant, hash: &str) -> String {
 
 /// `.scope` and `.flags` of a row in the full document and/or the delta, forced or not.
 ///
-/// @version 1
+/// v2: shared with the topic payload rows.
+/// @version 2
+/// @req REQ-ING-TOP-003
 /// @req REQ-ING-DSH-002
-fn placement(full: bool, delta: bool, forced: bool) -> String {
+pub(super) fn placement(full: bool, delta: bool, forced: bool) -> String {
     let scope = match (full, delta) {
         (true, true) => "DSH_SC_FULL | DSH_SC_DELTA",
         (true, false) => "DSH_SC_FULL",
@@ -45,9 +49,17 @@ fn placement(full: bool, delta: bool, forced: bool) -> String {
 
 /// A row that is not a key's: its path, kind, constant text, echo index and placement.
 ///
-/// @version 1
+/// v2: shared with the topic payload rows.
+/// @version 2
+/// @req REQ-ING-TOP-003
 /// @req REQ-ING-DSH-002
-fn other(path: &str, kind: &str, constant: Option<&str>, r: usize, placed: &str) -> String {
+pub(super) fn other(
+    path: &str,
+    kind: &str,
+    constant: Option<&str>,
+    r: usize,
+    placed: &str,
+) -> String {
     format!(
         "{{ .path = {}, .constant = {}, {NOT_A_KEY}, .ref = {r}u, .max_items = 0u, \
          .kind = {kind}, .type = 0u, .form = DSH_FORM_PLAIN, {placed}, \
@@ -94,9 +106,11 @@ fn key_form(key: &Key, f: &PathForm, pools: &mut Pools) -> (&'static str, Option
 
 /// One `dsh_reported` row of STATE key `key` at `f`.
 ///
-/// @version 1
+/// v2: shared with the topic payload rows.
+/// @version 2
+/// @req REQ-ING-TOP-003
 /// @req REQ-ING-DSH-002
-fn key_row(tables: &Tables, key: &Key, f: &PathForm, pools: &mut Pools) -> String {
+pub(super) fn key_row(tables: &Tables, key: &Key, f: &PathForm, pools: &mut Pools) -> String {
     let (form, enum_index, max_items) = key_form(key, f, pools);
     let (rule, wire) = outbound_rule(key, form);
     let forced = key.wire.forced && f.in_delta();
@@ -133,10 +147,32 @@ fn error_paths(tables: &Tables) -> Vec<&str> {
     paths
 }
 
-/// contract.toml's rows with their paths: constants, echo paths, then error-group paths.
+/// The echo rows with their paths, each in the documents of its scope.
 ///
 /// @version 1
 /// @req REQ-ING-DSH-002
+/// @req REQ-ING-SHD-007
+fn echo_rows(tables: &Tables) -> Vec<(String, String)> {
+    echo_order(tables)
+        .into_iter()
+        .enumerate()
+        .map(|(i, e)| {
+            let placed = placement(in_full(e.scope), in_delta(e.scope), false);
+            (
+                e.path.clone(),
+                other(&e.path, "DSH_RK_ECHO", None, i, &placed),
+            )
+        })
+        .collect()
+}
+
+/// contract.toml's rows with their paths: constants, echo paths (by their scope), then
+/// error-group paths.
+///
+/// v2: an echo row's scope (`echo_rows`).
+/// @version 2
+/// @req REQ-ING-DSH-002
+/// @req REQ-ING-SHD-007
 fn contract_rows(tables: &Tables, hash: &str) -> Vec<(String, String)> {
     let mut rows = Vec::new();
     let both = placement(true, true, false);
@@ -146,10 +182,7 @@ fn contract_rows(tables: &Tables, hash: &str) -> Vec<(String, String)> {
         let row = other(&c.path, "DSH_RK_CONSTANT", Some(&json), 0, &placed);
         rows.push((c.path.clone(), row));
     }
-    for (i, e) in echo_order(tables).into_iter().enumerate() {
-        let row = other(&e.path, "DSH_RK_ECHO", None, i, &both);
-        rows.push((e.path.clone(), row));
-    }
+    rows.extend(echo_rows(tables));
     for p in error_paths(tables) {
         rows.push((p.to_string(), other(p, "DSH_RK_ERRORS", None, 0, &both)));
     }
@@ -157,13 +190,16 @@ fn contract_rows(tables: &Tables, hash: &str) -> Vec<(String, String)> {
 }
 
 /// Every reported row with its path, in declaration order: contract.toml's constants, echo
-/// paths and error-group paths, then the STATE keys' paths in key ID order.
+/// paths and error-group paths, then the reported (STATE and CONFIG) keys' paths in key ID
+/// order.
 ///
-/// @version 1
+/// v2: CONFIG keys.
+/// @version 2
 /// @req REQ-ING-DSH-002
+/// @req REQ-ING-SHD-008
 fn declared(tables: &Tables, hash: &str, pools: &mut Pools) -> Vec<(String, String)> {
     let mut rows = contract_rows(tables, hash);
-    for key in tables.keys.iter().filter(|k| k.role == Role::State) {
+    for key in tables.keys.iter().filter(|k| k.role.reported()) {
         for f in &key.wire.shadow_forms {
             rows.push((f.path.clone(), key_row(tables, key, f, pools)));
         }

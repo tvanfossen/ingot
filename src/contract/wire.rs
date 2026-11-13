@@ -5,10 +5,11 @@ use super::enums::ResolvedEnum;
 use super::keys::{ClassCtx, Errors};
 use super::model::present_on;
 use super::schema::{Implies, KeyDef, OnReject, PathForm, Render, Role};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// A key's shadow paths and how the binder and reporter treat them.
-#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct KeyWire {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub shadow: Vec<String>,

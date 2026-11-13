@@ -116,22 +116,25 @@ fn arg(tables: &Tables, a: &Arg, pools: &mut Pools) -> String {
 }
 
 /// One `dsh_steps` row: `command` (none: STATE writes only) with `args`, appended to the pools.
+/// The step names its command key's type, so a struct command goes through a buffer.
 ///
-/// @version 1
+/// v2: the command key's type.
+/// @version 2
 /// @req REQ-ING-DSH-003
 fn step(tables: &Tables, command: Option<&String>, args: &[Arg], pools: &mut Pools) {
     let key = command
         .and_then(|c| tables.commands.iter().find(|x| &x.path == c))
-        .map_or(0, |c| c.keys[0]);
+        .and_then(|c| tables.keys.iter().find(|k| k.id == c.keys[0]));
     let first = pools.args.len();
     for a in args {
         let row = arg(tables, a, pools);
         pools.args.push(row);
     }
     pools.steps.push(format!(
-        "{{ .command = {}, .args_first = {first}u, .args_count = {}u }}",
-        id(key),
-        args.len()
+        "{{ .command = {}, .args_first = {first}u, .args_count = {}u, .command_type = {} }}",
+        id(key.map_or(0, |k| k.id)),
+        args.len(),
+        key.map_or("0u".to_string(), |k| ty(k.ty))
     ));
 }
 

@@ -49,19 +49,21 @@ fn listed_twice(forms: &[PathForm]) -> bool {
     })
 }
 
-/// S1: shadow paths on SETTINGS and STATE keys of a JSON-valued type, each listed once per
+/// S1: shadow paths on SETTINGS, STATE and CONFIG keys of a JSON-valued type, each listed once per
 /// variant.
 ///
 /// v2: once per variant.
-/// @version 2
+/// v3: CONFIG keys are reported too.
+/// @version 3
+/// @req REQ-ING-SHD-008
 /// @req REQ-ING-SHD-001
 /// @req REQ-ING-SHD-004
 fn placement(key: &Key, errors: &mut Errors) {
     let w = &key.wire;
     let mut refuse = |why: &str| errors.push(format!("{}: {why}", key.path));
     let mapped = !w.shadow.is_empty();
-    if mapped && !matches!(key.role, Role::Settings | Role::State) {
-        refuse("a shadow path is for SETTINGS and STATE keys");
+    if mapped && !(key.role == Role::Settings || key.role.reported()) {
+        refuse("a shadow path is for SETTINGS, STATE and CONFIG keys");
     }
     if mapped && matches!(key.ty, KeyType::Binary | KeyType::Struct) {
         refuse("a binary or struct key has no shadow value");
@@ -106,10 +108,12 @@ fn implicit_wires(e: &ResolvedEnum) -> Vec<&String> {
         .collect()
 }
 
-/// S1 of the path forms: `as` is for enum keys, `scope` for reported paths of STATE keys, and a
+/// S1 of the path forms: `as` is for enum keys, `scope` for reported paths (STATE and CONFIG), and a
 /// forced key has a path in the delta.
 ///
-/// @version 1
+/// v2: CONFIG keys are reported too.
+/// @version 2
+/// @req REQ-ING-SHD-008
 /// @req REQ-ING-SHD-003
 fn form_rules(key: &Key, errors: &mut Errors) {
     let forms = &key.wire.shadow_forms;
@@ -117,8 +121,8 @@ fn form_rules(key: &Key, errors: &mut Errors) {
     if key.enum_values.is_none() && forms.iter().any(|f| f.form.is_some()) {
         refuse("as is for enum keys");
     }
-    if key.role != Role::State && forms.iter().any(|f| f.scope.is_some()) {
-        refuse("scope is for reported paths of STATE keys");
+    if !key.role.reported() && forms.iter().any(|f| f.scope.is_some()) {
+        refuse("scope is for reported paths of STATE and CONFIG keys");
     }
     if key.wire.forced && !forms.iter().any(PathForm::in_delta) {
         refuse("forced needs a path in the delta");
@@ -135,10 +139,12 @@ fn wire_strings(key: &Key) -> bool {
 
 /// S3 and S4: a shadowed key's enum where a path carries its wire strings (and a rendered
 /// list's) has explicit wire strings; such a SETTINGS enum key declares inbound_unknown and
-/// such a STATE enum key outbound_unknown, and nothing else declares either.
+/// such a reported (STATE or CONFIG) enum key outbound_unknown, and nothing else declares either.
 ///
 /// v2: only where a path carries the wire strings (an integer path carries the code).
-/// @version 2
+/// v3: CONFIG keys are reported too.
+/// @version 3
+/// @req REQ-ING-SHD-008
 /// @req REQ-ING-SHD-001
 /// @req REQ-ING-SHD-003
 fn enum_rules(key: &Key, errors: &mut Errors) {
@@ -167,7 +173,7 @@ fn enum_rules(key: &Key, errors: &mut Errors) {
         inbound,
         errors,
     );
-    let outbound = e.filter(|_| shadowed(key, Role::State));
+    let outbound = e.filter(|_| key.role.reported() && !key.wire.shadow.is_empty());
     unknown_rule(
         key,
         "outbound_unknown",
@@ -219,13 +225,15 @@ fn unknown_rule(
 
 /// The role an unknown rule is for.
 ///
-/// @version 1
+/// v2: CONFIG keys are reported too.
+/// @version 2
+/// @req REQ-ING-SHD-008
 /// @req REQ-ING-SHD-001
 fn role_of(inbound: bool) -> &'static str {
     if inbound {
         "SETTINGS"
     } else {
-        "STATE"
+        "STATE and CONFIG"
     }
 }
 
@@ -233,9 +241,11 @@ fn role_of(inbound: bool) -> &'static str {
 /// or a wire string.
 ///
 /// v2: `ignore` (the unknown string is dropped, nothing is written).
-/// @version 2
+/// v3: shared with topic payload members.
+/// @version 3
+/// @req REQ-ING-TOP-003
 /// @req REQ-ING-SHD-001
-fn known_unknown(e: &ResolvedEnum, v: &str, inbound: bool) -> bool {
+pub(super) fn known_unknown(e: &ResolvedEnum, v: &str, inbound: bool) -> bool {
     if inbound {
         matches!(v, "reject" | "ignore") || e.values().any(|m| m.inbound().any(|s| s == v))
     } else {

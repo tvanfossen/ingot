@@ -410,3 +410,227 @@ fn per_variant_entries_at_one_path_count_once_at_their_widest() {
     );
     let _ = fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn a_minor_may_add_paths_aliases_and_rows() {
+    let dir = unique_dir("rows_minor_growth");
+    let prev = dir.join("prev");
+    generate_ok("v1_0", &prev, &[]);
+    let case = dir.join("grown");
+    let edits = [
+        ("ns/drive.toml", "accept = [\"max\"] }", "accept = [\"max\", \"turbo\"] }"),
+        ("ns/drive.toml", "shadow = [\"state.fanSpeed\", \"settings.fanSpeed\"]", "shadow = [\"state.fanSpeed\", \"settings.fanSpeed\", \"state.fanLevel\"]"),
+        ("contract.toml", "[[shadow_constant]]\npath = \"sv\"", "[[shadow_echo]]\npath = \"settings.grown\"\ntype = \"bool\"\n\n[[shadow_constant]]\npath = \"sv\""),
+        ("ns/drive.toml", "id = \"odometer\"\nkey_index = 1", "id = \"odometer\"\nkey_index = 1\nshadow = \"state.odometer\"\ntelem = \"odo\""),
+    ];
+    edited_copy("v1_1", &case, &edits);
+    let previous = prev.join("contract.json");
+    let args = ["--previous-contract", previous.to_str().unwrap()];
+    let (ok, stderr) = generate(&case.join("contract.toml"), &case.join("out"), &args);
+    assert!(ok, "growth is a minor: {stderr}");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// The trim echo row of the 1.0 model.
+const TRIM_ECHO: &str = "path = \"settings.trim\"\ntype = \"float\"";
+
+/// A STATE key reporting settings.trim in the full document only (the gain's applied twin).
+const TRIM_KEY: &str = "telem = \"dock\"\n\n[[classes.keys]]\nid = \"gain_applied\"\nkey_index = 14\ntype = \"float32\"\nintroduced_in = \"1.0\"\nshadow = { path = \"settings.trim\", scope = \"full\" }";
+
+#[test]
+fn a_delta_echo_shares_a_path_with_a_full_only_key() {
+    let dir = unique_dir("rows_echo_scope");
+    let delta = format!("{TRIM_ECHO}\nscope = \"delta\"");
+    let edits = [
+        ("contract.toml", TRIM_ECHO, delta.as_str()),
+        ("ns/drive.toml", "telem = \"dock\"", TRIM_KEY),
+    ];
+    let gen = generated(&dir, "split", "sku_a", &edits);
+    let c = fs::read_to_string(gen.join("dsh_tables.c")).unwrap();
+    let rows: Vec<&str> = c
+        .lines()
+        .filter(|l| l.contains(".path = \"settings.trim\"") && l.contains(".kind = DSH_RK_"))
+        .collect();
+    assert_eq!(rows.len(), 2, "{rows:?}");
+    assert!(
+        rows.iter()
+            .any(|r| r.contains("DSH_RK_ECHO") && r.contains(".scope = DSH_SC_DELTA,")),
+        "{rows:?}"
+    );
+    assert!(
+        rows.iter()
+            .any(|r| r.contains("DSH_RK_KEY") && r.contains(".scope = DSH_SC_FULL,")),
+        "{rows:?}"
+    );
+    let case = dir.join("both");
+    edited_copy(
+        "v1_0",
+        &case,
+        &[("ns/drive.toml", "telem = \"dock\"", TRIM_KEY)],
+    );
+    let (ok, stderr) = generate(
+        &case.join("contract.toml"),
+        &case.join("out"),
+        &["--variant", "sku_a"],
+    );
+    assert!(
+        !ok && stderr.contains("shadow path settings.trim is taken by"),
+        "{stderr}"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_payload_member_is_frozen_within_a_major() {
+    let dir = unique_dir("rows_payload_frozen");
+    let resp = "template = \"{stage}/{duid}/cmd/resp\"\ndirection = \"pub\"";
+    let member = |v: &str| {
+        format!(
+            "{resp}\n\n[[topic_payload]]\ntopic = \"command_resp\"\npath = \"sv\"\nvalue = \"{v}\""
+        )
+    };
+    let (old, new) = (member("1.0"), member("1.1"));
+    let prev = generated(&dir, "prev", "sku_a", &[("contract.toml", resp, &old)]);
+    let case = dir.join("cur");
+    edited_copy("v1_0", &case, &[("contract.toml", resp, &new)]);
+    let previous = prev.join("contract.json");
+    let args = [
+        "--variant",
+        "sku_a",
+        "--previous-contract",
+        previous.to_str().unwrap(),
+    ];
+    let (ok, stderr) = generate(&case.join("contract.toml"), &case.join("out"), &args);
+    assert!(
+        !ok && stderr.contains("topic_payload command_resp sv changed or was removed in a minor"),
+        "{stderr}"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// A STATE key reporting settings.trim in both documents.
+const TRIM_KEY_BOTH: &str = "telem = \"dock\"\n\n[[classes.keys]]\nid = \"gain_applied\"\nkey_index = 14\ntype = \"float32\"\nintroduced_in = \"1.0\"\nshadow = \"settings.trim\"";
+
+/// @brief Generate the 1.0 model (sku_a) with the trim echo made `echo` and `key` added.
+/// @version 1
+fn trim_case(dir: &Path, tag: &str, echo: &str, key: &str) -> (bool, String) {
+    let case = dir.join(tag);
+    edited_copy(
+        "v1_0",
+        &case,
+        &[
+            ("contract.toml", TRIM_ECHO, echo),
+            ("ns/drive.toml", "telem = \"dock\"", key),
+        ],
+    );
+    generate(
+        &case.join("contract.toml"),
+        &case.join("out"),
+        &["--variant", "sku_a"],
+    )
+}
+
+#[test]
+fn a_delta_echo_and_a_key_share_one_delta_member() {
+    let dir = unique_dir("rows_echo_shares");
+    let delta = format!("{TRIM_ECHO}\nscope = \"delta\"");
+    let (ok, stderr) = trim_case(&dir, "share", &delta, TRIM_KEY_BOTH);
+    assert!(
+        ok,
+        "an echo and a key of one encoding share the delta member: {stderr}"
+    );
+    let bool_echo = delta.replace("type = \"float\"", "type = \"bool\"");
+    let (ok, stderr) = trim_case(&dir, "mismatch", &bool_echo, TRIM_KEY_BOTH);
+    assert!(
+        !ok && stderr.contains("shadow path settings.trim is taken by drive.state.gain_applied"),
+        "{stderr}"
+    );
+    let twice = format!(
+        "{delta}\n\n[[shadow_echo]]\npath = \"settings.trim\"\ntype = \"float\"\nscope = \"delta\""
+    );
+    let (ok, stderr) = trim_case(&dir, "twice", &twice, TRIM_KEY_BOTH);
+    assert!(
+        !ok && stderr.contains("shadow path settings.trim is taken by"),
+        "two echo rows: {stderr}"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_full_only_echo_leaves_the_delta_to_a_key() {
+    let dir = unique_dir("rows_echo_full");
+    let full =
+        format!("{TRIM_ECHO}\nscope = \"full\"").replace("type = \"float\"", "type = \"bool\"");
+    let key = TRIM_KEY.replace("scope = \"full\"", "scope = \"delta\"");
+    let (ok, stderr) = trim_case(&dir, "split", &full, &key);
+    assert!(
+        ok,
+        "a bool echo in the full document, a float key in the delta: {stderr}"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn an_echo_shares_only_with_a_key_in_the_delta() {
+    let dir = unique_dir("rows_echo_full_key");
+    let delta = format!("{TRIM_ECHO}\nscope = \"delta\"");
+    let constant = "[[shadow_constant]]\npath = \"settings.trim\"\nvalue = 1.0\nforced = true\n\n[[shadow_constant]]\npath = \"sv\"";
+    let case = dir.join("constant");
+    let edits = [
+        ("contract.toml", TRIM_ECHO, delta.as_str()),
+        (
+            "contract.toml",
+            "[[shadow_constant]]\npath = \"sv\"",
+            constant,
+        ),
+        ("ns/drive.toml", "telem = \"dock\"", TRIM_KEY),
+    ];
+    edited_copy("v1_0", &case, &edits);
+    let (ok, stderr) = generate(
+        &case.join("contract.toml"),
+        &case.join("out"),
+        &["--variant", "sku_a"],
+    );
+    assert!(
+        !ok && stderr.contains("shadow path settings.trim is taken by shadow_echo"),
+        "a full-only key does not take the echo's delta member: {stderr}"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_config_key_path_conflicts_like_a_state_key_path() {
+    let dir = unique_dir("rows_config_conflict");
+    let case = dir.join("conflict");
+    let serial = "id = \"serial\"";
+    edited_copy(
+        "v1_0",
+        &case,
+        &[(
+            "ns/mfg.toml",
+            serial,
+            "id = \"serial\"\nshadow = \"state.docked\"",
+        )],
+    );
+    let (ok, stderr) = generate(
+        &case.join("contract.toml"),
+        &case.join("out"),
+        &["--variant", "sku_a"],
+    );
+    assert!(
+        !ok && stderr.contains("shadow path state.docked is taken by"),
+        "{stderr}"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn two_topics_may_carry_one_payload_path() {
+    let dir = unique_dir("rows_payload_topics");
+    let resp = "template = \"{stage}/{duid}/cmd/resp\"\ndirection = \"pub\"";
+    let member =
+        |t: &str| format!("\n\n[[topic_payload]]\ntopic = \"{t}\"\npath = \"sv\"\nvalue = \"1\"");
+    let both = format!("{resp}{}{}", member("command_resp"), member("mapjob_resp"));
+    generated(&dir, "both", "sku_a", &[("contract.toml", resp, &both)]);
+    let _ = fs::remove_dir_all(&dir);
+}

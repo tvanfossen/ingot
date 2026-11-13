@@ -4,7 +4,7 @@
 
 use super::keys::Key;
 use super::model::Tables;
-use super::schema::{Constant, Echo, EchoType, Image, KeyType, PathForm, Role};
+use super::schema::{in_delta, in_full, Constant, Echo, EchoType, Image, KeyType, PathForm, Role};
 use super::value::int_range;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -273,18 +273,70 @@ pub fn trees(tables: &Tables) -> Trees {
     t
 }
 
-/// The contract-level rows: echo paths desired, in the full document and in the delta;
-/// constants in the full document, forced ones in the delta and the forced tree.
+/// Whether an echo of type `ty` writes the same JSON value as key `key` at path form `f`: a
+/// bool, an integer (an enum key's integer form too), a float, or a string (an enum key's wire
+/// string too).
 ///
 /// @version 1
+/// @req REQ-ING-SHD-009
+fn same_encoding(ty: EchoType, key: &Key, f: &PathForm) -> bool {
+    let strings = key.enum_values.is_some() && !f.integer();
+    let integer = super::value::int_range(key.ty).is_some() && !strings;
+    match ty {
+        EchoType::Bool => key.ty == KeyType::Bool,
+        EchoType::Int => integer,
+        EchoType::Float => key.ty == KeyType::Float32,
+        EchoType::String => key.ty == KeyType::String || strings,
+    }
+}
+
+/// Whether a reported key writes echo row `e`'s delta member too, with the same encoding: the
+/// echo fires on a desired update, the key on a change of its value, and they share the member.
+///
+/// @version 1
+/// @req REQ-ING-SHD-009
+fn delta_twin(tables: &Tables, e: &Echo) -> bool {
+    tables.keys.iter().filter(|k| k.role.reported()).any(|k| {
+        k.wire
+            .shadow_forms
+            .iter()
+            .any(|f| f.path == e.path && f.in_delta() && same_encoding(e.ty, k, f))
+    })
+}
+
+/// The echo rows: desired, and in the full document and the delta by their scope; one echo may
+/// share its delta member with a reported key of the same encoding (a second echo at the path
+/// is refused by the desired tree).
+///
+/// v2: no shared-member set (the desired tree refuses a second echo).
+/// @version 2
 /// @req REQ-ING-SHD-002
-/// @req REQ-ING-SHD-003
-fn row_paths(t: &mut Trees, tables: &Tables) {
+/// @req REQ-ING-SHD-007
+/// @req REQ-ING-SHD-009
+fn echo_paths(t: &mut Trees, tables: &Tables) {
     for e in &tables.shadow.echo {
         t.desired.add("shadow_echo", &e.path, 0);
-        t.reported.add("shadow_echo", &e.path, echo_text(e));
-        t.delta.add("shadow_echo", &e.path, echo_text(e));
+        if in_full(e.scope) {
+            t.reported.add("shadow_echo", &e.path, echo_text(e));
+        }
+        let shares = delta_twin(tables, e);
+        if in_delta(e.scope) && !shares {
+            t.delta.add("shadow_echo", &e.path, echo_text(e));
+        }
     }
+}
+
+/// The contract-level rows: echo rows (`echo_paths`); constants in the full document, forced
+/// ones in the delta and the forced tree.
+///
+/// v2: an echo row's scope.
+/// v3: echo rows through `echo_paths`.
+/// @version 3
+/// @req REQ-ING-SHD-002
+/// @req REQ-ING-SHD-003
+/// @req REQ-ING-SHD-007
+fn row_paths(t: &mut Trees, tables: &Tables) {
+    echo_paths(t, tables);
     for c in &tables.shadow.constants {
         let size = constant_text(tables, c);
         t.reported.add("shadow_constant", &c.path, size);
@@ -295,12 +347,14 @@ fn row_paths(t: &mut Trees, tables: &Tables) {
     }
 }
 
-/// A key's rows: desired paths of a SETTINGS key; a STATE key's paths in the full document,
+/// A key's rows: desired paths of a SETTINGS key; a reported (STATE or CONFIG) key's paths in the full document,
 /// the delta (and forced) by scope.
 ///
 /// v2: by scope, each at its form's text.
 /// v3: each path once (entries for disjoint variants share one, in the all-variants view).
-/// @version 3
+/// v4: CONFIG keys are reported.
+/// @version 4
+/// @req REQ-ING-SHD-008
 /// @req REQ-ING-SHD-001
 /// @req REQ-ING-SHD-003
 /// @req REQ-ING-SHD-004
@@ -308,7 +362,7 @@ fn key_rows(t: &mut Trees, key: &Key) {
     for path in &key.wire.shadow {
         match key.role {
             Role::Settings => t.desired.add(&key.path, path, 0),
-            Role::State => state_row(t, key, path),
+            r if r.reported() => state_row(t, key, path),
             _ => {}
         }
     }
@@ -374,6 +428,7 @@ mod tests {
             max_size,
             command_key: None,
             variants: None,
+            scope: None,
         };
         assert_eq!(echo_text(&echo(EchoType::Bool, None)), 5);
         assert_eq!(echo_text(&echo(EchoType::Int, None)), "-2147483648".len());

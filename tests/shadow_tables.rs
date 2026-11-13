@@ -554,7 +554,7 @@ fn command_rows_carry_selectors_bodies_steps_and_arguments() {
         .unwrap();
     assert_eq!(
         steps(&gen, &reset)[0].0,
-        format!("{{ .command = {reset_id:#010X}U, .args_first = 0u, .args_count = 0u }}")
+        format!("{{ .command = {reset_id:#010X}U, .args_first = 0u, .args_count = 0u, .command_type = 9u }}")
     );
     let object = row(&rows, "DSH_SEL_OBJECT");
     for part in [
@@ -734,7 +734,7 @@ fn topics_carry_envelopes_acks_and_the_contract_request() {
     assert!(
         map.contains(".id_absent = \"0\"")
             && map.contains(".source_absent = 3,")
-            && map.contains(".flags = DTP_F_ENVELOPE }"),
+            && map.contains(".flags = DTP_F_ENVELOPE,"),
         "{map}"
     );
     let _ = fs::remove_dir_all(&dir);
@@ -748,7 +748,7 @@ fn a_kept_literal_shadow_name_is_flagged() {
     let gen = generated(&dir, "robot", "sku_a", &[("contract.toml", delta, robot)]);
     let topic = row(&table(&gen, "dtp_topics"), "\"shadow_delta\"");
     assert!(
-        topic.contains(".flags = DTP_F_LITERAL_SHADOW_NAME }"),
+        topic.contains(".flags = DTP_F_LITERAL_SHADOW_NAME,"),
         "{topic}"
     );
     let _ = fs::remove_dir_all(&dir);
@@ -789,7 +789,7 @@ fn a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header() {
     assert!(ok, "{stderr}");
     let fixed = fs::read_to_string(types.join("dsh_types.h")).unwrap();
     assert_eq!(fixed, fs::read_to_string(gen.join("dsh_types.h")).unwrap());
-    assert!(fixed.contains("#define DSH_IF_MAJOR 1") && fixed.contains("#define DSH_IF_MINOR 0"));
+    assert!(fixed.contains("#define DSH_IF_MAJOR 1") && fixed.contains("#define DSH_IF_MINOR 1"));
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -886,5 +886,98 @@ fn a_further_command_lists_the_row_that_submits_it() {
         .unwrap();
     assert_eq!(trace["wire"][0]["selector"]["field"], "net.factoryReset");
     assert_eq!(trace["wire"][0]["also"][1]["args"][0]["value"], 7);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn base64_text_decodes_into_a_struct_argument_and_steps_name_their_command_type() {
+    let dir = unique_dir("dsh_struct_arg");
+    let doc = "doc = \"Base64 text of a map request, passed through as text.\"";
+    let blob = "doc = \"Base64 text of a map request, passed through as text.\"\n\n[[classes.keys]]\nid = \"plan_data\"\nkey_index = 10\ntype = \"struct\"\nmax_size = 98304\nintroduced_in = \"1.1\"";
+    let arg = "{ field = \"data\", key = \"drive.command.map_payload\", omit_when_absent = true, encoding = \"base64\" },";
+    let to = "{ field = \"data\", key = \"drive.command.plan_data\", omit_when_absent = true, encoding = \"base64\" },";
+    let gen = generated(
+        &dir,
+        "blob",
+        "sku_a",
+        &[("ns/drive.toml", doc, blob), ("ns/drive.toml", arg, to)],
+    );
+    let data = row(&table(&gen, "dsh_args"), "\"data\"");
+    assert!(
+        data.contains(".type = 10u") && data.contains(".encoding = DSH_ENC_BASE64"),
+        "{data}"
+    );
+    assert!(data.contains(".max_size = 98304u"), "{data}");
+    let save = row(
+        &table(&gen, "dsh_commands"),
+        "\"saveMap\", .kind = DSH_SEL_ELEMENT",
+    );
+    let step = &steps(&gen, &save)[0].0;
+    assert!(
+        step.ends_with(".command_type = 10u }"),
+        "a struct command: {step}"
+    );
+    let go = row(&table(&gen, "dsh_commands"), "\"go\"");
+    assert!(
+        steps(&gen, &go)[0].0.ends_with(".command_type = 9u }"),
+        "a binary command"
+    );
+    compile_and_walk(&gen);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_config_key_is_reported_and_never_desired() {
+    let dir = unique_dir("dsh_config_path");
+    let serial = "id = \"serial\"";
+    let mapped = "id = \"serial\"\nshadow = { path = \"config.serial\", scope = \"full\" }";
+    let gen = generated(&dir, "serial", "sku_a", &[("ns/mfg.toml", serial, mapped)]);
+    let reported = row(&table(&gen, "dsh_reported"), "\"config.serial\"");
+    assert!(
+        reported.contains(".kind = DSH_RK_KEY") && reported.contains(".scope = DSH_SC_FULL,"),
+        "{reported}"
+    );
+    assert!(
+        !table(&gen, "dsh_desired")
+            .iter()
+            .any(|r| r.contains("config.serial")),
+        "never desired"
+    );
+    compile_and_walk(&gen);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// A config topic whose payload is a constant, a CONFIG key, a nested SETTINGS enum key and an
+/// integer form, appended to the 1.1 model's topics.
+const CONFIG_TOPIC: &str = "\n[[topics]]\nid = \"config\"\ntemplate = \"{stage}/{duid}/config\"\ndirection = \"pub\"\n\n[[topic_payload]]\ntopic = \"config\"\npath = \"sv\"\nvalue = \"1.0\"\n\n[[topic_payload]]\ntopic = \"config\"\npath = \"sku\"\nkey = \"mfg.identity.serial\"\n\n[[topic_payload]]\ntopic = \"config\"\npath = \"sw.fan\"\nkey = \"drive.settings.fan\"\noutbound_unknown = \"normal\"\n\n[[topic_payload]]\ntopic = \"config\"\npath = \"sw.fanCode\"\nkey = \"drive.settings.fan\"\nas = \"integer\"\n";
+
+#[test]
+fn a_topic_payload_is_built_from_keys_and_constants() {
+    let dir = unique_dir("dsh_payload");
+    let end = "connection = \"telemetry\"";
+    let edits = [("contract.toml", end, &*format!("{end}\n{CONFIG_TOPIC}"))];
+    let gen = generated(&dir, "config", "sku_a", &edits);
+    let topics = table(&gen, "dtp_topics");
+    let config = row(&topics, "\"config\"");
+    assert!(
+        config.contains(".payload_first = 0u, .payload_count = 4u"),
+        "{config}"
+    );
+    assert!(row(&topics, "\"command_topic\"").contains(".payload_count = 0u"));
+    let payload = table(&gen, "dtp_payload");
+    let at = |p: &str| row(&payload, &format!(".path = \"{p}\""));
+    assert!(
+        at("sv").contains(".constant = \"\\\"1.0\\\"\"")
+            && at("sv").contains(".kind = DSH_RK_CONSTANT")
+    );
+    assert!(at("sku").contains(".kind = DSH_RK_KEY") && at("sku").contains(".type = 8u"));
+    let fan = at("sw.fan");
+    assert!(
+        fan.contains(".form = DSH_FORM_ENUM")
+            && fan.contains(".outbound_unknown_wire = \"normal\""),
+        "{fan}"
+    );
+    assert!(at("sw.fanCode").contains(".form = DSH_FORM_INTEGER"));
+    compile_and_walk(&gen);
     let _ = fs::remove_dir_all(&dir);
 }

@@ -51,18 +51,20 @@ impl PathForm {
 
     /// Whether the path is in the full document.
     ///
-    /// @version 1
+    /// v2: through `in_full`, shared with echo rows.
+    /// @version 2
     /// @req REQ-ING-SHD-003
     pub fn in_full(&self) -> bool {
-        self.scope != Some(Scope::Delta)
+        in_full(self.scope)
     }
 
     /// Whether the path is in the delta.
     ///
-    /// @version 1
+    /// v2: through `in_delta`, shared with echo rows.
+    /// @version 2
     /// @req REQ-ING-SHD-003
     pub fn in_delta(&self) -> bool {
-        self.scope != Some(Scope::Full)
+        in_delta(self.scope)
     }
 
     /// Whether the path declares no form, scope or variants.
@@ -166,7 +168,7 @@ pub struct Render {
 }
 
 /// `[[apply_groups]]`: SETTINGS keys one desired update writes as one store batch.
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ApplyGroup {
     pub id: String,
@@ -184,7 +186,7 @@ pub enum EchoType {
 }
 
 /// `[[shadow_echo]]`: a desired path reported back as received, with no key.
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Echo {
     pub path: String,
@@ -197,6 +199,27 @@ pub struct Echo {
     /// The variants the path is echoed on (absent: every variant).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub variants: Option<Vec<String>>,
+    /// The reported documents the echo is in (absent: both).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<Scope>,
+}
+
+/// Whether a row of `scope` (absent: both) is in the full document.
+///
+/// @version 1
+/// @req REQ-ING-SHD-003
+/// @req REQ-ING-SHD-007
+pub fn in_full(scope: Option<Scope>) -> bool {
+    scope != Some(Scope::Delta)
+}
+
+/// Whether a row of `scope` (absent: both) is in the delta.
+///
+/// @version 1
+/// @req REQ-ING-SHD-003
+/// @req REQ-ING-SHD-007
+pub fn in_delta(scope: Option<Scope>) -> bool {
+    scope != Some(Scope::Full)
 }
 
 /// A constant whose value the image supplies.
@@ -210,7 +233,7 @@ pub enum Image {
 }
 
 /// `[[shadow_constant]]`: a reported path with a literal or image value and no key.
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Constant {
     pub path: String,
@@ -220,6 +243,33 @@ pub struct Constant {
     /// Re-emitted on every delta.
     #[serde(default)]
     pub forced: bool,
+}
+
+/// `[[topic_payload]]`: one member of a pub topic's payload, from a key or a constant.
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PayloadRow {
+    pub topic: String,
+    /// Dotted, each dot one nested object of the payload.
+    pub path: String,
+    /// The key whose value the member carries (any key with a JSON value).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
+    /// A literal value instead of a key.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<toml::Value>,
+    /// An image value instead of a key.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image: Option<Image>,
+    /// How an enum key's value is carried (default its wire string).
+    #[serde(rename = "as", skip_serializing_if = "Option::is_none")]
+    pub form: Option<WireForm>,
+    /// What an unknown code reports, on an enum key's wire-string member.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub outbound_unknown: Option<String>,
+    /// The variants the member exists on (absent: every variant).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variants: Option<Vec<String>>,
 }
 
 /// Direction of a topic.
@@ -239,7 +289,7 @@ fn main_connection() -> String {
 }
 
 /// `[[topics]]`: one MQTT topic of the device.
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Topic {
     pub id: String,
@@ -263,7 +313,7 @@ pub struct Topic {
 }
 
 /// A command envelope: the id and the source of a request.
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Envelope {
     pub id: Option<EnvelopeId>,
@@ -271,7 +321,7 @@ pub struct Envelope {
 }
 
 /// The envelope id: required, or optional with a declared absent value.
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct EnvelopeId {
     pub field: String,
@@ -283,7 +333,7 @@ pub struct EnvelopeId {
 
 /// The envelope source: the field it is read from (none: never read) and the origin enum
 /// member it takes when absent.
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct EnvelopeSource {
     pub field: Option<String>,
@@ -398,7 +448,7 @@ pub enum Encoding {
 }
 
 /// One argument of a row: the request field (or a constant value) and the key it is written to.
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Arg {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -424,7 +474,7 @@ pub struct Arg {
 }
 
 /// `[[shadow_commands]]`: one way a request reaches a command, or a settings body.
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ShadowCommand {
     pub topic: String,
@@ -453,7 +503,7 @@ pub struct ShadowCommand {
 }
 
 /// One further command of a row (`also`), with its arguments.
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Step {
     pub command: String,

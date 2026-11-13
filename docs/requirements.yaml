@@ -656,6 +656,54 @@ requirements:
       Two codes reporting one wire string generate when one declares report_as; an undeclared
       duplicate, a missing or chained target, and both or neither of wire and report_as are
       refused.
+  REQ-ING-SHD-006:
+    name: The shadow mapping only grows within a major (P1)
+    subsystem: Generated outputs (G2)
+    description: >-
+      Against --previous-contract in a minor, contract.json's key mappings and shadow rows are
+      read back typed. A key that was mapped keeps every path entry (path, form, scope, variants)
+      and its wire attributes (applies, apply group, implies, on_reject, the unknown rules,
+      forced, render, telem); its paths and accept aliases may only grow. Every echo row, constant
+      row, topic and command row of the previous contract is still there unchanged. A key that
+      was not mapped may gain a mapping, and rows may be added.
+    acceptance_criteria: >-
+      A changed unknown rule, a removed path, a changed scope, a removed accept alias, a changed
+      echo row, constant, topic or command row are each refused in a minor; adding an alias, a
+      path and an echo row is accepted.
+  REQ-ING-SHD-007:
+    name: Scope of an echo row
+    subsystem: Generated outputs (G2)
+    description: >-
+      An echo row may declare `scope` (full, delta or both; absent: both) like a STATE key's path:
+      it is reported in those documents only, so a delta-only echo may share its path with a key
+      reported in the full document only (an echo of a field whose full document reports
+      the setting). The shadow tables carry the echo row's scope. Rows taking one path in one
+      document are still refused.
+    acceptance_criteria: >-
+      A delta-only echo beside a full-only key at one path generates, each row with its scope in
+      dsh_reported; the same echo without a scope is refused.
+  REQ-ING-SHD-008:
+    name: Reported paths of CONFIG keys
+    subsystem: Generated outputs (G2)
+    description: >-
+      A CONFIG key (a device's configured identity, such as its SKU) may carry shadow paths:
+      like a STATE key's they are reported, never desired, with the reported path forms, scopes and
+      the outbound unknown rule; the size count, the path trees and the shadow tables treat them
+      as reported rows.
+    acceptance_criteria: >-
+      A CONFIG key reported in the full document generates a reported key row and no desired row;
+      a shadow path on a DIAG key is still refused.
+  REQ-ING-SHD-009:
+    name: An echo row and a key share a delta member
+    subsystem: Generated outputs (G2)
+    description: >-
+      One echo row may share its delta member with a reported key (STATE or CONFIG) that has a
+      delta path there and writes the same JSON value (bool, integer, float or string; an enum
+      key by its form): the echo fires on a desired update, the key on a change of its value.
+      Two echo rows, or an echo of another encoding, at a key's delta path are still refused.
+    acceptance_criteria: >-
+      A delta echo and a float key at one path generate; a bool echo there, or a second echo row,
+      is refused.
   REQ-ING-CMD-001:
     name: Shadow commands enumerate every command
     subsystem: Generated outputs (G2)
@@ -681,11 +729,13 @@ requirements:
       An enum key's absent or constant value may be a value name of the key's enum. `element = N`
       takes the Nth element of an array field; `encoding = "decimal_text"` reads a JSON string
       holding a decimal integer into an integer key. Base64 text goes into a string key (passed
-      through as text) or a binary key (decoded: the key holds the bytes, max_size is the decoded
-      size). A constant has no field, required rule, result code, absent rule, encoding or element.
+      through as text), a binary key (decoded: the key holds the bytes, max_size is the decoded
+      size) or a struct key (decoded into its buffer; a value too large for a binary key is a
+      struct key, R12). A constant has no field, required rule, result code, absent rule, encoding
+      or element.
     acceptance_criteria: >-
       A constant argument, an enum value by name, a STATE-key argument, array-element arguments
-      and base64 into a binary key generate; each misplaced form is refused.
+      and base64 into a binary or struct key generate; each misplaced form is refused.
   REQ-ING-CMD-003:
     name: Row outcomes without a command
     subsystem: Generated outputs (G2)
@@ -736,6 +786,23 @@ requirements:
     acceptance_criteria: >-
       The generic model declares its topics and envelopes; each malformed form is refused; the
       outputs carry them.
+  REQ-ING-TOP-003:
+    name: Topic payloads built from keys
+    subsystem: Generated outputs (G2)
+    description: >-
+      contract.toml may list `[[topic_payload]]` members of a pub topic's payload: a dotted path
+      and one of a key (any key with a JSON value: CONFIG, SETTINGS, STATE), a literal value or an
+      image value; an enum key's member is its wire string (with a declared outbound_unknown, raw
+      or a wire string) or, with `as = "integer"`, its code; members may be limited to variants.
+      They are written into contract.json and the keyspace, frozen within a major, and emitted as
+      dtp_payload (reporter rows in emission order per topic, each topic's slice on its
+      dtp_topics row). Refused (T3): a topic that is not a pub topic, none or several of key,
+      value and image, an unknown or binary/struct key, `as` on a non-enum key, a missing or
+      misplaced or unknown outbound_unknown, a malformed path or two members on one path, an
+      undeclared variant.
+    acceptance_criteria: >-
+      A config topic whose payload is a constant, a CONFIG key, an enum SETTINGS key and an
+      integer form generates its dtp_payload rows and slice; each refusal has a triggering model.
   REQ-ING-SIZ-001:
     name: Worst-case shadow document size
     subsystem: Generated outputs (G2)
@@ -786,7 +853,8 @@ requirements:
       dsh_commands holds the variant's command rows in declaration order: topic, selector (text,
       true, false, array element or object), body (fields, settings or a named object with its own
       selector), protocol, and the action (steps, answer with its code, internal with its reason, or
-      a settings body). A row's steps (dsh_steps) each submit a command or none (STATE writes) with
+      a settings body). A row's steps (dsh_steps) each submit a command (named with its key's type,
+      so a struct command goes through a buffer) or none (STATE writes) with
       their arguments (dsh_args): field or constant, key, type, size, element, enum, encoding,
       required with its result code, absent value or nothing; a constant or absent value of an enum
       key given by value name is resolved to its number.

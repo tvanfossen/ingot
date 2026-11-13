@@ -5,6 +5,7 @@
 mod commands;
 mod desired;
 mod enums;
+mod payload;
 mod reported;
 mod topics;
 
@@ -146,14 +147,17 @@ fn blob_rows(blob: &[u8]) -> Vec<String> {
 
 /// Every table of the variant, in the order the header declares them.
 ///
-/// @version 1
+/// v2: the topic payloads.
+/// @version 2
 /// @req REQ-ING-DSH-001
 /// @req REQ-ING-DSH-002
 /// @req REQ-ING-DSH-003
 /// @req REQ-ING-TOP-002
+/// @req REQ-ING-TOP-003
 fn tables_of(tables: &Tables, hash: &str) -> Vec<Table> {
     let mut pools = Pools::default();
-    let topics = topics::rows(tables, &mut pools);
+    let (payload, slices) = payload::rows(tables, hash, &mut pools);
+    let topics = topics::rows(tables, &slices, &mut pools);
     let desired = desired::rows(tables, &mut pools);
     let echo = desired::echo_rows(tables);
     let reported = reported::rows(tables, hash, &mut pools);
@@ -184,6 +188,7 @@ fn tables_of(tables: &Tables, hash: &str) -> Vec<Table> {
         Table::new("dsh_step_t", "dsh_steps", pools.steps, "{ 0 }"),
         Table::new("dsh_command_t", "dsh_commands", commands, "{ { 0 } }"),
         Table::new("dtp_topic_t", "dtp_topics", topics, "{ 0 }"),
+        Table::new("dsh_reported_t", "dtp_payload", payload, "{ 0 }"),
     ]
 }
 

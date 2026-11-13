@@ -8,7 +8,7 @@ use super::error_groups::ErrorGroup;
 use super::model::hex;
 use super::model::Tables;
 use super::ranges::Range;
-use super::schema::{ErrorRef, Kind, UnitDef};
+use super::schema::{Constant, Echo, ErrorRef, Kind, PayloadRow, ShadowCommand, Topic, UnitDef};
 use super::types::WK_RULES;
 use super::wire::KeyWire;
 use serde::{Deserialize, Serialize};
@@ -40,6 +40,34 @@ pub struct Snapshot {
     /// The shadow wire mapping's rows and sizes (G2 1.4); absent when the model maps nothing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shadow: Option<serde_json::Value>,
+}
+
+/// The contract-level rows of contract.json's `shadow` section, read back typed for the
+/// previous-contract checks (the sizes are not frozen and are not read).
+#[derive(Debug, Deserialize, Default, PartialEq)]
+#[serde(default)]
+pub struct ShadowRows {
+    pub echo: Vec<Echo>,
+    pub constants: Vec<Constant>,
+    pub topics: Vec<Topic>,
+    pub commands: Vec<ShadowCommand>,
+    pub payload: Vec<PayloadRow>,
+}
+
+impl Snapshot {
+    /// The typed contract-level shadow rows (none when the snapshot maps nothing); a section
+    /// that does not parse as the rows is an error.
+    ///
+    /// @version 1
+    /// @req REQ-ING-SHD-006
+    pub fn shadow_rows(&self) -> Result<ShadowRows, String> {
+        match &self.shadow {
+            None => Ok(ShadowRows::default()),
+            Some(v) => {
+                serde_json::from_value(v.clone()).map_err(|e| format!("contract.json shadow: {e}"))
+            }
+        }
+    }
 }
 
 /// Contract name and version.
@@ -89,14 +117,37 @@ pub struct KeyJson {
     pub limits: Limits,
 }
 
-/// The shadow wire mapping of a key in contract.json (G2 1.2.1, 1.4).
-#[derive(Debug, Serialize, PartialEq, Default)]
+/// The shadow wire mapping of a key in contract.json (G2 1.2.1, 1.4); read back for the
+/// previous-contract checks (absent in older snapshots: no mapping).
+#[derive(Debug, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct Mapping {
     /// Number to the accept aliases of the values that have any.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "accepts_by_code"
+    )]
     pub enum_accept: Option<BTreeMap<i64, Vec<String>>>,
     #[serde(flatten)]
     pub wire: KeyWire,
+}
+
+/// The accept aliases by code, read through a flattened key whose JSON object keys arrive as
+/// strings (serde does not convert map keys inside `flatten`).
+///
+/// @version 1
+/// @req REQ-ING-SHD-006
+fn accepts_by_code<'de, D>(d: D) -> Result<Option<BTreeMap<i64, Vec<String>>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let raw: Option<BTreeMap<String, Vec<String>>> = Option::deserialize(d)?;
+    raw.map(|m| {
+        m.into_iter()
+            .map(|(k, v)| k.parse().map(|c| (c, v)).map_err(serde::de::Error::custom))
+            .collect()
+    })
+    .transpose()
 }
 
 impl Mapping {
@@ -116,9 +167,8 @@ impl Mapping {
 /// other key fields).
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Limits {
-    /// The shadow wire mapping, only where declared; not read back (no previous-contract check
-    /// reads it yet).
-    #[serde(flatten, skip_deserializing)]
+    /// The shadow wire mapping, only where declared; the previous-contract checks read it back.
+    #[serde(flatten)]
     pub mapping: Mapping,
     #[serde(default)]
     pub range: Option<Range>,

@@ -297,15 +297,16 @@ pub(super) fn by_name(key: &Key, v: &toml::Value) -> Result<toml::Value, String>
     }
 }
 
-/// Whether encoding `enc` suits a key of type `ty`: base64 into a string (text) or binary
+/// Whether encoding `enc` suits a key of type `ty`: base64 into a string (text), binary or struct
 /// (decoded) key, decimal text into an integer key.
 ///
-/// @version 1
+/// v2: a struct key (the decoded bytes, published as a buffer; a large value is a struct key, R12).
+/// @version 2
 /// @req REQ-ING-CMD-002
 fn encoding_rule(enc: Encoding, ty: KeyType) -> Option<&'static str> {
     match enc {
-        Encoding::Base64 if !matches!(ty, KeyType::String | KeyType::Binary) => {
-            Some("base64 text goes into a string or binary key")
+        Encoding::Base64 if !matches!(ty, KeyType::String | KeyType::Binary | KeyType::Struct) => {
+            Some("base64 text goes into a string, binary or struct key")
         }
         Encoding::DecimalText if int_range(ty).is_none() => {
             Some("decimal_text goes into an integer key")

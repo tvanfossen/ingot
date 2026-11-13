@@ -985,3 +985,51 @@ Same procedure; the test command is `--bin ingot --test shadow_rows --test shado
 | DF03 | src/contract/refuse_commands.rs | `fields.extend([o.object.as_str(), o.selector.field.as_str()]);` | `fields.extend([o.object.as_str()]);` | the body selector checked | KILLED | every_refusal_has_a_triggering_model |
 | DF04 | src/contract/refuse_commands.rs | `fields.extend(args.iter().filter_map(\|a\| a.field.as_deref()));` | `fields.extend(args.iter().filter_map(\|a\| a.field.as_deref()).take(0));` | argument fields checked | KILLED | every_refusal_has_a_triggering_model |
 | DF05 | src/contract/refuse_commands.rs | `let mut fields = vec![r.selector.field.as_str()];` | `let mut fields: Vec<&str> = vec![];` | the selector field checked | KILLED | every_refusal_has_a_triggering_model |
+
+
+## Minor freeze, echo scope and sharing, struct arguments, CONFIG paths and topic payloads (REQ-ING-SHD-006..009, REQ-ING-CMD-002, REQ-ING-DSH-003, REQ-ING-TOP-003)
+
+Same procedure; the test command adds `--test shadow_rows --test shadow_tables`. Every mutation that survived its first sweep got a test and was re-run. Removed as equivalent before the record: a shared-member set in the echo/key delta sharing (the desired tree already refuses a second echo at a path).
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| P101 | src/contract/previous_shadow.rs | `if !w.shadow_forms.is_empty() {\n        return w.shadow_forms.clone();\n    }` | `(deleted)` | declared forms compared | KILLED | previous_contract_refusals |
+| P102 | src/contract/previous_shadow.rs | `aliases.iter().all(\|a\| now.is_some_and(\|n\| n.contains(a)))` | `aliases.iter().all(\|_\| true)` | aliases kept | KILLED | contract::previous_shadow::tests::a_bare_path_is_a_plain_entry_and_aliases_only_grow |
+| P103 | src/contract/previous_shadow.rs | `(&o.applies, &o.apply_group, &o.implies, &o.on_reject)\n        == (&n.applies, &n.apply_group, &n.implies, &n.on_reject)\n        &&` | `(deleted)` | applies, group, implies, on_reject frozen | KILLED | contract::previous_shadow::tests::every_wire_attribute_is_frozen |
+| P104 | src/contract/previous_shadow.rs | `(&o.inbound_unknown, &o.outbound_unknown, o.forced)\n            == (&n.inbound_unknown, &n.outbound_unknown, n.forced)\n        &&` | `(deleted)` | unknown rules and forced frozen | KILLED | contract::previous_shadow::tests::every_wire_attribute_is_frozen |
+| P105 | src/contract/previous_shadow.rs | `&& (&o.render, &o.telem) == (&n.render, &n.telem)` | `(deleted)` | render and telem frozen | KILLED | contract::previous_shadow::tests::every_wire_attribute_is_frozen |
+| P106 | src/contract/previous_shadow.rs | `if o.wire.shadow.is_empty() {\n        return;\n    }` | `(deleted)` | an unmapped key may gain a mapping | KILLED | a_minor_may_add_paths_aliases_and_rows |
+| P107 | src/contract/previous_shadow.rs | `let paths = entries(&o.wire).iter().all(\|e\| now.contains(e));` | `let paths = true;` | path entries kept | KILLED | previous_contract_refusals |
+| P108 | src/contract/previous_shadow.rs | `if !(paths && attributes_kept(&o.wire, &n.wire) && accepts_kept(o, n)) {` | `if !(paths && attributes_kept(&o.wire, &n.wire)) {` | accepts checked | KILLED | previous_contract_refusals |
+| P109 | src/contract/previous_shadow.rs | `for row in old.iter().filter(\|r\| !new.contains(r)) {` | `for row in old.iter().filter(\|_\| false) {` | rows kept | KILLED | previous_contract_refusals |
+| P110 | src/contract/previous.rs | `previous_shadow::key_mapping_kept(old, new, errors);\n` | `\n` | key mappings checked | KILLED | previous_contract_refusals |
+| P111 | src/contract/previous.rs | `previous_shadow::rows_unchanged(prev, cur, errors);\n` | `\n` | rows checked | KILLED | previous_contract_refusals | |
+| P112 | src/contract/snapshot.rs | `.map(\|(k, v)\| k.parse().map(\|c\| (c, v)).map_err(serde::de::Error::custom))` | `.map(\|(k, v)\| k.parse::<i64>().map(\|c\| (c + 1, v)).map_err(serde::de::Error::custom))` | alias codes read back | KILLED | generic_model_versions_and_previous_checks |
+| WK01 | src/contract/shadow_size.rs | `if in_full(e.scope) {` | `if true {` | a delta-only echo leaves the full document | KILLED | a_delta_echo_shares_a_path_with_a_full_only_key |
+| WK03 | src/contract/dsh/reported.rs | `let placed = placement(in_full(e.scope), in_delta(e.scope), false);` | `let placed = placement(true, true, false);` | an echo row's scope in the tables | KILLED | a_delta_echo_shares_a_path_with_a_full_only_key |
+| WK04 | src/contract/refuse_commands.rs | `KeyType::String \| KeyType::Binary \| KeyType::Struct) => {` | `KeyType::String \| KeyType::Binary) => {` | base64 into a struct key | KILLED | base64_text_decodes_into_a_struct_argument_and_steps_name_their_command_type |
+| WK05 | src/contract/dsh/commands.rs | `key.map_or("0u".to_string(), \|k\| ty(k.ty))` | `"0u".to_string()` | a step's command type | KILLED | base64_text_decodes_into_a_struct_argument_and_steps_name_their_command_type command_rows_carry_selectors_bodies_steps_and_arguments |
+| WK06 | src/contract/types.rs | `matches!(self, Role::State \| Role::Config)` | `matches!(self, Role::State)` | CONFIG keys are reported | KILLED | a_config_key_is_reported_and_never_desired |
+| WK07 | src/contract/types.rs | `matches!(self, Role::State \| Role::Config)` | `matches!(self, Role::State \| Role::Config \| Role::Diag)` | DIAG keys are not | KILLED | every_refusal_has_a_triggering_model |
+| WK08 | src/contract/refuse_shadow.rs | `if !key.role.reported() && forms.iter().any(\|f\| f.scope.is_some()) {` | `if key.role != Role::State && forms.iter().any(\|f\| f.scope.is_some()) {` | a scope on a CONFIG path | KILLED | a_config_key_is_reported_and_never_desired |
+| WK10 | src/contract/dsh/reported.rs | `for key in tables.keys.iter().filter(\|k\| k.role.reported()) {` | `for key in tables.keys.iter().filter(\|k\| k.role == super::super::schema::Role::State) {` | CONFIG rows in the reporter table | KILLED | a_config_key_is_reported_and_never_desired |
+| WK11 | src/contract/payload.rs | `.any(\|t\| t.id == r.topic && t.direction == Direction::Pub);` | `.any(\|t\| t.id == r.topic);` | a pub topic's payload | KILLED | every_refusal_has_a_triggering_model |
+| WK12 | src/contract/payload.rs | `} else if sources.iter().filter(\|s\| **s).count() != 1 {` | `} else if false {` | one source | KILLED | every_refusal_has_a_triggering_model |
+| WK13 | src/contract/payload.rs | `} else if r.key.is_some() && key.is_none() {` | `} else if false {` | a known key | KILLED | every_refusal_has_a_triggering_model |
+| WK14 | src/contract/payload.rs | `} else if key.is_some_and(\|k\| matches!(k.ty, KeyType::Binary \| KeyType::Struct)) {` | `} else if false {` | a JSON-valued key | KILLED | every_refusal_has_a_triggering_model |
+| WK15 | src/contract/payload.rs | `_ if r.form.is_some() && e.is_none() => Some("as is for enum keys".into()),` | `(deleted)` | as on enum keys only | KILLED | every_refusal_has_a_triggering_model |
+| WK16 | src/contract/payload.rs | `let strings = e.filter(\|_\| r.form != Some(super::schema::WireForm::Integer));` | `let strings = e;` | an integer member has no unknown rule | KILLED | a_topic_payload_is_built_from_keys_and_constants |
+| WK17 | src/contract/payload.rs | `(Some(e), Some(v)) if !known_unknown(e, v, false) => Some(format!(` | `(Some(e), Some(v)) if false && !known_unknown(e, v, false) => Some(format!(` | a known unknown rule | KILLED | every_refusal_has_a_triggering_model |
+| WK19 | src/contract/shadow.rs | `payload::check(tables, errors);` | `(deleted)` | payload checked | KILLED | every_refusal_has_a_triggering_model |
+| WK20 | src/contract/shadow.rs | `variant_uses.extend(payload_uses);` | `(deleted)` | payload variants declared | KILLED | every_refusal_has_a_triggering_model |
+| WK21 | src/contract/dsh/payload.rs | `key.wire.outbound_unknown = r.outbound_unknown.clone();` | `(deleted)` | the member's unknown rule | KILLED | a_topic_payload_is_built_from_keys_and_constants |
+| WK22 | src/contract/dsh/payload.rs | `.filter(\|r\| r.topic == t.id)` | `.filter(\|_\| true)` | members of their topic | KILLED | a_topic_payload_is_built_from_keys_and_constants |
+| WK23 | src/contract/previous_shadow.rs | `rows_kept(&old.payload, &new.payload, payload::name, errors);` | `(deleted)` | payload frozen in a minor | KILLED | a_payload_member_is_frozen_within_a_major |
+| WK02 | src/contract/shadow_size.rs | `if in_delta(e.scope) && !shares {` | `if !shares {` | a full-only echo leaves the delta | KILLED | a_full_only_echo_leaves_the_delta_to_a_key |
+| WK09 | src/contract/shadow_size.rs | `r if r.reported() => state_row(t, key, path),` | `Role::State => state_row(t, key, path),` | CONFIG paths sized and checked | KILLED | a_config_key_path_conflicts_like_a_state_key_path |
+| WK18 | src/contract/payload.rs | `trees.entry(&r.topic).or_default().add(&name(r), &r.path, 0);` | `trees.entry("all").or_default().add(&name(r), &r.path, 0);` | paths per topic | KILLED | two_topics_may_carry_one_payload_path |
+| ES03 | src/contract/shadow_size.rs | `.any(\|f\| f.path == e.path && f.in_delta() && same_encoding(e.ty, k, f))` | `.any(\|f\| f.path == e.path && f.in_delta())` | the same encoding only | KILLED | every_refusal_has_a_triggering_model | |
+| ES04 | src/contract/shadow_size.rs | `.any(\|f\| f.path == e.path && f.in_delta() && same_encoding(e.ty, k, f))` | `.any(\|f\| f.path == e.path && same_encoding(e.ty, k, f))` | a key reporting in the delta | KILLED | an_echo_shares_only_with_a_key_in_the_delta |
+| ES05 | src/contract/shadow_size.rs | `EchoType::Float => key.ty == KeyType::Float32,` | `EchoType::Float => false,` | float encoding | KILLED | a_delta_echo_and_a_key_share_one_delta_member |
+| ES06 | src/contract/shadow_size.rs | `EchoType::Bool => key.ty == KeyType::Bool,` | `EchoType::Bool => true,` | bool encoding | KILLED | every_refusal_has_a_triggering_model |
+| ES02 | src/contract/shadow_size.rs | `let shares = delta_twin(tables, e) && shared.insert(e.path.as_str());` | `let shares = false && shared.insert(e.path.as_str());` | an echo shares with a key | KILLED | a_delta_echo_and_a_key_share_one_delta_member | |

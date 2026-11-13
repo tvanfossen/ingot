@@ -54,11 +54,13 @@ fn envelope(
     (fields, flags)
 }
 
-/// One `dtp_topics` row.
+/// One `dtp_topics` row; `payload` is its `.payload_first` and `.payload_count`.
 ///
-/// @version 1
+/// v2: its payload slice.
+/// @version 2
 /// @req REQ-ING-TOP-002
-fn row(tables: &Tables, t: &Topic, pools: &mut Pools) -> String {
+/// @req REQ-ING-TOP-003
+fn row(tables: &Tables, t: &Topic, payload: &str, pools: &mut Pools) -> String {
     let (fields, mut flags) = envelope(tables, t.envelope.as_ref(), pools);
     if t.settings_in_every_body {
         flags.push("DTP_F_SETTINGS_IN_EVERY_BODY");
@@ -78,7 +80,8 @@ fn row(tables: &Tables, t: &Topic, pools: &mut Pools) -> String {
     };
     format!(
         "{{ .id = {}, .pattern = {}, .connection = {}, .local_wrapper = {}, {fields}, \
-         .subscribe_order = {}u, .direction = {direction}, .ack = {ack}, .flags = {flags} }}",
+         .subscribe_order = {}u, .direction = {direction}, .ack = {ack}, .flags = {flags}, \
+         {payload} }}",
         text(Some(&t.id)),
         text(Some(&t.template)),
         text(Some(&t.connection)),
@@ -87,15 +90,18 @@ fn row(tables: &Tables, t: &Topic, pools: &mut Pools) -> String {
     )
 }
 
-/// The topics, in declaration order.
+/// The topics, in declaration order, with their payload slices (`payloads`, in topic order).
 ///
-/// @version 1
+/// v2: payload slices.
+/// @version 2
 /// @req REQ-ING-TOP-002
-pub fn rows(tables: &Tables, pools: &mut Pools) -> Vec<String> {
+/// @req REQ-ING-TOP-003
+pub fn rows(tables: &Tables, payloads: &[String], pools: &mut Pools) -> Vec<String> {
     tables
         .shadow
         .topics
         .iter()
-        .map(|t| row(tables, t, pools))
+        .zip(payloads)
+        .map(|(t, p)| row(tables, t, p, pools))
         .collect()
 }

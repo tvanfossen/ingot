@@ -2,6 +2,7 @@
 //! R-V8) and the release-review report for new principals (Q13).
 
 use super::keys::Errors;
+use super::previous_shadow;
 use super::snapshot::{KeyJson, Snapshot};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -71,15 +72,13 @@ fn removed_ids_reserved(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     }
 }
 
-/// Within a major: keys, principals and rights only grow, at a new minor, no well-known role
-/// moves, and units, ranges and the unit vocabulary are kept.
+/// Every previous key is still there with every attribute a minor may not change, its limits
+/// and its shadow mapping.
 ///
-/// v2: well-known roles stay on their keys.
-/// v3: units, scale, sentinels and ranges (widen only), and the unit vocabulary.
-/// v4: the error groups.
-/// @version 4
+/// @version 1
 /// @req REQ-ING-TIV-012
-fn minor_additive(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
+/// @req REQ-ING-SHD-006
+fn keys_kept(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     let cur_keys: BTreeMap<&str, &KeyJson> =
         cur.keys.iter().map(|k| (k.path.as_str(), k)).collect();
     for old in &prev.keys {
@@ -87,6 +86,7 @@ fn minor_additive(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
             Some(new) => {
                 key_unchanged(old, new, errors);
                 limits_kept(old, new, errors);
+                previous_shadow::key_mapping_kept(old, new, errors);
             }
             None => errors.push(format!(
                 "{} was removed in a minor (a removal is a major)",
@@ -94,6 +94,20 @@ fn minor_additive(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
             )),
         }
     }
+}
+
+/// Within a major: keys, principals and rights only grow, at a new minor, no well-known role
+/// moves, and units, ranges and the unit vocabulary are kept.
+///
+/// v2: well-known roles stay on their keys.
+/// v3: units, scale, sentinels and ranges (widen only), and the unit vocabulary.
+/// v4: the error groups.
+/// v5: the shadow wire mapping (P1); the per-key checks moved to `keys_kept`.
+/// @version 5
+/// @req REQ-ING-TIV-012
+/// @req REQ-ING-SHD-006
+fn minor_additive(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
+    keys_kept(prev, cur, errors);
     let old_paths: BTreeSet<&str> = prev.keys.iter().map(|k| k.path.as_str()).collect();
     new_keys_at_this_version(prev, cur, &old_paths, errors);
     principals_unchanged(prev, cur, errors);
@@ -101,6 +115,7 @@ fn minor_additive(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     roles_kept(prev, cur, errors);
     units_kept(prev, cur, errors);
     error_groups_kept(prev, cur, errors);
+    previous_shadow::rows_unchanged(prev, cur, errors);
 }
 
 /// Every unit token of `prev` keeps its quantity and meaning.

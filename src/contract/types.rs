@@ -169,6 +169,15 @@ impl Role {
             Role::Diag => 4,
         }
     }
+
+    /// Whether a shadow path of a key of this role is reported (never desired): STATE, and
+    /// CONFIG (a device's configured identity, such as its SKU).
+    ///
+    /// @version 1
+    /// @req REQ-ING-SHD-008
+    pub fn reported(self) -> bool {
+        matches!(self, Role::State | Role::Config)
+    }
 }
 
 impl Kind {

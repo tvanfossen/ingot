@@ -176,7 +176,20 @@
             "$ref": "#/$defs/trusted",
             "type": "object",
             "required": ["path", "type"],
-            "properties": { "variants": { "$ref": "#/$defs/variants" } }
+            "properties": {
+              "variants": { "$ref": "#/$defs/variants" },
+              "scope": { "description": "The reported documents the echo is in; absent: both.", "enum": ["full", "delta", "both"] }
+            }
+          }
+        },
+        "payload": {
+          "description": "The members of the pub topics' payloads: per topic, a dotted path from a key (its value, an enum key's in its wire form) or a constant.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/trusted",
+            "type": "object",
+            "required": ["topic", "path"],
+            "properties": { "topic": { "type": "string" }, "path": { "type": "string" }, "key": { "type": "string" }, "variants": { "$ref": "#/$defs/variants" } }
           }
         },
         "full_max_bytes": { "type": "integer" },

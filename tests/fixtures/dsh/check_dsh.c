@@ -279,6 +279,8 @@ static int topic_violations(void)
         bad += !index_ok(p->source_enum, DSH_NUM_ENUMS);
         bad += p->source_enum != DSH_NONE_U16 && !has_code(p->source_enum, p->source_absent);
         bad += (p->flags & DTP_F_ID_REQUIRED) != 0u && p->id_field == NULL;
+        bad += !slice_ok(p->payload_first, p->payload_count, DTP_NUM_PAYLOAD);
+        bad += p->payload_count > 0u && p->direction != DTP_PUB;
     }
     return bad;
 }

@@ -5,10 +5,10 @@
 use super::keys::Errors;
 use super::model::{present_on, Tables};
 use super::schema::{
-    ApplyGroup, Constant, ContractFile, Echo, NamespaceFile, ShadowCommand, Topic,
+    ApplyGroup, Constant, ContractFile, Echo, NamespaceFile, PayloadRow, ShadowCommand, Topic,
 };
 use super::shadow_size::{trees, SHADOW_QUOTA};
-use super::{refuse_commands, refuse_shadow, topics};
+use super::{payload, refuse_commands, refuse_shadow, topics};
 use serde::Serialize;
 use serde_json::{json, Value};
 
@@ -19,6 +19,8 @@ pub struct Shadow {
     pub echo: Vec<Echo>,
     pub constants: Vec<Constant>,
     pub topics: Vec<Topic>,
+    /// The members of the pub topics' payloads that exist on the variant.
+    pub payload: Vec<PayloadRow>,
     /// The command rows that exist on the variant, in namespace-file order.
     pub commands: Vec<ShadowCommand>,
     /// Every (row, variant) the contract-level rows name, before the variant's rows are taken,
@@ -27,37 +29,46 @@ pub struct Shadow {
     pub variant_uses: Vec<(String, String)>,
 }
 
-/// The echo rows of `variant`, and every (row, variant) the declared rows name.
+/// The rows of `declared` that exist on `variant` (`only` gives a row's variants), and every
+/// (row, variant) they name (`name` names a row).
 ///
 /// @version 1
 /// @req REQ-ING-SHD-004
-fn echo_rows(declared: Vec<Echo>, variant: Option<&str>) -> (Vec<Echo>, Vec<(String, String)>) {
+/// @req REQ-ING-TOP-003
+fn of_variant<T>(
+    declared: Vec<T>,
+    variant: Option<&str>,
+    name: impl Fn(&T) -> String,
+    only: impl Fn(&T) -> Option<&[String]>,
+) -> (Vec<T>, Vec<(String, String)>) {
     let uses = declared
         .iter()
-        .flat_map(|e| {
-            let at = format!("shadow_echo {}", e.path);
-            e.variants
-                .iter()
+        .flat_map(|r| {
+            let at = name(r);
+            only(r)
+                .into_iter()
                 .flatten()
                 .map(move |v| (at.clone(), v.clone()))
         })
         .collect();
     let mine = declared
         .into_iter()
-        .filter(|e| present_on(e.variants.as_deref(), variant))
+        .filter(|r| present_on(only(r), variant))
         .collect();
     (mine, uses)
 }
 
-/// The rows `contract.toml` declares, taken out of it (echo paths of `variant` only), and the
-/// namespace files' command rows that exist on `variant`.
+/// The rows `contract.toml` declares, taken out of it (echo paths and payload members of
+/// `variant` only), and the namespace files' command rows that exist on `variant`.
 ///
 /// v2: topics and command rows.
 /// v3: echo paths limited to variants.
-/// @version 3
+/// v4: topic payload members.
+/// @version 4
 /// @req REQ-ING-SHD-002
 /// @req REQ-ING-CMD-001
 /// @req REQ-ING-TOP-001
+/// @req REQ-ING-TOP-003
 pub fn rows(
     file: &mut ContractFile,
     namespaces: &[NamespaceFile],
@@ -69,12 +80,27 @@ pub fn rows(
         .filter(|r| present_on(r.variants.as_deref(), variant))
         .cloned()
         .collect();
-    let (echo, variant_uses) = echo_rows(std::mem::take(&mut file.shadow_echo), variant);
+    let echo = std::mem::take(&mut file.shadow_echo);
+    let (echo, mut variant_uses) = of_variant(
+        echo,
+        variant,
+        |e| format!("shadow_echo {}", e.path),
+        |e| e.variants.as_deref(),
+    );
+    let payload = std::mem::take(&mut file.topic_payload);
+    let (payload, payload_uses) = of_variant(
+        payload,
+        variant,
+        |p| format!("topic_payload {} {}", p.topic, p.path),
+        |p| p.variants.as_deref(),
+    );
+    variant_uses.extend(payload_uses);
     Shadow {
         apply_groups: std::mem::take(&mut file.apply_groups),
         echo,
         constants: std::mem::take(&mut file.shadow_constant),
         topics: std::mem::take(&mut file.topics),
+        payload,
         commands,
         variant_uses,
     }
@@ -96,10 +122,12 @@ pub fn declared(tables: &Tables) -> bool {
 /// The mapping's rows and worst-case sizes, `None` when the model maps nothing.
 ///
 /// v2: topics and command rows.
-/// @version 2
+/// v3: topic payload members.
+/// @version 3
 /// @req REQ-ING-SHD-002
 /// @req REQ-ING-SIZ-001
 /// @req REQ-ING-CMD-001
+/// @req REQ-ING-TOP-003
 pub fn json(tables: &Tables) -> Option<Value> {
     if !declared(tables) {
         return None;
@@ -108,7 +136,7 @@ pub fn json(tables: &Tables) -> Option<Value> {
     let s = &tables.shadow;
     Some(json!({
         "apply_groups": s.apply_groups, "echo": s.echo, "constants": s.constants,
-        "topics": s.topics, "commands": s.commands,
+        "topics": s.topics, "payload": s.payload, "commands": s.commands,
         "full_max_bytes": t.reported.bytes(), "delta_forced_bytes": t.forced.bytes(),
     }))
 }
@@ -122,7 +150,9 @@ pub fn json(tables: &Tables) -> Option<Value> {
 /// v2: topics and command rows.
 /// v3: the delta's path conflicts, each once beside the full document's.
 /// v4: trees and size only per variant.
-/// @version 4
+/// v5: topic payloads, per variant.
+/// @version 5
+/// @req REQ-ING-TOP-003
 /// @req REQ-ING-SHD-001
 /// @req REQ-ING-SHD-003
 /// @req REQ-ING-SHD-004
@@ -135,6 +165,7 @@ pub fn check(tables: &Tables, errors: &mut Errors) {
     refuse_commands::check(tables, errors);
     if !tables.all_variants_view() {
         tree_rules(tables, errors);
+        payload::check(tables, errors);
     }
 }
 
