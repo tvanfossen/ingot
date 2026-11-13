@@ -3,7 +3,7 @@
 use super::enums::ResolvedEnum;
 use super::keys::{Errors, Key};
 use super::model::{variants_overlap, Tables};
-use super::schema::{EchoType, KeyType, PathForm, Role};
+use super::schema::{scopes_meet, EchoType, KeyType, PathForm, Role, WireForm};
 use super::value::encode_default;
 use std::collections::BTreeSet;
 
@@ -35,16 +35,20 @@ fn shadowed(key: &Key, role: Role) -> bool {
     key.role == role && !key.wire.shadow.is_empty()
 }
 
-/// Whether a path is listed twice for one variant (entries limited to disjoint variants may
-/// share a path, each with its own form and scope).
+/// Whether a path is listed twice for one variant and one document (entries limited to disjoint
+/// variants, or to disjoint scopes, may share a path, each with its own form).
 ///
-/// @version 1
+/// v2: entries of disjoint scopes share a path.
+/// @version 2
 /// @req REQ-ING-SHD-001
 /// @req REQ-ING-SHD-004
+/// @req REQ-ING-SHD-010
 fn listed_twice(forms: &[PathForm]) -> bool {
     forms.iter().enumerate().any(|(i, a)| {
         forms[i + 1..].iter().any(|b| {
-            a.path == b.path && variants_overlap(a.variants.as_deref(), b.variants.as_deref())
+            a.path == b.path
+                && variants_overlap(a.variants.as_deref(), b.variants.as_deref())
+                && scopes_meet(a.scope, b.scope)
         })
     })
 }
@@ -108,18 +112,46 @@ fn implicit_wires(e: &ResolvedEnum) -> Vec<&String> {
         .collect()
 }
 
-/// S1 of the path forms: `as` is for enum keys, `scope` for reported paths (STATE and CONFIG), and a
+/// Why the key's `as` attributes are refused: `as` is for enum keys, and for bool keys only as
+/// `"integer"` on a reported path (inbound a bool stays a JSON bool).
+///
+/// @version 1
+/// @req REQ-ING-SHD-003
+/// @req REQ-ING-SHD-010
+fn as_rule(key: &Key) -> Option<&'static str> {
+    let forms: Vec<WireForm> = key
+        .wire
+        .shadow_forms
+        .iter()
+        .filter_map(|f| f.form)
+        .collect();
+    if forms.is_empty() || key.enum_values.is_some() {
+        None
+    } else if key.ty != KeyType::Bool {
+        Some("as is for enum and bool keys")
+    } else if forms.contains(&WireForm::Enum) {
+        Some("as = \"enum\" is for enum keys")
+    } else if !key.role.reported() {
+        Some("as = \"integer\" on a bool key is for reported paths")
+    } else {
+        None
+    }
+}
+
+/// S1 of the path forms: `as` by `as_rule`, `scope` for reported paths (STATE and CONFIG), and a
 /// forced key has a path in the delta.
 ///
 /// v2: CONFIG keys are reported too.
-/// @version 2
+/// v3: the `as` rule in `as_rule` (bool keys).
+/// @version 3
 /// @req REQ-ING-SHD-008
 /// @req REQ-ING-SHD-003
+/// @req REQ-ING-SHD-010
 fn form_rules(key: &Key, errors: &mut Errors) {
     let forms = &key.wire.shadow_forms;
     let mut refuse = |why: &str| errors.push(format!("{}: {why}", key.path));
-    if key.enum_values.is_none() && forms.iter().any(|f| f.form.is_some()) {
-        refuse("as is for enum keys");
+    if let Some(why) = as_rule(key) {
+        refuse(why);
     }
     if !key.role.reported() && forms.iter().any(|f| f.scope.is_some()) {
         refuse("scope is for reported paths of STATE and CONFIG keys");

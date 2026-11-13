@@ -4,13 +4,13 @@
 
 use serde::{Deserialize, Serialize};
 
-/// How a path carries an enum key's value.
+/// How a path carries an enum key's value, or a bool key's on a reported path.
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum WireForm {
     /// The value's wire string (inbound: a wire string or an accept alias).
     Enum,
-    /// The code as a JSON integer, inbound and outbound.
+    /// An enum code as a JSON integer, inbound and outbound; a bool as 0 or 1, reported only.
     Integer,
 }
 
@@ -220,6 +220,14 @@ pub fn in_full(scope: Option<Scope>) -> bool {
 /// @req REQ-ING-SHD-007
 pub fn in_delta(scope: Option<Scope>) -> bool {
     scope != Some(Scope::Full)
+}
+
+/// Whether rows of scopes `a` and `b` (absent: both) meet in a document.
+///
+/// @version 1
+/// @req REQ-ING-SHD-010
+pub fn scopes_meet(a: Option<Scope>, b: Option<Scope>) -> bool {
+    (in_full(a) && in_full(b)) || (in_delta(a) && in_delta(b))
 }
 
 /// A constant whose value the image supplies.

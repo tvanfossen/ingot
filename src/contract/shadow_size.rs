@@ -149,9 +149,11 @@ fn longest_wire(e: &super::enums::ResolvedEnum) -> usize {
 /// wire string (or its raw code), or its type's longest value (also an enum's integer form).
 ///
 /// v2: an integer path carries the code.
-/// @version 2
+/// v3: a bool at an integer path is one digit.
+/// @version 3
 /// @req REQ-ING-SIZ-001
 /// @req REQ-ING-SHD-003
+/// @req REQ-ING-SHD-010
 fn key_text(key: &Key, f: &PathForm) -> usize {
     let raw = key.wire.outbound_unknown.as_deref() == Some("raw");
     let strings = key.enum_values.as_ref().filter(|_| !f.integer());
@@ -161,6 +163,7 @@ fn key_text(key: &Key, f: &PathForm) -> usize {
             2 + n * longest_wire(e) + n.saturating_sub(1)
         }
         (_, _, Some(e)) => enum_text(e, raw, key.ty),
+        _ if key.ty == KeyType::Bool && f.integer() => 1,
         _ => type_text(key.ty, key.max_size),
     }
 }
@@ -277,13 +280,15 @@ pub fn trees(tables: &Tables) -> Trees {
 /// bool, an integer (an enum key's integer form too), a float, or a string (an enum key's wire
 /// string too).
 ///
-/// @version 1
+/// v2: a bool at an integer path writes no JSON bool.
+/// @version 2
 /// @req REQ-ING-SHD-009
+/// @req REQ-ING-SHD-010
 fn same_encoding(ty: EchoType, key: &Key, f: &PathForm) -> bool {
     let strings = key.enum_values.is_some() && !f.integer();
     let integer = super::value::int_range(key.ty).is_some() && !strings;
     match ty {
-        EchoType::Bool => key.ty == KeyType::Bool,
+        EchoType::Bool => key.ty == KeyType::Bool && !f.integer(),
         EchoType::Int => integer,
         EchoType::Float => key.ty == KeyType::Float32,
         EchoType::String => key.ty == KeyType::String || strings,
@@ -368,14 +373,30 @@ fn key_rows(t: &mut Trees, key: &Key) {
     }
 }
 
+/// The longest text of `key` over its entries in one document (`in_doc`), or `None` when no
+/// entry is in it.
+///
+/// @version 1
+/// @req REQ-ING-SHD-010
+/// @req REQ-ING-SIZ-001
+fn doc_text(key: &Key, entries: &[&PathForm], in_doc: fn(&PathForm) -> bool) -> Option<usize> {
+    entries
+        .iter()
+        .filter(|f| in_doc(f))
+        .map(|f| key_text(key, f))
+        .max()
+}
+
 /// A STATE key's row at `path`, over its entries there: in the full document unless every one
 /// is delta-only, in the delta (and the forced tree when forced) unless every one is full-only,
-/// at the longest text.
+/// each at the longest text of the entries in that document.
 ///
 /// v2: over every entry at the path.
-/// @version 2
+/// v3: sized per document (one path may carry a different form in each).
+/// @version 3
 /// @req REQ-ING-SHD-003
 /// @req REQ-ING-SHD-004
+/// @req REQ-ING-SHD-010
 fn state_row(t: &mut Trees, key: &Key, path: &str) {
     let entries: Vec<&PathForm> = key
         .wire
@@ -383,11 +404,10 @@ fn state_row(t: &mut Trees, key: &Key, path: &str) {
         .iter()
         .filter(|f| f.path == path)
         .collect();
-    let size = entries.iter().map(|f| key_text(key, f)).max().unwrap_or(0);
-    if entries.iter().any(|f| f.in_full()) {
+    if let Some(size) = doc_text(key, &entries, PathForm::in_full) {
         t.reported.add(&key.path, path, size);
     }
-    if entries.iter().any(|f| f.in_delta()) {
+    if let Some(size) = doc_text(key, &entries, PathForm::in_delta) {
         t.delta.add(&key.path, path, size);
         if key.wire.forced {
             t.forced.add(&key.path, path, size);

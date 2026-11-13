@@ -483,6 +483,37 @@ fn a_raw_unknown_an_integer_path_and_a_scope_reach_the_reporter() {
 }
 
 #[test]
+fn a_bool_path_reports_0_1_in_one_document_and_true_false_in_the_other() {
+    let dir = unique_dir("dsh_bool_integer");
+    let docked = "shadow = [{ path = \"state.docked\", as = \"integer\", scope = \"full\" }, { path = \"state.docked\", scope = \"delta\" }]\nforced";
+    let edits = [("ns/drive.toml", "shadow = \"state.docked\"\nforced", docked)];
+    let gen = generated(&dir, "bool_integer", "sku_a", &edits);
+    let rows = table(&gen, "dsh_reported");
+    let docked_rows: Vec<&String> = rows
+        .iter()
+        .filter(|r| r.contains(".path = \"state.docked\""))
+        .collect();
+    assert_eq!(docked_rows.len(), 2, "{rows:#?}");
+    let full = row(&rows, ".form = DSH_FORM_BOOL_INTEGER");
+    let delta = row(&rows, ".scope = DSH_SC_DELTA, .flags = DSH_RF_FORCED");
+    assert!(
+        full.contains(".path = \"state.docked\"")
+            && full.contains(".scope = DSH_SC_FULL, .flags = 0u"),
+        "{full}"
+    );
+    assert!(
+        delta.contains(".path = \"state.docked\"") && delta.contains(".form = DSH_FORM_PLAIN"),
+        "{delta}"
+    );
+    assert!(full.contains(".enum_index = DSH_NONE_U16"), "{full}");
+    let docked = key_json(&gen, "drive.state.docked");
+    assert_eq!(docked["shadow"], serde_json::json!(["state.docked"]));
+    assert_eq!(docked["shadow_forms"][0]["as"], "integer");
+    compile_and_walk(&gen);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn error_groups_carry_their_variant_base_reserved_bits_and_sorted_bits() {
     let dir = unique_dir("dsh_errors");
     let a = generated(&dir, "plain", "sku_a", &[]);
@@ -789,7 +820,8 @@ fn a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header() {
     assert!(ok, "{stderr}");
     let fixed = fs::read_to_string(types.join("dsh_types.h")).unwrap();
     assert_eq!(fixed, fs::read_to_string(gen.join("dsh_types.h")).unwrap());
-    assert!(fixed.contains("#define DSH_IF_MAJOR 1") && fixed.contains("#define DSH_IF_MINOR 1"));
+    assert!(fixed.contains("#define DSH_IF_MAJOR 1") && fixed.contains("#define DSH_IF_MINOR 2"));
+    assert!(fixed.contains("DSH_FORM_BOOL_INTEGER = 4"));
     let _ = fs::remove_dir_all(&dir);
 }
 

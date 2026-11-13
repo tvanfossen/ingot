@@ -78,9 +78,12 @@ Paths are dotted identifiers: each dot is one nested JSON object.
 Key paths
    ``shadow`` on a SETTINGS key is a desired path; on a STATE or CONFIG key it is a reported
    path. It may be a list, and each entry may be ``{ path, as, scope, variants }``: ``as =
-   "integer"`` carries an enum code as a number, ``scope`` (``full``, ``delta``, ``both``) places a
-   reported path in the full document, the on-change delta or both, ``variants`` limits the entry.
-   One path may be listed once per variant. Further key attributes: ``applies`` (the SETTINGS key
+   "integer"`` carries an enum code as a number (inbound and outbound), or a bool as ``0``/``1`` on
+   a reported path (inbound a bool stays ``true``/``false``), ``scope`` (``full``, ``delta``,
+   ``both``) places a reported path in the full document, the on-change delta or both,
+   ``variants`` limits the entry. One path may be listed once per variant and document, so a key
+   may report one path as ``0``/``1`` in the full document and as ``true``/``false`` in the delta
+   (``DSH_FORM_BOOL_INTEGER``, shadow table interface 1.2). Further key attributes: ``applies`` (the SETTINGS key
    a STATE twin reports), ``apply_group`` and ``implies`` (coupled writes in one batch),
    ``on_reject`` (``echo`` or ``clear_desired``), ``inbound_unknown`` and ``outbound_unknown`` (what
    an unknown string or code becomes: a wire string, ``ignore``/``reject`` inbound, ``raw``

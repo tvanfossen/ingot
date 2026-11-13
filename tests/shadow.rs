@@ -581,6 +581,30 @@ fn a_scope_places_a_row_in_the_full_document_or_the_delta() {
 }
 
 #[test]
+fn a_bool_path_as_integer_is_sized_per_document() {
+    let dir = unique_dir("shadow_bool_integer_sizes");
+    let base = edited_json(&dir, "base", &[]);
+    let split = "shadow = [{ path = \"state.docked\", as = \"integer\", scope = \"full\" }, { path = \"state.docked\", scope = \"delta\" }]\nforced";
+    let split = edited_json(
+        &dir,
+        "split",
+        &[("ns/drive.toml", "shadow = \"state.docked\"\nforced", split)],
+    );
+    let shrunk = base["shadow"]["full_max_bytes"].as_u64().unwrap()
+        - split["shadow"]["full_max_bytes"].as_u64().unwrap();
+    assert_eq!(
+        shrunk,
+        ("false".len() - "0".len()) as u64,
+        "0/1 in the full document"
+    );
+    assert_eq!(
+        split["shadow"]["delta_forced_bytes"], base["shadow"]["delta_forced_bytes"],
+        "true/false in the delta"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn a_conflict_in_both_documents_is_reported_once() {
     let dir = unique_dir("shadow_conflict_once");
     let case = dir.join("model");

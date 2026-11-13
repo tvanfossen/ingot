@@ -8,16 +8,20 @@ use super::super::value::encode_default;
 use super::enums::inbound;
 use super::{id, index16, text, ty, Pools};
 
-/// The `DSH_FORM_*` of key `key` at path `f`, and the enum the form reads.
+/// The `DSH_FORM_*` of key `key` at path `f`, and the enum the form reads (a bool at an integer
+/// path is a reported 0 or 1; the refusals keep it off desired paths).
 ///
-/// @version 1
+/// v2: a bool at an integer path.
+/// @version 2
 /// @req REQ-ING-DSH-001
+/// @req REQ-ING-SHD-010
 pub fn form(key: &Key, f: &PathForm, pools: &mut Pools) -> (&'static str, Option<u16>) {
     let index = match (&key.enum_name, &key.enum_values) {
         (Some(n), Some(e)) => Some(pools.enums.index(n, e)),
         _ => None,
     };
     let form = match index {
+        None if f.integer() => "DSH_FORM_BOOL_INTEGER",
         None => "DSH_FORM_PLAIN",
         Some(_) if f.integer() => "DSH_FORM_INTEGER",
         Some(_) => "DSH_FORM_ENUM",
