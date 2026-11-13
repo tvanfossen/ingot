@@ -827,3 +827,55 @@ Same procedure and test command as the main table; applied to `e49e86e`.
 | SF24 | src/contract/shadow.rs | `errors.extend(delta_only);\n` | `\n` | delta conflicts reported | KILLED | every_refusal_has_a_triggering_model |
 | SF25 | src/contract/shadow.rs | `.filter(\|e\| !t.reported.errors.contains(e))\n` | `\n` | a conflict in both documents once | KILLED | a_conflict_in_both_documents_is_reported_once |
 | SF26 | src/contract/shadow_size.rs | `Role::State => state_row(t, key, f),` | `Role::State => {}` | STATE key rows | KILLED | every_refusal_has_a_triggering_model |
+
+## report_as, per-variant paths, argument forms and commandless rows (REQ-ING-SHD-004/005, REQ-ING-CMD-002/003)
+
+Same procedure; the test command adds `--test shadow_rows`. Applied to `49a230b`. Removed as equivalent before the sweep: a filter skipping reporting members in the inbound check of `enums::check_unique` (a reporting member's wire string is its target's, so any conflict it found was already reported for the target), and the same exclusion in `Member::inbound` (only `inbound_unknown` validation reads it, and the reported string is valid through the target).
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| FR01 | src/contract/enums.rs | `report_as: w.report_as.clone(),` | `report_as: None,` | report_as read | KILLED | every_refusal_has_a_triggering_model |
+| FR02 | src/contract/enums.rs | `if w.wire.is_some() == w.report_as.is_some() {` | `if false {` | wire or report_as, one of them | KILLED | every_refusal_has_a_triggering_model |
+| FR03 | src/contract/enums.rs | `check_forms(path, &def.values, errors);\n` | `\n` | base value forms checked | KILLED | every_refusal_has_a_triggering_model |
+| FR04 | src/contract/enums.rs | `check_forms(path, &changes.values, errors);\n` | `\n` | variant value forms checked | KILLED | every_refusal_has_a_triggering_model |
+| FR05 | src/contract/enums.rs | `resolved.get_key_value(target).or_else(\|\| {` | `resolved.get_key_value(target).filter(\|_\| false).or_else(\|\| {` | target by name | KILLED | every_refusal_has_a_triggering_model |
+| FR06 | src/contract/enums.rs | `.find(\|(_, m)\| m.report_as.is_none() && m.wire == target)` | `.find(\|(_, m)\| m.report_as.is_none() && false)` | target by wire string | KILLED | a_wire_string_names_the_member_that_reports_it_itself two_codes_report_one_wire_string_when_one_declares_it |
+| FR07 | src/contract/enums.rs | `.find(\|(_, m)\| m.report_as.is_none() && m.wire == target)` | `.find(\|(_, m)\| m.wire == target)` | a wire lookup skips reporting members | KILLED | a_wire_string_names_the_member_that_reports_it_itself |
+| FR08 | src/contract/enums.rs | `Some((n, _)) if n == name => None,\n` | `\n` | a member does not report as itself | KILLED | every_refusal_has_a_triggering_model |
+| FR09 | src/contract/enums.rs | `Some((_, m)) if m.report_as.is_some() => {` | `Some((_, m)) if false => {` | no chained targets | KILLED | every_refusal_has_a_triggering_model |
+| FR10 | src/contract/enums.rs | `me.wire = m.wire;\n` | `\n` | the reported wire string | KILLED | two_codes_report_one_wire_string_when_one_declares_it |
+| FR11 | src/contract/enums.rs | `me.report_as = Some(n);\n` | `\n` | the target's name recorded | KILLED | a_wire_string_names_the_member_that_reports_it_itself two_codes_report_one_wire_string_when_one_declares_it |
+| FR12 | src/contract/enums.rs | `apply_reports(path, &mut resolved, errors);\n` | `\n` | reports applied | KILLED | every_refusal_has_a_triggering_model |
+| FR13 | src/contract/enums.rs | `if m.report_as.is_none() && !wires.insert(&m.wire) {` | `if !wires.insert(&m.wire) {` | a declared duplicate is allowed | KILLED | a_wire_string_names_the_member_that_reports_it_itself two_codes_report_one_wire_string_when_one_declares_it |
+| FR14 | src/contract/keyspace.rs | `v["report_as"] = json!(target);\n` | `\n` | report_as in the keyspace | KILLED | a_wire_string_names_the_member_that_reports_it_itself two_codes_report_one_wire_string_when_one_declares_it |
+| FR15 | src/contract/wire.rs | `.filter(\|f\| present_on(f.variants.as_deref(), variant))` | `.filter(\|_\| true)` | a variant's own paths | KILLED | a_path_can_exist_on_one_variant |
+| FR16 | src/contract/variants.rs | `named.chain(&on_paths)` | `named` | path variants declared | KILLED | every_refusal_has_a_triggering_model |
+| FR17 | src/contract/shadow_size.rs | `t.delta.add("error groups", p, size);\n` | `\n` | the error field in the delta | KILLED | every_refusal_has_a_triggering_model |
+| FR18 | src/contract/refuse_commands.rs | `if c.is_some() \|\| !r.args.is_empty() \|\| outcome => {` | `if c.is_some() \|\| !r.args.is_empty() => {` | a settings body has no outcome | KILLED | every_refusal_has_a_triggering_model |
+| FR19 | src/contract/refuse_commands.rs | `(_, Some(_)) if outcome => {` | `(_, Some(_)) if false => {` | a command row has no outcome | KILLED | every_refusal_has_a_triggering_model |
+| FR20 | src/contract/refuse_commands.rs | `let why = if r.answer.is_some() && r.internal.is_some() {` | `let why = if false {` | answer or internal, not both | KILLED | every_refusal_has_a_triggering_model |
+| FR21 | src/contract/refuse_commands.rs | `} else if outcome && !r.args.is_empty() {` | `} else if false {` | an outcome row has no args | KILLED | every_refusal_has_a_triggering_model |
+| FR22 | src/contract/refuse_commands.rs | `} else if r.internal.as_ref().is_some_and(\|w\| w.trim().is_empty()) {` | `} else if false {` | internal has a reason | KILLED | every_refusal_has_a_triggering_model |
+| FR23 | src/contract/refuse_commands.rs | `} else if !outcome && r.args.is_empty() {` | `} else if false {` | a commandless row does something | KILLED | every_refusal_has_a_triggering_model |
+| FR24 | src/contract/refuse_commands.rs | `(in_class \|\| key.role == Role::State)` | `(in_class)` | STATE keys are arguments | KILLED | every_refusal_has_a_triggering_model |
+| FR25 | src/contract/refuse_commands.rs | `(in_class \|\| key.role == Role::State)` | `(true)` | other keys are not | KILLED | every_refusal_has_a_triggering_model |
+| FR26 | src/contract/refuse_commands.rs | `let plain = key.command.is_none() &&` | `let plain =` | command keys are not arguments | KILLED | every_refusal_has_a_triggering_model |
+| FR27 | src/contract/refuse_commands.rs | `a.field.as_deref().unwrap_or(&a.key)` | `a.field.as_deref().unwrap_or("")` | a constant is named by its key | KILLED | every_refusal_has_a_triggering_model |
+| FR28 | src/contract/refuse_commands.rs | `let declared = a.required != Required::Flag(false) \|\| a.ec.is_some() \|\| a.absent.is_some();` | `let declared = a.ec.is_some() \|\| a.absent.is_some();` | a constant has no required rule | KILLED | every_refusal_has_a_triggering_model |
+| FR29 | src/contract/refuse_commands.rs | `let declared = a.required != Required::Flag(false) \|\| a.ec.is_some() \|\| a.absent.is_some();` | `let declared = a.required != Required::Flag(false) \|\| a.absent.is_some();` | a constant has no ec | KILLED | every_refusal_has_a_triggering_model |
+| FR30 | src/contract/refuse_commands.rs | `let declared = a.required != Required::Flag(false) \|\| a.ec.is_some() \|\| a.absent.is_some();` | `let declared = a.required != Required::Flag(false) \|\| a.ec.is_some();` | a constant has no absent rule | KILLED | every_refusal_has_a_triggering_model |
+| FR31 | src/contract/refuse_commands.rs | `let extra = a.omit_when_absent \|\| a.encoding.is_some() \|\| a.element.is_some();` | `let extra = a.encoding.is_some() \|\| a.element.is_some();` | a constant has no omit rule | KILLED | every_refusal_has_a_triggering_model |
+| FR32 | src/contract/refuse_commands.rs | `let extra = a.omit_when_absent \|\| a.encoding.is_some() \|\| a.element.is_some();` | `let extra = a.omit_when_absent \|\| a.element.is_some();` | a constant has no encoding | KILLED | every_refusal_has_a_triggering_model |
+| FR33 | src/contract/refuse_commands.rs | `let extra = a.omit_when_absent \|\| a.encoding.is_some() \|\| a.element.is_some();` | `let extra = a.omit_when_absent \|\| a.encoding.is_some();` | a constant has no element | KILLED | every_refusal_has_a_triggering_model |
+| FR34 | src/contract/refuse_commands.rs | `if a.field.is_some() == constant {` | `if a.field.is_none() && !constant {` | not both a field and a constant | KILLED | every_refusal_has_a_triggering_model |
+| FR35 | src/contract/refuse_commands.rs | `if a.field.is_some() == constant {` | `if a.field.is_some() && constant {` | not neither | KILLED | every_refusal_has_a_triggering_model |
+| FR36 | src/contract/refuse_commands.rs | `} else if constant {\n        None\n` | `} else if false {\n        None\n` | a constant skips the field rules | KILLED | constant_named_state_element_and_binary_arguments_generate |
+| FR37 | src/contract/refuse_commands.rs | `.map(\|m\| toml::Value::Integer(m.value))` | `.map(\|m\| toml::Value::Integer(m.value - 1))` | a value name becomes its number | KILLED | constant_named_state_element_and_binary_arguments_generate |
+| FR38 | src/contract/refuse_commands.rs | `(Some(name), Some(e)) => e` | `(Some(name), Some(e)) if false => e` | value names resolved | KILLED | every_refusal_has_a_triggering_model |
+| FR39 | src/contract/refuse_commands.rs | `Encoding::Base64 if !matches!(ty, KeyType::String \| KeyType::Binary) => {` | `Encoding::Base64 if !matches!(ty, KeyType::String) => {` | base64 into a binary key | KILLED | constant_named_state_element_and_binary_arguments_generate |
+| FR40 | src/contract/refuse_commands.rs | `Encoding::Base64 if !matches!(ty, KeyType::String \| KeyType::Binary) => {` | `Encoding::Base64 if false => {` | base64 only into string or binary keys | KILLED | every_refusal_has_a_triggering_model |
+| FR41 | src/contract/refuse_commands.rs | `Encoding::DecimalText if int_range(ty).is_none() => {` | `Encoding::DecimalText if false => {` | decimal text only into integer keys | KILLED | every_refusal_has_a_triggering_model |
+| FR42 | src/contract/refuse_commands.rs | `Encoding::DecimalText if int_range(ty).is_none() => {` | `Encoding::DecimalText if true => {` | decimal text into an integer key | KILLED | constant_named_state_element_and_binary_arguments_generate |
+| FR43 | src/contract/refuse_commands.rs | `for v in a.absent.iter().chain(&a.value) {` | `for v in a.absent.iter() {` | a constant value checked | KILLED | every_refusal_has_a_triggering_model |
+| FR44 | src/contract/refuse_commands.rs | `for v in a.absent.iter().chain(&a.value) {` | `for v in a.value.iter() {` | an absent value checked | KILLED | every_refusal_has_a_triggering_model |
+| FR45 | src/contract/refuse_commands.rs | `(_, None) => commandless_rules(r, refuse),` | `(_, None) => {}` | commandless rules run | KILLED | every_refusal_has_a_triggering_model |
