@@ -625,17 +625,23 @@ requirements:
       a delta path are refused; the full size follows the forms and scopes; without forms the
       outputs, store tables and digests are byte-identical.
   REQ-ING-SHD-004:
-    name: Per-variant shadow paths and the delta's error list
+    name: Per-variant shadow paths and echo rows, and the delta's error list
     subsystem: Generated outputs (G2)
     description: >-
-      A shadow path table may carry `variants`, the declared variants the path exists on (absent:
-      every variant); a variant's tables, contract.json and resolved keyspace hold only its paths,
-      and an undeclared variant is refused. The error groups' shadow field is in the delta as well
-      as the full document (today's error reactor publishes it on change).
+      A shadow path table and an echo row may carry `variants`, the declared variants they exist
+      on (absent: every variant); a variant's tables, contract.json and resolved keyspace hold only
+      its paths and echo rows, and an undeclared variant is refused. One key may list one path
+      once per variant (entries for disjoint variants share it, each with its own form and scope).
+      The all-variants view holds every variant's rows: rows of disjoint variants may share a path
+      there, and path conflicts, the document size and a variant-only command row's values are
+      checked in each variant's own pass. The error groups' shadow field is in the delta as well as
+      the full document (today's error reactor publishes it on change).
     acceptance_criteria: >-
       A key reported at one path on one variant and another path on the other generates each
-      variant's own path; an undeclared variant on a path is refused; a delta-only key at the
-      error field is refused.
+      variant's own path; one path with a scope per variant generates, and the same path twice on
+      one variant is refused; an echo path on one variant beside a key path on the other generates;
+      a variant-only row's value names resolve in its variant; an undeclared variant on a path or
+      echo row is refused; a delta-only key at the error field is refused.
   REQ-ING-SHD-005:
     name: Declared outbound many-to-one (report_as)
     subsystem: Generated outputs (G2)
