@@ -268,6 +268,14 @@ fn each_unknown_inbound_rule_reaches_the_binder() {
             "{rule}: {fan}"
         );
     }
+    let two = "shadow = [\"settings.fanSpeed\", { path = \"settings.fanLevel\", as = \"integer\" }]\napply_group";
+    let anchor = "shadow = \"settings.fanSpeed\"\napply_group";
+    let g = generated(&dir, "two", "sku_a", &[("ns/drive.toml", anchor, two)]);
+    let level = row(&table(&g, "dsh_desired"), "\"settings.fanLevel\"");
+    assert!(
+        level.contains(".inbound_unknown = DSH_IN_NONE"),
+        "an integer path has no unknown string: {level}"
+    );
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -625,7 +633,7 @@ fn argument_forms_resolve_names_elements_and_encodings() {
 #[test]
 fn rows_without_a_command_answer_stay_internal_or_write_state() {
     let dir = unique_dir("dsh_commandless");
-    let rows = format!("{GO_ROW}\n\n[[shadow_commands]]\ntopic = \"command_topic\"\nselector = {{ field = \"state\", wire = \"ping\" }}\nanswer = 3\n\n[[shadow_commands]]\ntopic = \"command_topic\"\nselector = {{ field = \"state\", wire = \"getlog\" }}\ninternal = \"the library uploads its own log\"\n\n[[shadow_commands]]\ntopic = \"command_topic\"\nselector = {{ field = \"state\", wire = \"mobile\" }}\nargs = [ {{ field = \"label\", key = \"drive.state.label\", omit_when_absent = true }} ]");
+    let rows = format!("{GO_ROW}\n\n[[shadow_commands]]\ntopic = \"command_topic\"\nselector = {{ field = \"ping\", wire = false }}\nanswer = 3\n\n[[shadow_commands]]\ntopic = \"command_topic\"\nselector = {{ field = \"state\", wire = \"getlog\" }}\ninternal = \"the library uploads its own log\"\n\n[[shadow_commands]]\ntopic = \"command_topic\"\nselector = {{ field = \"state\", wire = \"mobile\" }}\nargs = [ {{ field = \"label\", key = \"drive.state.label\", omit_when_absent = true }} ]");
     let gen = generated(
         &dir,
         "commandless",
@@ -633,7 +641,10 @@ fn rows_without_a_command_answer_stay_internal_or_write_state() {
         &[("ns/drive.toml", GO_ROW, &rows)],
     );
     let all = table(&gen, "dsh_commands");
-    let ping = row(&all, "\"ping\"");
+    let ping = row(
+        &all,
+        ".field = \"ping\", .wire = NULL, .kind = DSH_SEL_FALSE",
+    );
     assert!(
         ping.contains(".action = DSH_DO_ANSWER, .answer = 3u")
             && ping.contains(".steps_count = 0u"),
