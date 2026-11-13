@@ -373,6 +373,7 @@ mod tests {
             ty,
             max_size,
             command_key: None,
+            variants: None,
         };
         assert_eq!(echo_text(&echo(EchoType::Bool, None)), 5);
         assert_eq!(echo_text(&echo(EchoType::Int, None)), "-2147483648".len());

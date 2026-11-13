@@ -87,7 +87,8 @@ struct Loaded {
 /// v6: grants are checked against the key paths of every variant.
 /// v7: the shadow wire mapping, resolved and checked for the variant.
 /// v8: every resolved enum is kept; rights resolved by principal_rights.
-/// @version 8
+/// v9: the contract-level rows' variants are checked too.
+/// @version 9
 /// @req REQ-ING-SHD-001
 /// @req REQ-ING-SIZ-001
 /// @req REQ-ING-PRS-001
@@ -100,7 +101,12 @@ pub fn build(contract_path: &Path, variant: Option<&str>) -> Result<(Tables, Err
     let loaded = load(contract_path, variant)?;
     let mut errors = Errors::new();
     let declared = &loaded.contract.contract.variants;
-    variants::check_entries(declared, &loaded.namespaces, &mut errors);
+    variants::check_entries(
+        declared,
+        &loaded.namespaces,
+        &loaded.shadow.variant_uses,
+        &mut errors,
+    );
     let (keys, commands, enums) = collect_keys(&loaded, variant, &mut errors);
     let known = declared_paths(&loaded);
     let (principals, rights) =
@@ -455,6 +461,15 @@ fn command_row(def: &CommandDef, keys: &[Key; 3]) -> Command {
 }
 
 impl Tables {
+    /// Whether these are the base tables of a model that declares variants: the all-variants
+    /// view, whose per-variant checks are left to each variant's own pass.
+    ///
+    /// @version 1
+    /// @req REQ-ING-SHD-004
+    pub fn all_variants_view(&self) -> bool {
+        self.variant.is_empty() && !self.variants.is_empty()
+    }
+
     /// Index of the key with path `path`.
     ///
     /// @version 1

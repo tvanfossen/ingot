@@ -24,16 +24,27 @@ pub fn check_selected(declared: &[String], variant: Option<&str>, errors: &mut E
     }
 }
 
-/// Refuse any per-variant entry of the namespace files for an undeclared variant.
+/// Refuse any per-variant entry of the namespace files, or of the contract-level rows
+/// (`contract_uses`), for an undeclared variant.
 ///
-/// @version 1
+/// v2: the contract-level rows.
+/// @version 2
 /// @req REQ-ING-TIV-015
-pub fn check_entries(declared: &[String], namespaces: &[NamespaceFile], errors: &mut Errors) {
+/// @req REQ-ING-SHD-004
+pub fn check_entries(
+    declared: &[String],
+    namespaces: &[NamespaceFile],
+    contract_uses: &[(String, String)],
+    errors: &mut Errors,
+) {
     if declared.is_empty() {
         return;
     }
     let list = declared.join(", ");
-    for (path, v) in uses(namespaces) {
+    for (path, v) in uses(namespaces)
+        .into_iter()
+        .chain(contract_uses.iter().cloned())
+    {
         if !declared.contains(&v) {
             errors.push(format!(
                 "{path}: variant {v} is not declared (declared: {list})"

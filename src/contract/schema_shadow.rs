@@ -194,6 +194,9 @@ pub struct Echo {
     pub max_size: Option<u32>,
     /// The SETTINGS key command bodies apply this field to (the delta path only echoes it).
     pub command_key: Option<String>,
+    /// The variants the path is echoed on (absent: every variant).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variants: Option<Vec<String>>,
 }
 
 /// A constant whose value the image supplies.

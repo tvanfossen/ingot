@@ -21,13 +21,40 @@ pub struct Shadow {
     pub topics: Vec<Topic>,
     /// The command rows that exist on the variant, in namespace-file order.
     pub commands: Vec<ShadowCommand>,
+    /// Every (row, variant) the contract-level rows name, before the variant's rows are taken,
+    /// for the declared-variant check.
+    #[serde(skip)]
+    pub variant_uses: Vec<(String, String)>,
 }
 
-/// The rows `contract.toml` declares, taken out of it, and the namespace files' command rows
-/// that exist on `variant`.
+/// The echo rows of `variant`, and every (row, variant) the declared rows name.
+///
+/// @version 1
+/// @req REQ-ING-SHD-004
+fn echo_rows(declared: Vec<Echo>, variant: Option<&str>) -> (Vec<Echo>, Vec<(String, String)>) {
+    let uses = declared
+        .iter()
+        .flat_map(|e| {
+            let at = format!("shadow_echo {}", e.path);
+            e.variants
+                .iter()
+                .flatten()
+                .map(move |v| (at.clone(), v.clone()))
+        })
+        .collect();
+    let mine = declared
+        .into_iter()
+        .filter(|e| present_on(e.variants.as_deref(), variant))
+        .collect();
+    (mine, uses)
+}
+
+/// The rows `contract.toml` declares, taken out of it (echo paths of `variant` only), and the
+/// namespace files' command rows that exist on `variant`.
 ///
 /// v2: topics and command rows.
-/// @version 2
+/// v3: echo paths limited to variants.
+/// @version 3
 /// @req REQ-ING-SHD-002
 /// @req REQ-ING-CMD-001
 /// @req REQ-ING-TOP-001
@@ -42,12 +69,14 @@ pub fn rows(
         .filter(|r| present_on(r.variants.as_deref(), variant))
         .cloned()
         .collect();
+    let (echo, variant_uses) = echo_rows(std::mem::take(&mut file.shadow_echo), variant);
     Shadow {
         apply_groups: std::mem::take(&mut file.apply_groups),
-        echo: std::mem::take(&mut file.shadow_echo),
+        echo,
         constants: std::mem::take(&mut file.shadow_constant),
         topics: std::mem::take(&mut file.topics),
         commands,
+        variant_uses,
     }
 }
 
@@ -87,11 +116,16 @@ pub fn json(tables: &Tables) -> Option<Value> {
 /// Every refusal of the mapping: keys and rows (S1, S3, S4, S5), the path trees (S1), the
 /// full document's size (Z1), topics (T1, T2) and command rows (S2, S6).
 ///
+/// The path trees and the size are checked per variant: in the all-variants view rows of
+/// disjoint variants may share a path, and each variant's own pass checks its documents.
+///
 /// v2: topics and command rows.
 /// v3: the delta's path conflicts, each once beside the full document's.
-/// @version 3
+/// v4: trees and size only per variant.
+/// @version 4
 /// @req REQ-ING-SHD-001
 /// @req REQ-ING-SHD-003
+/// @req REQ-ING-SHD-004
 /// @req REQ-ING-SIZ-001
 /// @req REQ-ING-TOP-001
 /// @req REQ-ING-CMD-001
@@ -99,6 +133,17 @@ pub fn check(tables: &Tables, errors: &mut Errors) {
     refuse_shadow::check(tables, errors);
     topics::check(tables, errors);
     refuse_commands::check(tables, errors);
+    if !tables.all_variants_view() {
+        tree_rules(tables, errors);
+    }
+}
+
+/// S1 path conflicts of the trees and Z1, the full document's size.
+///
+/// @version 1
+/// @req REQ-ING-SHD-001
+/// @req REQ-ING-SIZ-001
+fn tree_rules(tables: &Tables, errors: &mut Errors) {
     let t = trees(tables);
     let full = t.reported.bytes();
     errors.extend(t.desired.errors);

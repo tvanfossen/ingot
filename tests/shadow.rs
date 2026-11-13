@@ -599,14 +599,16 @@ fn a_conflict_in_both_documents_is_reported_once() {
         &["--variant", "sku_b"],
     );
     assert!(!ok);
-    let conflict = stderr
-        .matches("is taken by drive.state.fan_applied")
-        .count();
-    let telem = stderr
-        .matches("telem name 'tones' is empty or used twice")
-        .count();
-    assert!(telem > 0, "{stderr}");
-    assert_eq!(conflict, telem, "{stderr}");
+    let conflict =
+        "drive.state.docked: shadow path state.fanSpeed is taken by drive.state.fan_applied";
+    for pass in ["] ", "variant sku_a: ", "variant sku_b: "] {
+        let line = format!("{pass}{conflict}");
+        assert_eq!(stderr.matches(&line).count(), 1, "{line}:\n{stderr}");
+    }
+    assert!(
+        !stderr.contains(&format!("base: {conflict}")),
+        "the all-variants view leaves path conflicts to each variant: {stderr}"
+    );
     let _ = fs::remove_dir_all(&dir);
 }
 

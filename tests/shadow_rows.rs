@@ -6,7 +6,7 @@ mod common;
 use common::*;
 use serde_json::{json, Value};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Keys added to the command class of the 1.0 model for the argument forms.
 const ARG_KEYS: &str = "id = \"map_payload\"\nkey_index = 9\ntype = \"string\"\nmax_size = 512\nintroduced_in = \"1.0\"\ndoc = \"Base64 text of a map request, passed through as text.\"\n\n[[classes.keys]]\nid = \"drive_mode\"\nkey_index = 10\ntype = \"uint8\"\nenum = \"mode\"\nintroduced_in = \"1.0\"\n\n[[classes.keys]]\nid = \"plan_blob\"\nkey_index = 11\ntype = \"binary\"\nmax_size = 96\nintroduced_in = \"1.0\"\n\n[[classes.keys]]\nid = \"path_from\"\nkey_index = 12\ntype = \"int16\"\nintroduced_in = \"1.0\"";
@@ -254,5 +254,79 @@ fn one_key_takes_one_path_with_a_scope_per_variant() {
         !stderr.contains("variant sku_a: drive.state.speed_limit_applied: a shadow path"),
         "{stderr}"
     );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// The echo row of the 1.0 model that the per-variant echo test limits.
+const PLAN_ECHO: &str = "path = \"settings.planExists\"         # app metadata: echoed back so the delta clears, no key\ntype = \"bool\"";
+
+/// @brief The edits that echo settings.planExists on sku_a only and apply it to keys on sku_b.
+/// @version 1
+fn echo_edits(only: &str) -> Vec<(&'static str, String, String)> {
+    let setting = "[[classes.keys]]\nid = \"plan_exists\"\nkey_index = 4\ntype = \"bool\"\nintroduced_in = \"1.0\"\nwrite_rate = \"1/min\"\nvariants = [\"sku_b\"]\nshadow = \"settings.planExists\"\n\n[[classes.keys]]\nid = \"fan\"\nkey_index = 5";
+    let twin = "[[classes.keys]]\nid = \"plan_exists_applied\"\nkey_index = 14\ntype = \"bool\"\nintroduced_in = \"1.0\"\nvariants = [\"sku_b\"]\nshadow = \"settings.planExists\"\napplies = \"drive.settings.plan_exists\"\n\n[[classes]]\nid = \"map\"";
+    vec![
+        (
+            "contract.toml",
+            PLAN_ECHO.to_string(),
+            format!("{PLAN_ECHO}\nvariants = [\"{only}\"]"),
+        ),
+        (
+            "ns/drive.toml",
+            "[[classes.keys]]\nid = \"fan\"\nkey_index = 5".to_string(),
+            setting.to_string(),
+        ),
+        (
+            "ns/drive.toml",
+            "[[classes]]\nid = \"map\"".to_string(),
+            twin.to_string(),
+        ),
+    ]
+}
+
+/// @brief Generate the 1.0 model with `echo_edits(only)` for `variant` into `dir/tag`; returns
+/// (success, stderr, output directory).
+/// @version 1
+fn echo_case(dir: &Path, tag: &str, only: &str, variant: &str) -> (bool, String, PathBuf) {
+    let owned = echo_edits(only);
+    let edits: Vec<(&str, &str, &str)> = owned
+        .iter()
+        .map(|(f, a, b)| (*f, a.as_str(), b.as_str()))
+        .collect();
+    let case = dir.join(tag);
+    edited_copy("v1_0", &case, &edits);
+    let out = case.join("out");
+    let (ok, stderr) = generate(&case.join("contract.toml"), &out, &["--variant", variant]);
+    (ok, stderr, out)
+}
+
+/// @brief The echo rows of a keyspace document.
+/// @version 1
+fn echo_rows(doc: &Value) -> Vec<Value> {
+    doc["shadow"]["echo"].as_array().unwrap().clone()
+}
+
+#[test]
+fn an_echo_path_on_one_variant_and_a_key_path_on_another() {
+    let dir = unique_dir("rows_echo_variants");
+    let plan = |r: &Value| r["path"] == "settings.planExists";
+    let (ok, stderr, a) = echo_case(&dir, "a", "sku_a", "sku_a");
+    assert!(ok, "{stderr}");
+    assert!(echo_rows(&read(&a, "keyspace.sku_a.json")).iter().any(plan));
+    let (ok, stderr, b) = echo_case(&dir, "b", "sku_a", "sku_b");
+    assert!(ok, "{stderr}");
+    assert!(!echo_rows(&read(&b, "keyspace.sku_b.json")).iter().any(plan));
+    let all = echo_rows(&read(&b, "keyspace.json"));
+    let echo = all.iter().find(|r| plan(r)).unwrap();
+    assert_eq!(echo["variants"], json!(["sku_a"]));
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn an_echo_row_names_declared_variants_only() {
+    let dir = unique_dir("rows_echo_undeclared");
+    let (ok, stderr, _) = echo_case(&dir, "z", "sku_z", "sku_a");
+    let refusal = "shadow_echo settings.planExists: variant sku_z is not declared";
+    assert!(!ok && stderr.contains(refusal), "{stderr}");
     let _ = fs::remove_dir_all(&dir);
 }
