@@ -893,3 +893,49 @@ requirements:
     acceptance_criteria: >-
       The generic model's topics, including the contract request and response of G2 2.5, carry
       their envelopes and acks; an optional id and a non-default absent source appear when declared.
+  REQ-ING-SDK-001:
+    name: Per-principal SDK identity
+    subsystem: Generated outputs (G2)
+    description: >-
+      Contract mode resolves, per principal, its identity for an SDK: its name and identifier
+      (dots as underscores), kind (unix, inproc or uart), uid and token, the contract version,
+      model hash and variant, its KSET digest at the current minor, and its sorted keyset (key IDs
+      and type codes of the keys it may read or write).
+    acceptance_criteria: >-
+      Rendered through a binding, the generic model's identities carry the digest contract.json
+      lists and the keyset of the keys each principal may read or write.
+  REQ-ING-SDK-002:
+    name: Typed key accessors
+    subsystem: Generated outputs (G2)
+    description: >-
+      Per principal, an accessor for each key it may read (get) or write (set): its name, path, key
+      ID, form (scalar, buffer or struct), C type and its unsigned twin, codec (int or float) and
+      size (a scalar's width or a buffer's max_size). A struct has no getter (struct values are read
+      by subscribing); a command key is written only through its submit helper; a key without a
+      right has no accessor. Helper flags say which codec helpers the accessors use.
+    acceptance_criteria: >-
+      Through the test binding, each scalar type round-trips with the store's wire bytes, a wrong
+      length is refused, a buffer keeps its bytes, a struct write allocates, fills and publishes,
+      and a principal without a right has no symbol for it.
+  REQ-ING-SDK-003:
+    name: Command submit helpers
+    subsystem: Generated outputs (G2)
+    description: >-
+      Per principal, a submit helper for each command whose command key it may write: its name,
+      path, command key ID, payload_max and whether the command is a struct (through a buffer).
+    acceptance_criteria: >-
+      Through the test binding, a submit with an origin reaches the store's command submit with the
+      header and payload bytes and the origin, one without a plain write, an oversized payload is
+      refused, and a struct command goes allocate, fill, submit.
+  REQ-ING-SDK-004:
+    name: SDK runtime binding
+    subsystem: Generated outputs (G2)
+    description: >-
+      Ingot names no store runtime: `--sdk-binding <dir>` names a directory of templates (files
+      only, at least one) the consumer supplies. Each is rendered once per principal with the
+      SDK context (identity, accessors, submit helpers, helper flags, provenance) into
+      sdk/<principal>/, under its file name with `PRINCIPAL` replaced by the principal's
+      identifier. Without a binding no SDK is written.
+    acceptance_criteria: >-
+      Without a binding there is no sdk directory; a binding with a sub-directory or no file is
+      refused; a template's file name and context render per principal.

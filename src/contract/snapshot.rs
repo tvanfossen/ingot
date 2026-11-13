@@ -237,11 +237,13 @@ pub struct CommandJson {
     pub internal: Option<String>,
 }
 
-/// Name of a principal kind in contract.json.
+/// Name of a principal kind: `unix`, `inproc` or `uart` (contract.json and the SDK context).
 ///
-/// @version 1
+/// v2: shared with the SDK context.
+/// @version 2
 /// @req REQ-ING-TIV-009
-fn kind_name(k: Kind) -> String {
+/// @req REQ-ING-SDK-001
+pub(super) fn kind_name(k: Kind) -> String {
     match k {
         Kind::Unix => "unix",
         Kind::Inproc => "inproc",

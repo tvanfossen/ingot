@@ -63,13 +63,23 @@ Contract Mode
 | ``--shadow-buffer <BYTES>``    | —       | Warn when the full shadow document can exceed    |
 |                                |         | the shadow composer's buffer                     |
 +--------------------------------+---------+--------------------------------------------------+
+| ``--sdk-binding <DIR>``        | —       | Templates rendering a per-principal SDK against  |
+|                                |         | the consumer's store runtime                     |
++--------------------------------+---------+--------------------------------------------------+
 
 Contract mode writes ``dmt_types.h``, ``dmt_tables.h``, ``dmt_tables.c`` and
 ``contract.json`` for the selected ``--variant``, or nothing at all if the model
 breaks any rule; every refusal is logged. It always uses the built-in templates.
 A model that maps keys to the shadow also gets ``dsh_types.h`` (the fixed shadow
 table interface) and ``dsh_tables.h`` / ``dsh_tables.c``: the binder, reporter,
-command-router, error-group and topic tables of the variant.
+command-router, error-group and topic tables of the variant. With ``--sdk-binding <DIR>``, every
+principal gets an SDK in ``sdk/<principal>/`` (dots in the name become underscores): each file of
+the binding directory is a template rendered once per principal, under its file name with
+``PRINCIPAL`` replaced by the principal's identifier. The context carries the principal's
+identity (``principal``, ``p``, ``kind``, ``uid``, ``token``, ``keyset_ids``, ``keyset_types``,
+``digest``), the contract (``name``, ``major``, ``minor``, ``patch``, ``variant``,
+``model_hash``), the typed ``accessors`` and command ``submits`` its rights give, and helper
+flags. The binding names the consumer's store runtime; ingot names none.
 ``examples/contract/`` holds a generic model at contract 1.0, 1.1 and 2.0.
 
 Key Filtering

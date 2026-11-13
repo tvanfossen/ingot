@@ -1033,3 +1033,25 @@ Same procedure; the test command adds `--test shadow_rows --test shadow_tables`.
 | ES05 | src/contract/shadow_size.rs | `EchoType::Float => key.ty == KeyType::Float32,` | `EchoType::Float => false,` | float encoding | KILLED | a_delta_echo_and_a_key_share_one_delta_member |
 | ES06 | src/contract/shadow_size.rs | `EchoType::Bool => key.ty == KeyType::Bool,` | `EchoType::Bool => true,` | bool encoding | KILLED | every_refusal_has_a_triggering_model |
 | ES02 | src/contract/shadow_size.rs | `let shares = delta_twin(tables, e) && shared.insert(e.path.as_str());` | `let shares = false && shared.insert(e.path.as_str());` | an echo shares with a key | KILLED | a_delta_echo_and_a_key_share_one_delta_member | |
+
+## Per-principal SDK through a runtime binding (REQ-ING-SDK-001..004)
+
+Same procedure; the test command adds `--test contract_sdk`. Removed as equivalent before the record: a bool codec (the int codec writes and reads the same byte), a keyset sort (keys are in ID order) and a UNIX-only guard on struct accessors (the model refuses struct rights for other kinds).
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| SK01 | src/contract/sdk.rs | `KeyType::Int16 => Some(("int16_t", "uint16_t", "int")),` | `KeyType::Int16 => Some(("uint16_t", "uint16_t", "int")),` | a signed scalar type | KILLED | the_generic_sdks_drive_the_runtime |
+| SK02 | src/contract/sdk.rs | `KeyType::Float32 => Some(("float", "uint32_t", "float")),` | `KeyType::Float32 => Some(("float", "uint32_t", "int")),` | the float codec | KILLED | the_generic_sdks_drive_the_runtime |
+| SK04 | src/contract/sdk.rs | `(None, KeyType::String) => ("buffer", ("char", "uint8_t", "")),` | `(None, KeyType::String) => ("buffer", ("uint8_t", "uint8_t", "")),` | a string is char | KILLED | the_generic_sdks_drive_the_runtime |
+| SK08 | src/contract/sdk.rs | `let get = bits & READ != 0 && !structured;` | `let get = !structured;` | getters need the read right | KILLED | a_read_only_struct_and_a_write_only_key_have_no_getter |
+| SK10 | src/contract/sdk.rs | `let size = key.ty.scalar_size().unwrap_or(key.max_size);` | `let size = key.ty.scalar_size().unwrap_or(key.max_size + 1);` | a buffer's max_size | KILLED | the_generic_sdks_drive_the_runtime |
+| SK12 | src/contract/sdk.rs | `payload_max: c.max_payload,` | `payload_max: c.max_payload + 1,` | payload_max | KILLED | the_generic_sdks_drive_the_runtime |
+| SK16 | src/contract/sdk.rs | `let digest = digests(tables)[p][usize::from(tables.version.minor)];` | `let digest = digests(tables)[p][0];` | the digest at the current minor | KILLED | the_identity_is_the_principal_s_digest_and_keyset |
+| SK06 | src/contract/sdk.rs | `let set = bits & WRITE != 0 && !command;` | `let set = bits & WRITE != 0;` | no plain setter for a command key | KILLED | accessors_follow_rights_kinds_and_command_parts |
+| SK09 | src/contract/sdk.rs | `let set = bits & WRITE != 0 && !command;` | `let set = !command;` | setters need the write right | KILLED | a_read_only_struct_and_a_write_only_key_have_no_getter accessors_follow_rights_kinds_and_command_parts |
+| SK11 | src/contract/sdk.rs | `let writes = tables.rights[p][i] & WRITE != 0;` | `let writes = true;` | submits need the write right | KILLED | accessors_follow_rights_kinds_and_command_parts | |
+| BD01 | src/contract/sdk.rs | `if !path.is_file() {` | `if false {` | a binding holds files only | KILLED | without_a_binding_there_is_no_sdk_and_a_binding_holds_templates_only |
+| BD02 | src/contract/sdk.rs | `if files.is_empty() {` | `if false {` | a binding holds a template | KILLED | without_a_binding_there_is_no_sdk_and_a_binding_holds_templates_only |
+| BD03 | src/contract/sdk.rs | `let file = template.replace(PRINCIPAL_PLACEHOLDER, &name);` | `let file = template.to_string();` | the principal in the file name | KILLED | a_binding_file_renders_once_per_principal_under_its_name a_read_only_struct_and_a_write_only_key_have_no_getter accessors_follow_rights_kinds_and_command_parts every_principal_s_sdk_compiles the_generic_sdks_drive_the_runtime the_identity_is_the_principal_s_digest_and_keyset | |
+| BD04 | src/contract/mod.rs | `if let Some(binding) = opts.sdk_binding {` | `if let Some(binding) = opts.sdk_binding.filter(\|_\| false) {` | SDKs through the binding | KILLED | a_binding_file_renders_once_per_principal_under_its_name a_read_only_struct_and_a_write_only_key_have_no_getter accessors_follow_rights_kinds_and_command_parts every_principal_s_sdk_compiles the_generic_sdks_drive_the_runtime the_identity_is_the_principal_s_digest_and_keyset without_a_binding_there_is_no_sdk_and_a_binding_holds_templates_only |
+| BD05 | src/contract/sdk.rs | `ctx.insert("token", &pr.token);` | `ctx.insert("token", &0u16);` | the token in the identity | KILLED | a_binding_file_renders_once_per_principal_under_its_name |

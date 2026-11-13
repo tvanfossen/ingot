@@ -52,6 +52,11 @@ struct Cli {
     #[arg(long, requires = "contract")]
     shadow_buffer: Option<u32>,
 
+    /// Contract mode: a directory of SDK templates binding the generated per-principal SDKs to
+    /// the consumer's store runtime (no SDK without it)
+    #[arg(long, requires = "contract")]
+    sdk_binding: Option<PathBuf>,
+
     /// Output directory for generated code
     #[arg(short, long, default_value = "generated")]
     output: PathBuf,
@@ -166,9 +171,11 @@ fn dispatch(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
 /// The contract-mode options the command line gives.
 ///
 /// v2: the shadow composer's buffer.
-/// @version 2
+/// v3: the SDK binding.
+/// @version 3
 /// @req REQ-ING-TIV-002
 /// @req REQ-ING-DSH-005
+/// @req REQ-ING-SDK-004
 fn contract_options<'a>(cli: &'a Cli, contract: &'a std::path::Path) -> contract::Options<'a> {
     contract::Options {
         contract,
@@ -177,6 +184,7 @@ fn contract_options<'a>(cli: &'a Cli, contract: &'a std::path::Path) -> contract
         output: &cli.output,
         allow_dirty: cli.allow_dirty_ingot,
         shadow_buffer: cli.shadow_buffer,
+        sdk_binding: cli.sdk_binding.as_deref(),
     }
 }
 

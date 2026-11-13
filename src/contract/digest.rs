@@ -48,9 +48,11 @@ pub fn digests(tables: &Tables) -> Vec<Vec<[u8; 32]>> {
 
 /// The (ID, type) pairs principal `p` may read or write as of minor `m`.
 ///
-/// @version 1
+/// v2: shared with the SDK keyset.
+/// @version 2
 /// @req REQ-ING-TIV-008
-fn subset(tables: &Tables, p: usize, m: u16) -> Vec<(u32, u8)> {
+/// @req REQ-ING-SDK-001
+pub(super) fn subset(tables: &Tables, p: usize, m: u16) -> Vec<(u32, u8)> {
     tables
         .keys
         .iter()

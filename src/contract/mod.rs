@@ -25,6 +25,7 @@ pub mod refuse_shadow;
 pub mod rights;
 pub mod schema;
 pub mod schema_shadow;
+pub mod sdk;
 pub mod shadow;
 pub mod shadow_size;
 pub mod snapshot;
@@ -50,6 +51,8 @@ pub struct Options<'a> {
     pub allow_dirty: bool,
     /// The shadow composer's buffer in bytes, when given (a larger full document is warned about).
     pub shadow_buffer: Option<u32>,
+    /// The consumer's SDK runtime binding (a template directory), when SDKs are wanted.
+    pub sdk_binding: Option<&'a Path>,
 }
 
 /// The commit to stamp into the outputs; a dirty or unknown build is refused unless allowed.
@@ -107,10 +110,14 @@ pub fn generate(opts: &Options, tera: &Tera) -> Result<(), Box<dyn std::error::E
 /// Write every contract-mode output for accepted tables; `hash` is the keyspace body's.
 ///
 /// v2: the shadow tables.
-/// @version 2
+/// v3: the per-principal SDKs.
+/// v4: only through a given binding.
+/// @version 4
+/// @req REQ-ING-SDK-004
 /// @req REQ-ING-TIV-009
 /// @req REQ-ING-TIV-012
 /// @req REQ-ING-DSH-001
+/// @req REQ-ING-SDK-001
 fn write_outputs(
     opts: &Options,
     tera: &Tera,
@@ -128,6 +135,9 @@ fn write_outputs(
         opts.shadow_buffer,
         opts.output,
     )?;
+    if let Some(binding) = opts.sdk_binding {
+        sdk::write(binding, tables, commit, opts.output)?;
+    }
     let json = serde_json::to_string_pretty(snapshot)?;
     write_generated(opts.output.join("contract.json"), json)?;
     if let Some(lines) = review {
