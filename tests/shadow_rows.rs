@@ -363,7 +363,14 @@ fn a_model_without_variants_checks_its_paths_in_its_only_pass() {
     let twice = "\n[[shadow_constant]]\npath = \"sv\"\nvalue = \"a\"\n\n[[shadow_constant]]\npath = \"sv\"\nvalue = \"b\"\n";
     let text = fs::read_to_string(&file).unwrap();
     fs::write(&file, format!("{text}{twice}")).unwrap();
-    let (ok, stderr) = generate(&file, &dir.join("out"), &[]);
+    let out = dir.join("out");
+    let args = [
+        "--contract",
+        file.to_str().unwrap(),
+        "--output",
+        out.to_str().unwrap(),
+    ];
+    let (ok, stderr) = run_ingot(&[&args[..], &["--allow-dirty-ingot"]].concat());
     assert!(
         !ok && stderr.contains("shadow_constant: shadow path sv is taken by shadow_constant"),
         "{stderr}"
