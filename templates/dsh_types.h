@@ -96,7 +96,8 @@ enum { DSH_DO_STEPS = 0,            /* run the row's steps in order */
 
 /* dsh_arg_t.flags */
 #define DSH_AF_CONSTANT 0x01u       /* write `value`; no field */
-#define DSH_AF_REQUIRED 0x02u       /* a missing field answers `ec` */
+#define DSH_AF_REQUIRED 0x02u       /* a missing field answers `ec` and the row does nothing
+                                     * else (ec 0: success, as for a verb that needs it) */
 #define DSH_AF_ABSENT   0x04u       /* a missing field writes `value` */
 #define DSH_AF_OMIT     0x08u       /* a missing field writes nothing */
 

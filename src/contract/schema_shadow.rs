@@ -447,4 +447,42 @@ pub struct ShadowCommand {
     /// Why the library handles the verb itself.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub internal: Option<String>,
+    /// Further commands the row submits after `command`, in order, each with its arguments.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub also: Vec<Step>,
+}
+
+/// One further command of a row (`also`), with its arguments.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct Step {
+    pub command: String,
+    #[serde(default)]
+    pub args: Vec<Arg>,
+}
+
+impl ShadowCommand {
+    /// The row's steps in order: its command (none: STATE writes only) with its arguments, then
+    /// each `also` command with its own.
+    ///
+    /// @version 1
+    /// @req REQ-ING-CMD-004
+    pub fn steps(&self) -> Vec<(Option<&String>, &[Arg])> {
+        let first = (self.command.as_ref(), self.args.as_slice());
+        let rest = self
+            .also
+            .iter()
+            .map(|s| (Some(&s.command), s.args.as_slice()));
+        std::iter::once(first).chain(rest).collect()
+    }
+
+    /// Whether any step of the row submits command `path`.
+    ///
+    /// @version 1
+    /// @req REQ-ING-CMD-004
+    pub fn submits(&self, path: &str) -> bool {
+        self.steps()
+            .iter()
+            .any(|(c, _)| c.is_some_and(|c| c == path))
+    }
 }

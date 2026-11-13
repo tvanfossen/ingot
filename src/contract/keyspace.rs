@@ -294,19 +294,18 @@ fn diff(base: &Value, variant: Option<&Value>) -> Value {
 /// that reach each one and, for an internal command, why it is not on the wire.
 ///
 /// v2: the wire rows and the internal reason.
-/// @version 2
+/// v3: a row reaches every command it submits, its further commands too.
+/// @version 3
 /// @req REQ-ING-KSP-001
 /// @req REQ-ING-CMD-001
+/// @req REQ-ING-CMD-004
 fn commands(tables: &Tables) -> Value {
     let list: Vec<Value> = tables
         .commands
         .iter()
         .map(|c| {
             let rows = &tables.shadow.commands;
-            let wire: Vec<_> = rows
-                .iter()
-                .filter(|r| r.command.as_ref() == Some(&c.path))
-                .collect();
+            let wire: Vec<_> = rows.iter().filter(|r| r.submits(&c.path)).collect();
             json!({"name": c.path, "id": c.keys[0], "result": c.keys[1], "dedupe": c.keys[2],
                    "owner": c.owner, "persist": c.persist.name(), "wire": wire,
                    "internal": c.internal})

@@ -11,8 +11,10 @@ use super::value::{encode_default, int_range};
 
 /// Every command-row refusal.
 ///
-/// @version 1
+/// v2: the arguments of every step, and the further commands.
+/// @version 2
 /// @req REQ-ING-CMD-001
+/// @req REQ-ING-CMD-004
 pub fn check(tables: &Tables, errors: &mut Errors) {
     let rows = &tables.shadow.commands;
     for r in rows {
@@ -20,12 +22,33 @@ pub fn check(tables: &Tables, errors: &mut Errors) {
         topic_rules(tables, r, &mut refuse);
         selector_rules(tables, r, &mut refuse);
         body_rules(tables, r, &mut refuse);
-        for a in &r.args {
-            arg_rules(tables, r, a, &mut refuse);
+        also_rules(tables, r, &mut refuse);
+        for (command, args) in r.steps() {
+            for a in args {
+                arg_rules(tables, (r, command), a, &mut refuse);
+            }
         }
     }
     duplicates(rows, errors);
     enumerated(tables, errors);
+}
+
+/// Further commands follow a row's own command, and each is a command of the variant.
+///
+/// @version 1
+/// @req REQ-ING-CMD-004
+fn also_rules(tables: &Tables, r: &ShadowCommand, refuse: &mut impl FnMut(String)) {
+    if !r.also.is_empty() && r.command.is_none() {
+        refuse("also follows the row's own command".into());
+    }
+    for s in &r.also {
+        if !tables.commands.iter().any(|c| c.path == s.command) {
+            refuse(format!(
+                "also: command {} is not a command of this variant",
+                s.command
+            ));
+        }
+    }
 }
 
 /// `field=wire`, `field[element]` or `field{}`.
@@ -166,16 +189,18 @@ fn commandless_rules(r: &ShadowCommand, refuse: &mut impl FnMut(String)) {
     }
 }
 
-/// The key `path` names when an argument may write it: a plain key of the row command's class,
-/// or a STATE key.
+/// The key `path` names when an argument of a step submitting `command` may write it: a plain
+/// key of that command's class, or a STATE key.
 ///
 /// v2: a STATE key.
-/// @version 2
+/// v3: the step's command, not the row's.
+/// @version 3
 /// @req REQ-ING-CMD-001
 /// @req REQ-ING-CMD-002
-fn arg_key<'a>(tables: &'a Tables, r: &ShadowCommand, path: &str) -> Option<&'a Key> {
+/// @req REQ-ING-CMD-004
+fn arg_key<'a>(tables: &'a Tables, command: Option<&String>, path: &str) -> Option<&'a Key> {
     let key = &tables.keys[tables.key_index(path)?];
-    let class = r.command.as_deref().and_then(|c| c.rsplit_once('.'));
+    let class = command.and_then(|c| c.rsplit_once('.'));
     let in_class =
         class.is_some_and(|(cls, _)| path.rsplit_once('.').is_some_and(|(c, _)| c == cls));
     let plain = key.command.is_none() && (in_class || key.role == Role::State);
@@ -286,12 +311,19 @@ fn value_rule(tables: &Tables, r: &ShadowCommand, key: &Key, a: &Arg) -> Option<
 ///
 /// v2: constants, value names, STATE keys, decimal text and base64 into a binary key.
 /// v3: the value check moved to `value_rule`.
-/// @version 3
+/// v4: the key is checked against the step's command.
+/// @version 4
 /// @req REQ-ING-CMD-001
 /// @req REQ-ING-CMD-002
-fn arg_rules(tables: &Tables, r: &ShadowCommand, a: &Arg, refuse: &mut impl FnMut(String)) {
+/// @req REQ-ING-CMD-004
+fn arg_rules(
+    tables: &Tables,
+    (r, command): (&ShadowCommand, Option<&String>),
+    a: &Arg,
+    refuse: &mut impl FnMut(String),
+) {
     let name = arg_name(a);
-    let Some(key) = arg_key(tables, r, &a.key) else {
+    let Some(key) = arg_key(tables, command, &a.key) else {
         return refuse(format!(
             "arg {name}: {} is neither a plain key of the command's class nor a STATE key",
             a.key
@@ -328,17 +360,19 @@ fn duplicates(rows: &[ShadowCommand], errors: &mut Errors) {
 }
 
 /// S6: when any row exists, every command of the variant has a row or is internal with a
-/// reason, never both.
+/// reason, never both (a further command of a row is on the wire too).
 ///
-/// @version 1
+/// v2: further commands.
+/// @version 2
 /// @req REQ-ING-CMD-001
+/// @req REQ-ING-CMD-004
 fn enumerated(tables: &Tables, errors: &mut Errors) {
     let rows = &tables.shadow.commands;
     if rows.is_empty() {
         return;
     }
     for c in &tables.commands {
-        let on_wire = rows.iter().any(|r| r.command.as_ref() == Some(&c.path));
+        let on_wire = rows.iter().any(|r| r.submits(&c.path));
         let why = match (on_wire, c.internal.as_deref()) {
             (false, None) => Some(
                 "no shadow_commands row enumerates it (declare one, or internal = \"<reason>\")",

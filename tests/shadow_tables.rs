@@ -814,3 +814,77 @@ fn error_bits_are_sorted_by_bit_not_by_key() {
     compile_and_walk(&gen);
     let _ = fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn a_verb_without_its_argument_answers_success_and_does_nothing() {
+    let dir = unique_dir("dsh_required_success");
+    let rows = format!("{GO_ROW}\n\n[[shadow_commands]]\ntopic = \"command_topic\"\nselector = {{ field = \"state\", wire = \"getlog\" }}\nargs = [ {{ field = \"url\", key = \"drive.state.label\", required = true, ec = 0 }} ]");
+    let gen = generated(&dir, "getlog", "sku_a", &[("ns/drive.toml", GO_ROW, &rows)]);
+    let getlog = steps(&gen, &row(&table(&gen, "dsh_commands"), "\"getlog\""));
+    assert!(
+        getlog[0].0.starts_with("{ .command = 0x00000000U,"),
+        "STATE writes only"
+    );
+    let url = &getlog[0].1[0];
+    assert!(url.contains(".flags = DSH_AF_REQUIRED, .ec = 0u"), "{url}");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// @brief The 1.1 model whose factory reset row also enables the trace and edits the map,
+/// generated for sku_a into `dir`.
+/// @version 1
+fn also_model(dir: &Path) -> PathBuf {
+    let internal =
+        "internal = \"a signed envelope a diagnostic tool delivers, not a shadow request\"";
+    let reset = "command = \"core.command.factory_reset\"";
+    let also = "command = \"core.command.factory_reset\"\nalso = [ { command = \"core.command.trace_enable\" }, { command = \"drive.command.map_edit\", args = [ { key = \"drive.command.map_id\", value = 7 } ] } ]";
+    let edits = [
+        ("ns/core.toml", internal, ""),
+        ("ns/core.toml", reset, also),
+    ];
+    generated(dir, "also", "sku_a", &edits)
+}
+
+#[test]
+fn a_row_submits_further_commands_as_steps() {
+    let dir = unique_dir("dsh_also");
+    let gen = also_model(&dir);
+    let steps = steps(
+        &gen,
+        &row(&table(&gen, "dsh_commands"), "\"net.factoryReset\""),
+    );
+    let id = |k: &str| format!("{:#010X}U", key_json(&gen, k)["id"].as_u64().unwrap());
+    let commands: Vec<&str> = steps
+        .iter()
+        .map(|(s, _)| s.split(", ").next().unwrap())
+        .collect();
+    let expected = [
+        "core.command.factory_reset",
+        "core.command.trace_enable",
+        "drive.command.map_edit",
+    ];
+    assert_eq!(
+        commands,
+        expected.map(|k| format!("{{ .command = {}", id(k)))
+    );
+    assert!(steps[0].1.is_empty() && steps[1].1.is_empty());
+    assert_eq!(value(&gen, &steps[2].1[0]), vec![7, 0]);
+    compile_and_walk(&gen);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_further_command_lists_the_row_that_submits_it() {
+    let dir = unique_dir("dsh_also_keyspace");
+    let gen = also_model(&dir);
+    let text = fs::read_to_string(gen.join("keyspace.sku_a.json")).unwrap();
+    let keyspace: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let commands = keyspace["commands"].as_array().unwrap();
+    let trace = commands
+        .iter()
+        .find(|c| c["name"] == "core.command.trace_enable")
+        .unwrap();
+    assert_eq!(trace["wire"][0]["selector"]["field"], "net.factoryReset");
+    assert_eq!(trace["wire"][0]["also"][1]["args"][0]["value"], 7);
+    let _ = fs::remove_dir_all(&dir);
+}

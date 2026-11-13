@@ -135,15 +135,20 @@ fn step(tables: &Tables, command: Option<&String>, args: &[Arg], pools: &mut Poo
     ));
 }
 
-/// The steps of a row that runs steps: its command (or STATE writes) with its arguments.
+/// The steps of a row that runs steps: its command (or STATE writes) with its arguments, then
+/// each further command with its own.
 ///
-/// @version 1
+/// v2: further commands.
+/// @version 2
 /// @req REQ-ING-DSH-003
+/// @req REQ-ING-CMD-004
 fn steps(tables: &Tables, r: &ShadowCommand, pools: &mut Pools) -> String {
     let first = pools.steps.len();
     let settings = r.body == Body::Kind(BodyKind::Settings);
     if !settings && r.answer.is_none() && r.internal.is_none() {
-        step(tables, r.command.as_ref(), &r.args, pools);
+        for (command, args) in r.steps() {
+            step(tables, command, args, pools);
+        }
     }
     let count = pools.steps.len() - first;
     format!(".steps_first = {first}u, .steps_count = {count}u")
