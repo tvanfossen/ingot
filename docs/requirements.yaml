@@ -711,6 +711,17 @@ requirements:
       A row submitting its command and two further ones generates three steps, enumerates each
       command and lists the row under each; a further command on a commandless row, an unknown
       one, and a further command's argument outside its class are refused.
+  REQ-ING-CMD-005:
+    name: Request fields are dotted identifiers
+    subsystem: Generated outputs (G2)
+    description: >-
+      Every request field of a shadow command row (the selector's, a body object and its
+      selector's, each argument's, further commands' arguments too) is identifiers joined by dots,
+      each dot one nested JSON object; anything else is refused. The keyspace schema documents
+      the rule and settings_in_every_body.
+    acceptance_criteria: >-
+      The generic model's nested selector (net.factoryReset) generates; a malformed selector
+      field, body object, body selector field and argument field are each refused.
   REQ-ING-TOP-001:
     name: MQTT topic declarations and envelopes
     subsystem: Generated outputs (G2)
