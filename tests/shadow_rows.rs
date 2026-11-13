@@ -75,6 +75,21 @@ fn two_codes_report_one_wire_string_when_one_declares_it() {
 }
 
 #[test]
+fn a_wire_string_names_the_member_that_reports_it_itself() {
+    let dir = unique_dir("rows_report_by_wire");
+    let anchor = "boost = { value = 2, wire = \"high\", accept = [\"max\"] }";
+    let line = format!("{anchor}\naaa = {{ value = 3, report_as = \"boost\" }}\nbbb = {{ value = 4, report_as = \"high\" }}");
+    let gen = generated(&dir, "ab", "sku_b", &[("ns/drive.toml", anchor, &line)]);
+    let fan = &read(&gen, "keyspace.sku_b.json")["enums"][0];
+    assert_eq!(fan["values"][4]["name"], "bbb");
+    assert_eq!(
+        fan["values"][4]["report_as"], "boost",
+        "not aaa, which reports high too"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn a_path_can_exist_on_one_variant() {
     let dir = unique_dir("rows_variant_paths");
     let paths = "shadow = [{ path = \"state.docked\", variants = [\"sku_a\"] }, { path = \"state.isDocked\", variants = [\"sku_b\"] }]\nforced";

@@ -50,16 +50,12 @@ fn member(name: &str, def: &EnumValueDef) -> Member {
 }
 
 impl Member {
-    /// Every inbound string of the member: its wire string (unless it reports as another
-    /// member), then its accept aliases.
+    /// Every inbound string of the member: its wire string, then its accept aliases.
     ///
-    /// v2: a member that reports as another has only its aliases.
-    /// @version 2
+    /// @version 1
     /// @req REQ-ING-SHD-001
-    /// @req REQ-ING-SHD-005
     pub fn inbound(&self) -> impl Iterator<Item = &String> {
-        let own = self.report_as.is_none().then_some(&self.wire);
-        own.into_iter().chain(&self.accept)
+        std::iter::once(&self.wire).chain(&self.accept)
     }
 }
 
@@ -211,8 +207,9 @@ fn apply_variant(
 /// string or an accept alias) means one code.
 ///
 /// v2: inbound strings (S5).
-/// v3: a member that reports as another shares its wire string and has no inbound wire string.
-/// @version 3
+/// v3: a member that reports as another shares its wire string (refused only when undeclared).
+/// v4: one inbound check for every member (a reporting member's wire string is its target's).
+/// @version 4
 /// @req REQ-ING-TIV-016
 /// @req REQ-ING-SHD-001
 /// @req REQ-ING-SHD-005
@@ -233,7 +230,7 @@ fn check_unique(path: &str, resolved: &ResolvedEnum, errors: &mut Errors) {
             }
         }
     }
-    for m in resolved.values().filter(|m| m.report_as.is_none()) {
+    for m in resolved.values() {
         if inbound.get(&m.wire).is_some_and(|v| *v != m.value) {
             errors.push(format!(
                 "{path}: inbound string {} maps to two codes",
