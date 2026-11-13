@@ -697,6 +697,20 @@ requirements:
     acceptance_criteria: >-
       Each form generates and is listed in the keyspace; an answer or internal with a command or
       args, an empty internal reason, and a commandless row with a non-STATE argument are refused.
+  REQ-ING-CMD-004:
+    name: Further commands of a row
+    subsystem: Generated outputs (G2)
+    description: >-
+      A shadow command row with a command may list `also`: further commands it submits after its
+      own, in order, each with its own arguments, which follow the argument rules against that
+      command's class. A further command counts as enumerated on the wire, its keyspace entry
+      lists the row, and the row's dsh_steps hold one step per command. `also` on a row without a
+      command, or naming no command of the variant, is refused. A verb that does nothing without
+      an argument is a required argument with result code 0.
+    acceptance_criteria: >-
+      A row submitting its command and two further ones generates three steps, enumerates each
+      command and lists the row under each; a further command on a commandless row, an unknown
+      one, and a further command's argument outside its class are refused.
   REQ-ING-TOP-001:
     name: MQTT topic declarations and envelopes
     subsystem: Generated outputs (G2)
