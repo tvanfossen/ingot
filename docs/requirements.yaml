@@ -704,6 +704,24 @@ requirements:
     acceptance_criteria: >-
       A delta echo and a float key at one path generate; a bool echo there, or a second echo row,
       is refused.
+  REQ-ING-SHD-010:
+    name: A bool reported as 0/1 in one document
+    subsystem: Generated outputs (G2)
+    description: >-
+      A bool key's reported path (STATE or CONFIG) may declare as = "integer": the value is
+      reported as the JSON number 0 or 1 (DSH_FORM_BOOL_INTEGER, shadow table interface minor 2)
+      instead of true or false. A bool's inbound side stays a JSON bool: as on a bool SETTINGS
+      key's desired path, and as = "enum" on a bool key, are refused; as on any other non-enum
+      key is refused. One key may list a path once per variant and document, so entries of
+      disjoint scopes (full and delta) share a path, each with its own form; entries meeting in a
+      document are refused. Each document is sized at its own entries' text, and a bool echo
+      shares no delta member with a 0/1 path.
+    acceptance_criteria: >-
+      A bool STATE key listed at one path as integer in the full document and plain in the delta
+      generates a full row of DSH_FORM_BOOL_INTEGER and a forced delta row of DSH_FORM_PLAIN, the
+      tables compile, and the full document is 4 bytes shorter with the forced delta unchanged.
+      Full and both, or delta twice, at one path are refused; as on a bool SETTINGS key, as =
+      "enum" on a bool key, as on an integer key, and a bool echo at a 0/1 delta path are refused.
   REQ-ING-CMD-001:
     name: Shadow commands enumerate every command
     subsystem: Generated outputs (G2)
