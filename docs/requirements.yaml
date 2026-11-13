@@ -624,6 +624,32 @@ requirements:
       generate; each misplaced form, a path taken twice in one document and a forced key without
       a delta path are refused; the full size follows the forms and scopes; without forms the
       outputs, store tables and digests are byte-identical.
+  REQ-ING-SHD-004:
+    name: Per-variant shadow paths and the delta's error list
+    subsystem: Generated outputs (G2)
+    description: >-
+      A shadow path table may carry `variants`, the declared variants the path exists on (absent:
+      every variant); a variant's tables, contract.json and resolved keyspace hold only its paths,
+      and an undeclared variant is refused. The error groups' shadow field is in the delta as well
+      as the full document (today's error reactor publishes it on change).
+    acceptance_criteria: >-
+      A key reported at one path on one variant and another path on the other generates each
+      variant's own path; an undeclared variant on a path is refused; a delta-only key at the
+      error field is refused.
+  REQ-ING-SHD-005:
+    name: Declared outbound many-to-one (report_as)
+    subsystem: Generated outputs (G2)
+    description: >-
+      An enum value may declare `report_as` (the name or wire string of another member) instead
+      of a wire string: its code reports that member's wire string outbound, and it has no
+      inbound string of its own besides its accept aliases. A value declares a wire string or
+      report_as, not both and not neither; the target exists and does not itself report as
+      another; an outbound wire string is used once except through report_as. The keyspace
+      shows report_as beside the reported wire string.
+    acceptance_criteria: >-
+      Two codes reporting one wire string generate when one declares report_as; an undeclared
+      duplicate, a missing or chained target, and both or neither of wire and report_as are
+      refused.
   REQ-ING-CMD-001:
     name: Shadow commands enumerate every command
     subsystem: Generated outputs (G2)
@@ -640,6 +666,31 @@ requirements:
       The generic model enumerates every command and form; each malformed row, a duplicate
       selector on overlapping variants and an unenumerated command are refused; the keyspace
       files list every command with its rows.
+  REQ-ING-CMD-002:
+    name: Argument forms of shadow command rows
+    subsystem: Generated outputs (G2)
+    description: >-
+      An argument takes a request field, or is a constant (`value`, no field) written into its
+      key when the row is selected. Its key is a plain key of the command's class or a STATE key.
+      An enum key's absent or constant value may be a value name of the key's enum. `element = N`
+      takes the Nth element of an array field; `encoding = "decimal_text"` reads a JSON string
+      holding a decimal integer into an integer key. Base64 text goes into a string key (passed
+      through as text) or a binary key (decoded: the key holds the bytes, max_size is the decoded
+      size). A constant has no field, required rule, result code, absent rule, encoding or element.
+    acceptance_criteria: >-
+      A constant argument, an enum value by name, a STATE-key argument, array-element arguments
+      and base64 into a binary key generate; each misplaced form is refused.
+  REQ-ING-CMD-003:
+    name: Row outcomes without a command
+    subsystem: Generated outputs (G2)
+    description: >-
+      A row without a command is a settings body; or `answer = <ec>`, a verb answered with that
+      result code and nothing else (no args); or `internal = "<reason>"`, a verb the library
+      handles itself (no args, no answer); or a row whose args all write STATE keys. A row with a
+      command declares neither answer nor internal.
+    acceptance_criteria: >-
+      Each form generates and is listed in the keyspace; an answer or internal with a command or
+      args, an empty internal reason, and a commandless row with a non-STATE argument are refused.
   REQ-ING-TOP-001:
     name: MQTT topic declarations and envelopes
     subsystem: Generated outputs (G2)
