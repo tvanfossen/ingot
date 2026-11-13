@@ -7,6 +7,7 @@ use super::schema::{
     Arg, Body, BodyKind, Direction, Encoding, KeyType, Protocol, Required, Role, Selector,
     ShadowCommand, WireLit,
 };
+use super::shadow_size::valid_path;
 use super::value::{encode_default, int_range};
 
 /// Every command-row refusal.
@@ -104,11 +105,15 @@ fn forms(s: &Selector) -> usize {
 }
 
 /// One selector form; element selectors are exactly the command_array protocol, whose topic has
-/// an envelope id; an object body selects its verb by wire.
+/// an envelope id; an object body selects its verb by wire; every request field of the row is
+/// dotted identifiers (`field_rules`).
 ///
-/// @version 1
+/// v2: the request fields.
+/// @version 2
 /// @req REQ-ING-CMD-001
+/// @req REQ-ING-CMD-005
 fn selector_rules(tables: &Tables, r: &ShadowCommand, refuse: &mut impl FnMut(String)) {
+    field_rules(r, refuse);
     if forms(&r.selector) != 1 {
         refuse("the selector has one of wire, element or object".into());
     }
@@ -124,6 +129,27 @@ fn selector_rules(tables: &Tables, r: &ShadowCommand, refuse: &mut impl FnMut(St
         refuse("a command_array topic needs an envelope id".into());
     }
     object_rule(r, refuse);
+}
+
+/// Every request field of a row (selector, body object and its selector, each argument's) is
+/// dotted identifiers: each dot is one nested JSON object (`wifi.factoryReset` is
+/// `{"wifi":{"factoryReset":...}}`; a member literally named "wifi.factoryReset" never matches).
+///
+/// @version 1
+/// @req REQ-ING-CMD-005
+fn field_rules(r: &ShadowCommand, refuse: &mut impl FnMut(String)) {
+    let mut fields = vec![r.selector.field.as_str()];
+    if let Body::Object(o) = &r.body {
+        fields.extend([o.object.as_str(), o.selector.field.as_str()]);
+    }
+    for (_, args) in r.steps() {
+        fields.extend(args.iter().filter_map(|a| a.field.as_deref()));
+    }
+    for f in fields.into_iter().filter(|f| !valid_path(f)) {
+        refuse(format!(
+            "field '{f}' is not dotted identifiers (each dot is one nested object)"
+        ));
+    }
 }
 
 /// An object body selects its verb by wire, and by nothing else.

@@ -13,6 +13,16 @@
       "type": "object",
       "additionalProperties": { "type": "boolean" }
     },
+    "variants": {
+      "description": "The declared variants an entry exists on; absent: every variant.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "field": {
+      "description": "A request field: dotted identifiers, each dot one nested JSON object (wifi.factoryReset is {\"wifi\":{\"factoryReset\":...}}).",
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$"
+    },
     "key": {
       "$ref": "#/$defs/trusted",
       "type": "object",
@@ -22,7 +32,27 @@
         "name": { "type": "string" },
         "type": { "enum": ["bool", "uint8", "int8", "uint16", "int16", "uint32", "int32", "float32", "string", "binary", "struct"] },
         "role": { "enum": ["settings", "state", "command", "config", "diag"] },
-        "present": { "oneOf": [{ "type": "boolean" }, { "$ref": "#/$defs/presence" }] }
+        "present": { "oneOf": [{ "type": "boolean" }, { "$ref": "#/$defs/presence" }] },
+        "shadow": {
+          "description": "The key's shadow paths, each once (dotted, under state.desired for SETTINGS, state.reported for STATE).",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "shadow_forms": {
+          "description": "Every path entry, present only when one declares a form, scope or variants. One path may appear once per variant, with its own form and scope.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/trusted",
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+              "path": { "type": "string" },
+              "as": { "enum": ["enum", "integer"] },
+              "scope": { "enum": ["full", "delta", "both"] },
+              "variants": { "$ref": "#/$defs/variants" }
+            }
+          }
+        }
       }
     },
     "enum": {
@@ -39,9 +69,64 @@
             "properties": {
               "code": { "type": "integer" },
               "name": { "type": "string" },
-              "wire": { "type": "string" }
+              "wire": { "description": "The reported string (the report_as target's when present).", "type": "string" },
+              "report_as": { "description": "The member whose wire string this code reports; it has no inbound string of its own, only its accept aliases.", "type": "string" },
+              "accept": { "description": "Further inbound strings meaning this code.", "type": "array", "items": { "type": "string" } }
             }
           }
+        }
+      }
+    },
+    "arg": {
+      "$ref": "#/$defs/trusted",
+      "type": "object",
+      "required": ["key"],
+      "properties": {
+        "field": { "$ref": "#/$defs/field" },
+        "key": { "type": "string" }
+      }
+    },
+    "command_row": {
+      "description": "One way a request reaches the store: selector, body, the command with its args and the further commands (also) it submits after it, or an answer, an internal verb or a settings body.",
+      "$ref": "#/$defs/trusted",
+      "type": "object",
+      "required": ["topic", "selector"],
+      "properties": {
+        "topic": { "type": "string" },
+        "variants": { "$ref": "#/$defs/variants" },
+        "selector": {
+          "type": "object",
+          "required": ["field"],
+          "properties": { "field": { "$ref": "#/$defs/field" } }
+        },
+        "command": { "type": "string" },
+        "args": { "type": "array", "items": { "$ref": "#/$defs/arg" } },
+        "also": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/trusted",
+            "type": "object",
+            "required": ["command"],
+            "properties": {
+              "command": { "type": "string" },
+              "args": { "type": "array", "items": { "$ref": "#/$defs/arg" } }
+            }
+          }
+        }
+      }
+    },
+    "topic": {
+      "$ref": "#/$defs/trusted",
+      "type": "object",
+      "required": ["id", "template", "direction", "connection"],
+      "properties": {
+        "id": { "type": "string" },
+        "template": { "type": "string" },
+        "direction": { "enum": ["pub", "sub"] },
+        "connection": { "type": "string" },
+        "settings_in_every_body": {
+          "description": "Every body on this topic, whatever its verb, also runs the settings binder on its top-level fields before the verb (today: processState runs update_drive_settings on every cmd/req body, except a wifi.factoryReset body, which process_new_command handles first).",
+          "type": "boolean"
         }
       }
     }
@@ -77,6 +162,26 @@
     },
     "enums": { "type": "array", "items": { "$ref": "#/$defs/enum" } },
     "commands": { "type": "array", "items": { "$ref": "#/$defs/trusted", "type": "object" } },
-    "rights": { "type": "array", "items": { "$ref": "#/$defs/trusted", "type": "object" } }
+    "rights": { "type": "array", "items": { "$ref": "#/$defs/trusted", "type": "object" } },
+    "shadow": {
+      "description": "The shadow wire mapping of the file's variant (all rows, each with its variants, in the all-variants file).",
+      "$ref": "#/$defs/trusted",
+      "type": "object",
+      "properties": {
+        "topics": { "type": "array", "items": { "$ref": "#/$defs/topic" } },
+        "commands": { "type": "array", "items": { "$ref": "#/$defs/command_row" } },
+        "echo": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/trusted",
+            "type": "object",
+            "required": ["path", "type"],
+            "properties": { "variants": { "$ref": "#/$defs/variants" } }
+          }
+        },
+        "full_max_bytes": { "type": "integer" },
+        "delta_forced_bytes": { "type": "integer" }
+      }
+    }
   }
 }
