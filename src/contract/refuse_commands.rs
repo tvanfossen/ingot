@@ -12,7 +12,8 @@ use super::value::{encode_default, int_range};
 /// Every command-row refusal.
 ///
 /// v2: the arguments of every step, and the further commands.
-/// @version 2
+/// v3: the arguments are checked against their step's command alone.
+/// @version 3
 /// @req REQ-ING-CMD-001
 /// @req REQ-ING-CMD-004
 pub fn check(tables: &Tables, errors: &mut Errors) {
@@ -25,7 +26,7 @@ pub fn check(tables: &Tables, errors: &mut Errors) {
         also_rules(tables, r, &mut refuse);
         for (command, args) in r.steps() {
             for a in args {
-                arg_rules(tables, (r, command), a, &mut refuse);
+                arg_rules(tables, command, a, &mut refuse);
             }
         }
     }
@@ -288,17 +289,17 @@ fn encoding_rule(enc: Encoding, ty: KeyType) -> Option<&'static str> {
 }
 
 /// An absent or constant value of an argument (an enum key's by value name too) suits the key.
-/// A row limited to variants is checked in each of its variants' passes, never against the
-/// base's enums (a variant may name values the base does not have).
+/// The all-variants view checks none: every row is checked in each of its variants' passes,
+/// against that variant's enums (a variant may name values the base does not have).
 ///
 /// @version 1
 /// @req REQ-ING-CMD-002
-fn value_rule(tables: &Tables, r: &ShadowCommand, key: &Key, a: &Arg) -> Option<String> {
-    let base_view = tables.variant.is_empty() && r.variants.is_some();
+/// @req REQ-ING-SHD-004
+fn value_rule(tables: &Tables, key: &Key, a: &Arg) -> Option<String> {
     a.absent
         .iter()
         .chain(&a.value)
-        .filter(|_| !base_view)
+        .filter(|_| !tables.all_variants_view())
         .find_map(|v| {
             by_name(key, v)
                 .and_then(|v| encode_default(key.ty, &v, key.max_size, key.enum_values.as_ref()))
@@ -310,18 +311,12 @@ fn value_rule(tables: &Tables, r: &ShadowCommand, key: &Key, a: &Arg) -> Option<
 /// (`value_rule`); its encoding suits the key's type.
 ///
 /// v2: constants, value names, STATE keys, decimal text and base64 into a binary key.
-/// v3: the value check moved to `value_rule`.
-/// v4: the key is checked against the step's command.
-/// @version 4
+/// v3: the value check moved to `value_rule`; the key is checked against the step's command.
+/// @version 3
 /// @req REQ-ING-CMD-001
 /// @req REQ-ING-CMD-002
 /// @req REQ-ING-CMD-004
-fn arg_rules(
-    tables: &Tables,
-    (r, command): (&ShadowCommand, Option<&String>),
-    a: &Arg,
-    refuse: &mut impl FnMut(String),
-) {
+fn arg_rules(tables: &Tables, command: Option<&String>, a: &Arg, refuse: &mut impl FnMut(String)) {
     let name = arg_name(a);
     let Some(key) = arg_key(tables, command, &a.key) else {
         return refuse(format!(
@@ -332,7 +327,7 @@ fn arg_rules(
     if let Some(why) = presence_rule(a) {
         refuse(format!("arg {name}: {why}"));
     }
-    if let Some(e) = value_rule(tables, r, key, a) {
+    if let Some(e) = value_rule(tables, key, a) {
         refuse(format!("arg {name}: {e}"));
     }
     if let Some(why) = a.encoding.and_then(|enc| encoding_rule(enc, key.ty)) {

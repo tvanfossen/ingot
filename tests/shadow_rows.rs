@@ -330,3 +330,43 @@ fn an_echo_row_names_declared_variants_only() {
     assert!(!ok && stderr.contains(refusal), "{stderr}");
     let _ = fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn the_all_variants_size_bounds_every_variant() {
+    let dir = unique_dir("rows_size_bound");
+    let fan = "shadow = [{ path = \"state.fanSpeed\", as = \"integer\", variants = [\"sku_a\"] }, { path = \"state.fanSpeed\", variants = [\"sku_b\"] }, \"settings.fanSpeed\"]";
+    let limit = "shadow = [ { path = \"settings.speedLimit\", variants = [\"sku_a\"] }, { path = \"settings.speedLimit\", scope = \"delta\", variants = [\"sku_b\"] } ]\napplies";
+    let edits = [
+        (
+            "ns/drive.toml",
+            "shadow = [\"state.fanSpeed\", \"settings.fanSpeed\"]",
+            fan,
+        ),
+        ("ns/drive.toml", LIMIT_PATH, limit),
+    ];
+    let bytes = |doc: &Value| doc["shadow"]["full_max_bytes"].as_u64().unwrap();
+    let a = generated(&dir, "a", "sku_a", &edits);
+    let b = generated(&dir, "b", "sku_b", &edits);
+    let all = bytes(&read(&b, "keyspace.json"));
+    for (gen, file) in [(&a, "keyspace.sku_a.json"), (&b, "keyspace.sku_b.json")] {
+        assert!(all >= bytes(&read(gen, file)), "{file}: {all}");
+    }
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_model_without_variants_checks_its_paths_in_its_only_pass() {
+    let dir = unique_dir("rows_no_variants");
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/contract/no_unix");
+    copy_dir(&fixture, &dir);
+    let file = dir.join("contract.toml");
+    let twice = "\n[[shadow_constant]]\npath = \"sv\"\nvalue = \"a\"\n\n[[shadow_constant]]\npath = \"sv\"\nvalue = \"b\"\n";
+    let text = fs::read_to_string(&file).unwrap();
+    fs::write(&file, format!("{text}{twice}")).unwrap();
+    let (ok, stderr) = generate(&file, &dir.join("out"), &[]);
+    assert!(
+        !ok && stderr.contains("shadow_constant: shadow path sv is taken by shadow_constant"),
+        "{stderr}"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
