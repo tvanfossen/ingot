@@ -377,3 +377,36 @@ fn a_model_without_variants_checks_its_paths_in_its_only_pass() {
     );
     let _ = fs::remove_dir_all(&dir);
 }
+
+/// @brief The all-variants keyspace's shadow sizes of the 1.0 model after `edits`.
+/// @version 1
+fn all_sizes(dir: &Path, tag: &str, edits: &[(&str, &str, &str)]) -> (u64, u64) {
+    let doc = read(&generated(dir, tag, "sku_b", edits), "keyspace.json");
+    let size = |k: &str| doc["shadow"][k].as_u64().unwrap();
+    (size("full_max_bytes"), size("delta_forced_bytes"))
+}
+
+#[test]
+fn per_variant_entries_at_one_path_count_once_at_their_widest() {
+    let dir = unique_dir("rows_widest");
+    let fan_anchor = "shadow = [\"state.fanSpeed\", \"settings.fanSpeed\"]";
+    let split_fan = "shadow = [{ path = \"state.fanSpeed\", as = \"integer\", variants = [\"sku_a\"] }, { path = \"state.fanSpeed\", variants = [\"sku_b\"] }, \"settings.fanSpeed\"]";
+    let docked = "shadow = \"state.docked\"\nforced";
+    let both =
+        "shadow = [\"state.docked\", { path = \"state.dockedB\", variants = [\"sku_b\"] }]\nforced";
+    let split = "shadow = [{ path = \"state.docked\", variants = [\"sku_a\"] }, { path = \"state.docked\", scope = \"full\", variants = [\"sku_b\"] }, { path = \"state.dockedB\", variants = [\"sku_b\"] }]\nforced";
+    let plain = all_sizes(&dir, "plain", &[("ns/drive.toml", docked, both)]);
+    let widest = all_sizes(
+        &dir,
+        "split",
+        &[
+            ("ns/drive.toml", fan_anchor, split_fan),
+            ("ns/drive.toml", docked, split),
+        ],
+    );
+    assert_eq!(
+        widest, plain,
+        "the enum form is the widest; a delta entry on one variant puts the path in the delta"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
