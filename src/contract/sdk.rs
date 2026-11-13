@@ -257,45 +257,88 @@ fn binding_files(dir: &Path) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>>
     Ok(files)
 }
 
-/// The templates of a binding directory, each under its file name.
+/// The suffix a binding template may carry so that the binding directory holds no source file:
+/// it is stripped from the output name.
+pub const TEMPLATE_SUFFIX: &str = ".tera";
+
+/// A binding's templates and, for each, its output name (the file name without a trailing
+/// `.tera`); an empty output name, or one another template renders to as well, is refused.
+pub struct Binding {
+    tera: Tera,
+    outputs: Vec<(String, String)>,
+}
+
+/// The output name of template `name`: `name` without a trailing `.tera`.
 ///
 /// @version 1
+/// @req REQ-ING-SDK-005
+fn output_name(name: &str) -> &str {
+    name.strip_suffix(TEMPLATE_SUFFIX).unwrap_or(name)
+}
+
+/// The output name of template `name`, refused when empty or already another template's.
+///
+/// @version 1
+/// @req REQ-ING-SDK-005
+fn unique_output(name: &str, outputs: &[(String, String)]) -> Result<String, String> {
+    let out = output_name(name).to_string();
+    if out.is_empty() {
+        Err(format!("{name}: a template's output name is empty"))
+    } else if outputs.iter().any(|(_, o)| o == &out) {
+        Err(format!(
+            "{name}: renders to {out}, as another template does"
+        ))
+    } else {
+        Ok(out)
+    }
+}
+
+/// The templates of a binding directory, each under its file name, with their output names.
+///
+/// v2: output names without the `.tera` suffix, each non-empty and unique.
+/// @version 2
 /// @req REQ-ING-SDK-004
-fn binding(dir: &Path) -> Result<Tera, Box<dyn std::error::Error>> {
+/// @req REQ-ING-SDK-005
+fn binding(dir: &Path) -> Result<Binding, Box<dyn std::error::Error>> {
     let mut tera = Tera::default();
+    let mut outputs: Vec<(String, String)> = Vec::new();
     for path in binding_files(dir)? {
         let name = path
             .file_name()
             .unwrap_or_default()
             .to_string_lossy()
             .into_owned();
+        let out = unique_output(&name, &outputs)?;
         tera.add_template_file(&path, Some(&name))?;
+        outputs.push((name, out));
     }
-    Ok(tera)
+    Ok(Binding { tera, outputs })
 }
 
 /// Render the binding at `dir` once per principal into `out/sdk/<principal>/`, each template
-/// to its file name with `PRINCIPAL` replaced by the principal's identifier.
+/// to its output name with `PRINCIPAL` replaced by the principal's identifier.
 ///
 /// v2: through a consumer-supplied binding (no built-in runtime).
-/// @version 2
+/// v3: output names without the `.tera` suffix.
+/// @version 3
 /// @req REQ-ING-SDK-001
 /// @req REQ-ING-SDK-004
+/// @req REQ-ING-SDK-005
 pub fn write(
     dir: &Path,
     tables: &Tables,
     commit: &str,
     out: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let tera = binding(dir)?;
+    let binding = binding(dir)?;
     for (p, pr) in tables.principals.iter().enumerate() {
         let name = ident(&pr.name);
         let to = out.join("sdk").join(&name);
         std::fs::create_dir_all(&to)?;
         let ctx = context(tables, p, commit);
-        for template in tera.get_template_names() {
-            let file = template.replace(PRINCIPAL_PLACEHOLDER, &name);
-            write_generated(to.join(file), tera.render(template, &ctx)?)?;
+        for (template, output) in &binding.outputs {
+            let file = output.replace(PRINCIPAL_PLACEHOLDER, &name);
+            write_generated(to.join(file), binding.tera.render(template, &ctx)?)?;
         }
     }
     Ok(())

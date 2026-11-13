@@ -79,12 +79,33 @@ fn every_principal_s_sdk_compiles() {
     let _ = fs::remove_dir_all(&dir);
 }
 
-#[test]
-fn the_generic_sdks_drive_the_runtime() {
-    let dir = unique_dir("sdk_drive");
-    let gen = dir.join("gen");
-    generate_bound(&gen);
-    let exe = dir.join("check_sdk");
+/// @brief The neutral test binding, as-is or (`tera`) with every template named `<name>.tera`,
+/// copied into `dir`.
+/// @version 1
+fn test_binding(dir: &Path, tera: bool) -> PathBuf {
+    let from = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sdk_binding");
+    let to = dir.join(if tera { "binding_tera" } else { "binding" });
+    fs::create_dir_all(&to).unwrap();
+    for entry in fs::read_dir(&from).unwrap() {
+        let name = entry.unwrap().file_name().to_string_lossy().into_owned();
+        let target = if tera {
+            format!("{name}.tera")
+        } else {
+            name.clone()
+        };
+        fs::copy(from.join(&name), to.join(target)).unwrap();
+    }
+    to
+}
+
+/// @brief Generate the 1.1 model with the test binding (`tera`: suffixed names), build the
+/// drive check against the recording store and run it.
+/// @version 1
+fn drive(dir: &Path, tera: bool) {
+    let gen = dir.join(format!("gen_{tera}"));
+    let binding = test_binding(dir, tera);
+    generate_ok("v1_1", &gen, &["--sdk-binding", binding.to_str().unwrap()]);
+    let exe = dir.join(format!("check_sdk_{tera}"));
     let mut args = includes(&gen);
     for p in ["inproc", "integrator", "app_cloud", "app_map"] {
         args.extend(sdk(&gen, p));
@@ -94,7 +115,55 @@ fn the_generic_sdks_drive_the_runtime() {
     }
     args.extend(["-o".into(), exe.display().to_string()]);
     cc(&args);
-    assert!(Command::new(&exe).status().unwrap().success(), "check_sdk");
+    assert!(
+        Command::new(&exe).status().unwrap().success(),
+        "check_sdk ({tera})"
+    );
+}
+
+#[test]
+fn the_generic_sdks_drive_the_runtime() {
+    let dir = unique_dir("sdk_drive");
+    drive(&dir, false);
+    drive(&dir, true);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_tera_suffix_is_stripped_and_output_names_stay_unique() {
+    let dir = unique_dir("sdk_tera_suffix");
+    let contract = model("v1_1").join("contract.toml");
+    let case = |files: &[&str], tag: &str| {
+        let binding = dir.join(tag).join("binding");
+        fs::create_dir_all(&binding).unwrap();
+        for f in files {
+            fs::write(binding.join(f), "{{ p }}").unwrap();
+        }
+        let out = dir.join(tag).join("out");
+        let (ok, stderr) = generate(
+            &contract,
+            &out,
+            &["--sdk-binding", binding.to_str().unwrap()],
+        );
+        (ok, stderr, out)
+    };
+    let (ok, stderr, out) = case(&["PRINCIPAL.txt.tera", "plain.txt"], "strip");
+    assert!(ok, "{stderr}");
+    assert_eq!(
+        fs::read_to_string(out.join("sdk/app_map/app_map.txt")).unwrap(),
+        "app_map\n"
+    );
+    assert!(out.join("sdk/app_map/plain.txt").exists());
+    let (ok, stderr, _) = case(&["a.txt", "a.txt.tera"], "collide");
+    assert!(
+        !ok && stderr.contains("a.txt.tera: renders to a.txt, as another template does"),
+        "{stderr}"
+    );
+    let (ok, stderr, _) = case(&[".tera"], "empty");
+    assert!(
+        !ok && stderr.contains(".tera: a template's output name is empty"),
+        "{stderr}"
+    );
     let _ = fs::remove_dir_all(&dir);
 }
 

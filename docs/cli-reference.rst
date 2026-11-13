@@ -74,8 +74,10 @@ A model that maps keys to the shadow also gets ``dsh_types.h`` (the fixed shadow
 table interface) and ``dsh_tables.h`` / ``dsh_tables.c``: the binder, reporter,
 command-router, error-group and topic tables of the variant. With ``--sdk-binding <DIR>``, every
 principal gets an SDK in ``sdk/<principal>/`` (dots in the name become underscores): each file of
-the binding directory is a template rendered once per principal, under its file name with
-``PRINCIPAL`` replaced by the principal's identifier. The context carries the principal's
+the binding directory is a template rendered once per principal, under its file name with a
+trailing ``.tera`` removed (``x_PRINCIPAL.c.tera`` and ``x_PRINCIPAL.c`` both render to
+``x_<principal>.c``) and ``PRINCIPAL`` replaced by the principal's identifier; two templates with
+one output name, or an empty one, are refused. The context carries the principal's
 identity (``principal``, ``p``, ``kind``, ``uid``, ``token``, ``keyset_ids``, ``keyset_types``,
 ``digest``), the contract (``name``, ``major``, ``minor``, ``patch``, ``variant``,
 ``model_hash``), the typed ``accessors`` and command ``submits`` its rights give, and helper

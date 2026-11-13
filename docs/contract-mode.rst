@@ -144,8 +144,9 @@ Outputs
    hash, and the worst-case full and forced-delta document sizes.
 
 ``sdk/<principal>/`` (with ``--sdk-binding <DIR>``)
-   Each file of the binding directory rendered once per principal; see the CLI reference for the
-   context. Ingot names no store runtime.
+   Each file of the binding directory rendered once per principal, named after the file without a
+   trailing ``.tera``; see the CLI reference for the naming rule and the context. Ingot names no
+   store runtime.
 
 ``release-review.txt`` (with ``--previous-contract``)
    New principals' sensitive grants, for the release review.
