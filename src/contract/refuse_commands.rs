@@ -231,9 +231,11 @@ fn field_rule(a: &Arg) -> Option<&'static str> {
 
 /// `v` for key `key`: a value name of the key's enum becomes its number.
 ///
-/// @version 1
+/// v2: shared with the shadow tables, which carry the number.
+/// @version 2
 /// @req REQ-ING-CMD-002
-fn by_name(key: &Key, v: &toml::Value) -> Result<toml::Value, String> {
+/// @req REQ-ING-DSH-003
+pub(super) fn by_name(key: &Key, v: &toml::Value) -> Result<toml::Value, String> {
     match (v.as_str(), &key.enum_values) {
         (Some(name), Some(e)) => e
             .get(name)

@@ -6,6 +6,7 @@
 
 pub mod bounds;
 pub mod digest;
+pub mod dsh;
 pub mod emit;
 pub mod enums;
 pub mod error_groups;
@@ -45,6 +46,8 @@ pub struct Options<'a> {
     pub previous: Option<&'a Path>,
     pub output: &'a Path,
     pub allow_dirty: bool,
+    /// The shadow composer's buffer in bytes, when given (a larger full document is warned about).
+    pub shadow_buffer: Option<u32>,
 }
 
 /// The commit to stamp into the outputs; a dirty or unknown build is refused unless allowed.
@@ -67,13 +70,15 @@ pub fn provenance(commit: &str, allow_dirty: bool) -> Result<String, String> {
 /// v2: `--variant` checked against the declared variants; every variant (and the base) is
 /// resolved for the all-variants keyspace.
 /// v3: error groups checked.
-/// @version 3
+/// v4: the keyspace body's hash goes to the shadow tables.
+/// @version 4
 /// @req REQ-ING-ERR-001
 /// @req REQ-ING-TIV-009
 /// @req REQ-ING-TIV-010
 /// @req REQ-ING-TIV-011
 /// @req REQ-ING-TIV-012
 /// @req REQ-ING-KSP-001
+/// @req REQ-ING-DSH-005
 pub fn generate(opts: &Options, tera: &Tera) -> Result<(), Box<dyn std::error::Error>> {
     let commit = provenance(COMMIT, opts.allow_dirty)?;
     let (tables, mut errors) = model::build(opts.contract, opts.variant)?;
@@ -93,24 +98,34 @@ pub fn generate(opts: &Options, tera: &Tera) -> Result<(), Box<dyn std::error::E
         None => None,
     };
     refuse(&errors)?;
-    keyspace_out::write(tera, &tables, &all, &commit, opts.output)?;
-    write_outputs(opts, tera, &tables, &snapshot, review.as_deref())
+    let hash = keyspace_out::write(tera, &tables, &all, &commit, opts.output)?;
+    write_outputs(opts, tera, &tables, (&snapshot, &hash), review.as_deref())
 }
 
-/// Write every contract-mode output for accepted tables.
+/// Write every contract-mode output for accepted tables; `hash` is the keyspace body's.
 ///
-/// @version 1
+/// v2: the shadow tables.
+/// @version 2
 /// @req REQ-ING-TIV-009
 /// @req REQ-ING-TIV-012
+/// @req REQ-ING-DSH-001
 fn write_outputs(
     opts: &Options,
     tera: &Tera,
     tables: &model::Tables,
-    snapshot: &snapshot::Snapshot,
+    (snapshot, hash): (&snapshot::Snapshot, &str),
     review: Option<&[String]>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let commit = &snapshot.ingot.commit;
     write_table_types(tera, opts.output)?;
-    emit::write(tera, tables, &snapshot.ingot.commit, opts.output)?;
+    emit::write(tera, tables, commit, opts.output)?;
+    dsh::write(
+        tera,
+        tables,
+        (commit, hash),
+        opts.shadow_buffer,
+        opts.output,
+    )?;
     let json = serde_json::to_string_pretty(snapshot)?;
     write_generated(opts.output.join("contract.json"), json)?;
     if let Some(lines) = review {

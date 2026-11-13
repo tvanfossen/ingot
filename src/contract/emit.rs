@@ -29,9 +29,11 @@ fn bytes(values: &[u8]) -> String {
 
 /// A C string literal, or `NULL`.
 ///
-/// @version 1
+/// v2: shared with the shadow tables.
+/// @version 2
 /// @req REQ-ING-TIV-009
-fn c_string(text: Option<&str>) -> String {
+/// @req REQ-ING-DSH-001
+pub(super) fn c_string(text: Option<&str>) -> String {
     text.map_or("NULL".to_string(), |t| {
         format!("\"{}\"", t.replace('\\', "\\\\").replace('"', "\\\""))
     })

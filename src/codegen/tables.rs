@@ -1,21 +1,26 @@
-//! Store-table outputs of the table interface (TIV): `dmt_types.h` and, in contract mode, the
-//! generated tables.
+//! Table-interface outputs: the fixed headers `dmt_types.h` (store tables, TIV) and
+//! `dsh_types.h` (shadow tables, DSH) and, in contract mode, the generated tables.
 
 use std::path::Path;
 use tera::{Context, Tera};
 
 use super::render_template;
 
-/// The fixed TIV header; its bytes depend only on the TIV.
-pub const TYPES_HEADER: &str = "dmt_types.h";
+/// The fixed interface headers and their interface versions; their bytes depend only on those.
+pub const TYPES_HEADERS: [(&str, &str); 2] =
+    [("dmt_types.h", "TIV 1.0"), ("dsh_types.h", "DSH 1.0")];
 
-/// Write `dmt_types.h` into `output_dir`, creating the directory.
+/// Write the fixed interface headers into `output_dir`, creating the directory.
 ///
-/// @version 1
+/// v2: `dsh_types.h` too.
+/// @version 2
 /// @req REQ-ING-TIV-001
+/// @req REQ-ING-DSH-001
 pub fn write_table_types(tera: &Tera, output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(output_dir)?;
-    render_template(tera, TYPES_HEADER, &Context::new(), output_dir)?;
-    log::info!("Generated {TYPES_HEADER} (TIV 1.0)");
+    for (header, interface) in TYPES_HEADERS {
+        render_template(tera, header, &Context::new(), output_dir)?;
+        log::info!("Generated {header} ({interface})");
+    }
     Ok(())
 }

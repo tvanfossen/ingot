@@ -305,3 +305,17 @@ id = "telemetry"
 template = "{stage}/{duid}/telemetry"
 direction = "pub"
 connection = "telemetry"
+
+# the resolved keyspace on request (G2 2.5): {"id","hash"} in, {"id","hash","encoding","body"} out
+[[topics]]
+id = "contract_req"
+template = "{stage}/{duid}/contract/req"
+direction = "sub"
+subscribe_order = 4                  # after cmd/req and mapcontrol/req
+ack = "contract_resp"
+envelope = { id = { field = "id", required = true } }
+
+[[topics]]
+id = "contract_resp"
+template = "{stage}/{duid}/contract/resp"
+direction = "pub"

@@ -53,16 +53,19 @@ fn body(tables: &Tables, commit: &str) -> Result<(String, Vec<u8>), Box<dyn std:
 }
 
 /// Write the keyspace files into `out`; refuse a body that one MQTT message cannot carry.
+/// Returns the resolved body's hash (the head's `hash`).
 ///
-/// @version 1
+/// v2: returns the body's hash, for the image constants of the shadow tables.
+/// @version 2
 /// @req REQ-ING-KSP-001
+/// @req REQ-ING-DSH-005
 pub fn write(
     tera: &Tera,
     tables: &Tables,
     all: &(Tables, Vec<Tables>),
     commit: &str,
     out: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<String, Box<dyn std::error::Error>> {
     let (body, gz) = body(tables, commit)?;
     std::fs::create_dir_all(out)?;
     let combined = keyspace::combined(&all.0, &all.1, commit);
@@ -70,21 +73,24 @@ pub fn write(
         out.join("keyspace.json"),
         serde_json::to_string_pretty(&combined)?,
     )?;
-    write_resolved(tables, &body, &gz, out)?;
+    let hash = write_resolved(tables, &body, &gz, out)?;
     render_template(tera, "keyspace.schema.json", &Context::new(), out)?;
-    Ok(())
+    Ok(hash)
 }
 
-/// Write the variant's resolved body, its gzip and its head file.
+/// Write the variant's resolved body, its gzip and its head file; returns the head's hash.
 ///
-/// @version 1
+/// v2: returns the hash.
+/// @version 2
 /// @req REQ-ING-KSP-001
-fn write_resolved(tables: &Tables, body: &str, gz: &[u8], out: &Path) -> std::io::Result<()> {
+/// @req REQ-ING-DSH-005
+fn write_resolved(tables: &Tables, body: &str, gz: &[u8], out: &Path) -> std::io::Result<String> {
     let stem = format!("keyspace.{}", sku(tables));
-    let head = keyspace::head(tables, body.as_bytes(), gz.len()).to_string();
+    let head = keyspace::head(tables, body.as_bytes(), gz.len());
     std::fs::write(out.join(format!("{stem}.json.gz")), gz)?;
     std::fs::write(out.join(format!("{stem}.json")), body)?;
-    write_generated(out.join(format!("{stem}.head.json")), head)
+    write_generated(out.join(format!("{stem}.head.json")), head.to_string())?;
+    Ok(head["hash"].as_str().unwrap_or_default().to_string())
 }
 
 /// The variant's file-name part: its name, or `base` for a run without one.

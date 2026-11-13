@@ -33,13 +33,13 @@ Output & Target
 +------------------------+----------------+--------------------------------------------------+
 | ``--templates <DIR>``  | built in       | Replace the built-in templates with a directory  |
 +------------------------+----------------+--------------------------------------------------+
-| ``--table-types``      | off            | Write only ``dmt_types.h`` (no model)            |
+| ``--table-types``      | off            | Write only the fixed table headers (no model)    |
 +------------------------+----------------+--------------------------------------------------+
 
 The templates are compiled into the binary, so a given ingot build always
 generates the same output. ``--templates`` (or the ``INGOT_TEMPLATES_DIR``
 environment variable) replaces them with a directory, for template development.
-``--table-types`` writes ``dmt_types.h``, the table-interface header, which does
+``--table-types`` writes ``dmt_types.h`` and ``dsh_types.h``, the table-interface headers, which do
 not depend on any model.
 ``--emit-tinyfsm`` applies only to C targets. It emits additive C++ headers and
 source for consumers using tinyfsm.
@@ -60,10 +60,16 @@ Contract Mode
 | ``--allow-dirty-ingot``        | off     | Accept an ingot built from a dirty tree (for     |
 |                                |         | ingot's own tests); the output says ``-dirty``   |
 +--------------------------------+---------+--------------------------------------------------+
+| ``--shadow-buffer <BYTES>``    | —       | Warn when the full shadow document can exceed    |
+|                                |         | the shadow composer's buffer                     |
++--------------------------------+---------+--------------------------------------------------+
 
 Contract mode writes ``dmt_types.h``, ``dmt_tables.h``, ``dmt_tables.c`` and
 ``contract.json`` for the selected ``--variant``, or nothing at all if the model
 breaks any rule; every refusal is logged. It always uses the built-in templates.
+A model that maps keys to the shadow also gets ``dsh_types.h`` (the fixed shadow
+table interface) and ``dsh_tables.h`` / ``dsh_tables.c``: the binder, reporter,
+command-router, error-group and topic tables of the variant.
 ``examples/contract/`` holds a generic model at contract 1.0, 1.1 and 2.0.
 
 Key Filtering

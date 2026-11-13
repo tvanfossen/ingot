@@ -30,7 +30,8 @@ struct Cli {
     #[arg(short, long, required_unless_present_any = ["table_types", "contract"])]
     model: Vec<PathBuf>,
 
-    /// Write only dmt_types.h, the model-independent table-interface header, to --output
+    /// Write only the model-independent table-interface headers (dmt_types.h, dsh_types.h)
+    /// to --output
     #[arg(long, conflicts_with_all = ["model", "contract"])]
     table_types: bool,
 
@@ -45,6 +46,11 @@ struct Cli {
     /// Contract mode: accept an ingot built from a dirty tree (for ingot's own tests)
     #[arg(long, requires = "contract")]
     allow_dirty_ingot: bool,
+
+    /// Contract mode: the shadow composer's buffer in bytes; a full shadow document that can
+    /// exceed it is warned about
+    #[arg(long, requires = "contract")]
+    shadow_buffer: Option<u32>,
 
     /// Output directory for generated code
     #[arg(short, long, default_value = "generated")]
@@ -159,8 +165,10 @@ fn dispatch(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
 
 /// The contract-mode options the command line gives.
 ///
-/// @version 1
+/// v2: the shadow composer's buffer.
+/// @version 2
 /// @req REQ-ING-TIV-002
+/// @req REQ-ING-DSH-005
 fn contract_options<'a>(cli: &'a Cli, contract: &'a std::path::Path) -> contract::Options<'a> {
     contract::Options {
         contract,
@@ -168,6 +176,7 @@ fn contract_options<'a>(cli: &'a Cli, contract: &'a std::path::Path) -> contract
         previous: cli.previous_contract.as_deref(),
         output: &cli.output,
         allow_dirty: cli.allow_dirty_ingot,
+        shadow_buffer: cli.shadow_buffer,
     }
 }
 
