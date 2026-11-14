@@ -541,6 +541,23 @@ requirements:
       The 1.1 model's sku_a header defines the mode, fan and fan_applied values with their codes
       and sku_b's its own (saver, turbo, no sport), each once, and both compile as C11 and C++; a
       long name, a name with a dash, and two pairs naming one constant are refused.
+  REQ-ING-TIV-018:
+    name: Command outcome constants
+    subsystem: Table interface
+    description: >-
+      A command type may name an enum of its namespace as its outcomes (`outcome = "<enum>"`),
+      the codes its result's outcome field carries. dmt_constants.h then defines every value of
+      that enum as the variant resolves it, as `#define DMT_E_<COMMAND PATH>_<VALUE> <code>`,
+      placed at the command key's ID and in code order, under the same refusals as key
+      constants (not a C identifier, longer than 63 characters, or named twice). An undefined
+      enum is refused. contract.json carries each command's outcome names and codes; against
+      --previous-contract in a minor every previous (name, code) pair of a command's outcomes is
+      kept. The store tables, digests and keyspace files do not depend on outcomes.
+    acceptance_criteria: >-
+      The generic model's drive command names its outcome enum and the header defines its
+      values at the command's place, compiling as C11 and C++; an undefined outcome enum, an
+      outcome constant longer than 63 characters, and a changed or removed outcome in a minor
+      are refused; the store tables are the same with and without the outcome.
   REQ-ING-RNG-001:
     name: Units, ranges, discrete sets, sentinels and scale
     subsystem: Generated outputs (G2)
