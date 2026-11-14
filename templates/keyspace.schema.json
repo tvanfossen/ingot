@@ -197,7 +197,7 @@
           "$ref": "#/$defs/trusted",
           "type": "object",
           "required": ["path"],
-          "properties": { "path": { "type": "string" } }
+          "properties": { "path": { "type": "string" }, "variants": { "$ref": "#/$defs/variants" } }
         },
         "full_max_bytes": { "type": "integer" },
         "delta_forced_bytes": { "type": "integer" }

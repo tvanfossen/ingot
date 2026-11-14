@@ -514,6 +514,28 @@ fn a_bool_path_reports_0_1_in_one_document_and_true_false_in_the_other() {
 }
 
 #[test]
+fn the_rejected_settings_list_exists_only_on_its_variants() {
+    let dir = unique_dir("dsh_rejected_variants");
+    let at = "[[shadow_constant]]\npath = \"state.connected\"";
+    let declared =
+        format!("[shadow_rejected]\npath = \"state.rejected\"\nvariants = [\"sku_b\"]\n\n{at}");
+    let edits = [("contract.toml", at, declared.as_str())];
+    let listed = generated(&dir, "listed", "sku_b", &edits);
+    row(&table(&listed, "dsh_reported"), ".kind = DSH_RK_REJECTED");
+    let shadow = &contract_json(&listed)["shadow"]["rejected"];
+    assert_eq!(shadow["variants"], serde_json::json!(["sku_b"]));
+    let other = generated(&dir, "other", "sku_a", &edits);
+    assert!(contract_json(&other)["shadow"].get("rejected").is_none());
+    let c = fs::read_to_string(other.join("dsh_tables.c")).unwrap();
+    assert!(
+        !c.contains("DSH_RK_REJECTED"),
+        "no row on a variant not listed"
+    );
+    compile_and_walk(&listed);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn the_rejected_settings_list_is_a_delta_row_at_its_declared_path() {
     let dir = unique_dir("dsh_rejected");
     let at = "[[shadow_constant]]\npath = \"state.connected\"";

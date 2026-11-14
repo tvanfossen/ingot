@@ -236,6 +236,9 @@ pub fn scopes_meet(a: Option<Scope>, b: Option<Scope>) -> bool {
 #[serde(deny_unknown_fields)]
 pub struct Rejected {
     pub path: String,
+    /// The variants the list is reported on (absent: every variant).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variants: Option<Vec<String>>,
 }
 
 /// A constant whose value the image supplies.

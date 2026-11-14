@@ -69,7 +69,8 @@ fn of_variant<T>(
 /// v3: echo paths limited to variants.
 /// v4: topic payload members.
 /// v5: the rejected-settings list.
-/// @version 5
+/// v6: the rejected-settings list on its variants only (`rejected_on`).
+/// @version 6
 /// @req REQ-ING-SHD-002
 /// @req REQ-ING-CMD-001
 /// @req REQ-ING-TOP-001
@@ -101,6 +102,8 @@ pub fn rows(
         |p| p.variants.as_deref(),
     );
     variant_uses.extend(payload_uses);
+    let (rejected, rejected_uses) = rejected_on(file.shadow_rejected.take(), variant);
+    variant_uses.extend(rejected_uses);
     Shadow {
         apply_groups: std::mem::take(&mut file.apply_groups),
         echo,
@@ -108,9 +111,26 @@ pub fn rows(
         topics: std::mem::take(&mut file.topics),
         payload,
         commands,
-        rejected: file.shadow_rejected.take(),
+        rejected,
         variant_uses,
     }
+}
+
+/// The rejected-settings list if it exists on `variant`, and every (row, variant) it names.
+///
+/// @version 1
+/// @req REQ-ING-SHD-011
+fn rejected_on(
+    declared: Option<Rejected>,
+    variant: Option<&str>,
+) -> (Option<Rejected>, Vec<(String, String)>) {
+    let (mine, uses) = of_variant(
+        declared.into_iter().collect(),
+        variant,
+        |r| format!("shadow_rejected {}", r.path),
+        |r| r.variants.as_deref(),
+    );
+    (mine.into_iter().next(), uses)
 }
 
 /// Whether the model maps anything to the shadow (a command row needs a topic, so the topics

@@ -102,7 +102,8 @@ Key paths
 ``[shadow_rejected]``
    ``path``: the reported path where the binder lists the desired members it rejected in the
    update it answers. It is a delta row (``DSH_RK_REJECTED``, shadow table interface 1.3) with no
-   key: the binder builds the list from the rows it rejected. Absent, no list is reported. Its
+   key: the binder builds the list from the rows it rejected. ``variants`` limits it to those
+   variants (a variant not listed reports no list). Absent, no list is reported. Its
    path is checked against the other delta rows, a model with no desired path may not declare
    it, and it is kept unchanged within a major.
 

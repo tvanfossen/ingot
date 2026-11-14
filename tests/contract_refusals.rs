@@ -200,6 +200,7 @@ const CASES: &[Case] = &[
     ("v1_0", "ns/drive.toml", "shadow = \"state.docked\"\nforced", "shadow = [\"state.docked\", { path = \"settings.planExists\", as = \"integer\", scope = \"delta\" }]\nforced", "shadow_echo: shadow path settings.planExists is taken by drive.state.docked"),
     ("v1_0", "contract.toml", "[[shadow_constant]]\npath = \"state.connected\"", "[shadow_rejected]\npath = \"state.docked\"\n\n[[shadow_constant]]\npath = \"state.connected\"", "shadow_rejected: shadow path state.docked is taken by drive.state.docked"),
     ("v1_0", "contract.toml", "[[shadow_constant]]\npath = \"state.connected\"", "[shadow_rejected]\npath = \"state..rejected\"\n\n[[shadow_constant]]\npath = \"state.connected\"", "shadow_rejected: malformed shadow path 'state..rejected'"),
+    ("v1_0", "contract.toml", "[[shadow_constant]]\npath = \"state.connected\"", "[shadow_rejected]\npath = \"state.rejected\"\nvariants = [\"sku_c\"]\n\n[[shadow_constant]]\npath = \"state.connected\"", "shadow_rejected state.rejected: variant sku_c is not declared"),
     ("v2_0", "contract.toml", "[[uid_caps]]\nuid = 2001", "[shadow_rejected]\npath = \"state.rejected\"\n\n[[uid_caps]]\nuid = 2001", "shadow_rejected: the model has no desired path to reject"),
     ("v1_0", "ns/drive.toml", "shadow = \"settings.fanSpeed\"\napply_group", "shadow = { path = \"settings.fanSpeed\", scope = \"both\" }\napply_group", "drive.settings.fan: scope is for reported paths of STATE and CONFIG keys"),
     ("v1_0", "ns/drive.toml", "shadow = \"state.docked\"\nforced", "shadow = { path = \"state.docked\", scope = \"full\" }\nforced", "drive.state.docked: forced needs a path in the delta"),
@@ -460,48 +461,77 @@ fn previous_contract_refusals() {
 /// The contract.toml text the rejected-settings list is declared before.
 const REJECTED_AT: &str = "[[shadow_constant]]\npath = \"state.connected\"";
 
-/// @brief `REJECTED_AT` with the list declared at `path` before it.
-/// @version 1
-fn rejected_at(path: &str) -> String {
-    format!("[shadow_rejected]\npath = \"{path}\"\n\n{REJECTED_AT}")
+/// @brief `REJECTED_AT` with the list declared before it: `fields` is its `path` line and any
+/// further lines (`variants`).
+/// v2: further lines.
+/// @version 2
+fn rejected_at(fields: &str) -> String {
+    format!("[shadow_rejected]\n{fields}\n\n{REJECTED_AT}")
 }
 
-/// @brief Generate the `version` model with the list at `path` against the contract.json in
-/// `prev`; returns (success, stderr).
-/// @version 1
-fn against(dir: &Path, version: &str, path: Option<&str>, prev: &Path) -> (bool, String) {
-    let case = dir.join(format!("{version}_{}", path.unwrap_or("none")));
-    let edits = path.map(|p| ("contract.toml", REJECTED_AT, rejected_at(p)));
+/// @brief Generate the `version` model (in `dir/tag`) with the list declared by `fields` (none:
+/// no list) against the contract.json in `prev`; returns (success, stderr).
+/// v2: the declaration's fields, and the case named by `tag`.
+/// @version 2
+fn against(dir: &Path, tag: &str, fields: Option<&str>, prev: &Path) -> (bool, String) {
+    let case = dir.join(tag);
+    let edits = fields.map(|f| ("contract.toml", REJECTED_AT, rejected_at(f)));
     let edits: Vec<(&str, &str, &str)> =
         edits.iter().map(|(f, a, b)| (*f, *a, b.as_str())).collect();
-    edited_copy(version, &case, &edits);
+    edited_copy("v1_1", &case, &edits);
     let previous = prev.join("contract.json");
     let args = ["--previous-contract", previous.to_str().unwrap()];
     generate(&case.join("contract.toml"), &case.join("out"), &args)
 }
 
-#[test]
-fn the_rejected_settings_path_is_kept_in_a_minor_and_may_be_added() {
-    let dir = unique_dir("previous_rejected");
+/// @brief Generate the 1.0 model with the list declared by `fields` into `dir/prev/out`, for
+/// sku_a; returns that output directory.
+/// @version 1
+fn previous_with(dir: &Path, fields: &str) -> std::path::PathBuf {
     let prev = dir.join("prev");
     edited_copy(
         "v1_0",
         &prev,
-        &[("contract.toml", REJECTED_AT, &rejected_at("state.rejected"))],
+        &[("contract.toml", REJECTED_AT, &rejected_at(fields))],
     );
     let (ok, stderr) = generate(&prev.join("contract.toml"), &prev.join("out"), &[]);
     assert!(ok, "{stderr}");
-    let removed = "shadow_rejected state.rejected changed or was removed in a minor";
-    for path in [None, Some("state.refused")] {
-        let (ok, stderr) = against(&dir, "v1_1", path, &prev.join("out"));
-        assert!(!ok && stderr.contains(removed), "{path:?}: {stderr}");
+    prev.join("out")
+}
+
+/// The refusal of a list dropped or moved in a minor.
+const REJECTED_REMOVED: &str = "shadow_rejected state.rejected changed or was removed in a minor";
+
+#[test]
+fn the_rejected_settings_path_is_kept_in_a_minor_and_may_be_added() {
+    let dir = unique_dir("previous_rejected");
+    let prev = previous_with(&dir, "path = \"state.rejected\"");
+    for (tag, fields) in [("none", None), ("moved", Some("path = \"state.refused\""))] {
+        let (ok, stderr) = against(&dir, tag, fields, &prev);
+        assert!(!ok && stderr.contains(REJECTED_REMOVED), "{tag}: {stderr}");
     }
-    let (ok, stderr) = against(&dir, "v1_1", Some("state.rejected"), &prev.join("out"));
+    let (ok, stderr) = against(&dir, "kept", Some("path = \"state.rejected\""), &prev);
     assert!(ok, "kept: {stderr}");
     let plain = dir.join("plain");
     generate_ok("v1_0", &plain, &[]);
-    let (ok, stderr) = against(&dir, "v1_1", Some("state.added"), &plain);
+    let (ok, stderr) = against(&dir, "added", Some("path = \"state.added\""), &plain);
     assert!(ok, "added in a minor: {stderr}");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_rejected_settings_path_is_frozen_per_variant() {
+    let dir = unique_dir("previous_rejected_variants");
+    let prev = previous_with(&dir, "path = \"state.rejected\"\nvariants = [\"sku_a\"]");
+    let widened = "path = \"state.rejected\"\nvariants = [\"sku_a\", \"sku_b\"]";
+    let (ok, stderr) = against(&dir, "widened", Some(widened), &prev);
+    assert!(ok, "another variant added in a minor: {stderr}");
+    let elsewhere = "path = \"state.rejected\"\nvariants = [\"sku_b\"]";
+    let (ok, stderr) = against(&dir, "elsewhere", Some(elsewhere), &prev);
+    assert!(
+        !ok && stderr.contains(REJECTED_REMOVED),
+        "dropped on sku_a: {stderr}"
+    );
     let _ = fs::remove_dir_all(&dir);
 }
 

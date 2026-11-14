@@ -6,7 +6,7 @@
 use super::keys::Errors;
 use super::payload;
 use super::refuse_commands::selector_text;
-use super::schema::{PathForm, ShadowCommand};
+use super::schema::{PathForm, Rejected, ShadowCommand};
 use super::snapshot::{KeyJson, Mapping, Snapshot};
 use super::wire::KeyWire;
 
@@ -97,11 +97,13 @@ fn command_name(r: &ShadowCommand) -> String {
     format!("shadow_commands {} {}", r.topic, selector_text(&r.selector))
 }
 
-/// The contract-level rows of `prev` are all still in `cur` unchanged.
+/// The contract-level rows of `prev` are all still in `cur` unchanged; the rejected-settings
+/// list by its path on the snapshot's variant (it may gain variants).
 ///
 /// v2: topic payload members.
 /// v3: the rejected-settings list.
-/// @version 3
+/// v4: the list compared by path, so a minor may add variants.
+/// @version 4
 /// @req REQ-ING-SHD-006
 /// @req REQ-ING-TOP-003
 /// @req REQ-ING-SHD-011
@@ -130,10 +132,11 @@ pub fn rows_unchanged(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     );
     rows_kept(&old.commands, &new.commands, command_name, errors);
     rows_kept(&old.payload, &new.payload, payload::name, errors);
+    let path = |s: &Option<Rejected>| s.iter().map(|r| r.path.clone()).collect::<Vec<_>>();
     rows_kept(
-        old.rejected.as_slice(),
-        new.rejected.as_slice(),
-        |r| format!("shadow_rejected {}", r.path),
+        &path(&old.rejected),
+        &path(&new.rejected),
+        |p| format!("shadow_rejected {p}"),
         errors,
     );
 }
