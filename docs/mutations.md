@@ -1196,3 +1196,13 @@ Same procedure; the test command is `--no-fail-fast --test enum_constants --test
 | EC06 | src/contract/model.rs | `super::constants::check(&tables, &mut errors);` | `let _ = &tables;` | the checks run | KILLED | every_multi_edit_refusal_has_a_triggering_model every_refusal_has_a_triggering_model |
 | EC07 | src/contract/mod.rs | `constants::write(tera, tables, commit, opts.output)?;` | `let _ = tables;` | the header is written | KILLED | a_key_s_constants_are_in_code_order every_enum_key_value_is_a_named_constant_of_its_variant |
 | EC08 | src/contract/constants.rs | `value: m.value,` | `value: m.value + 1,` | each value's code | KILLED | a_key_s_constants_are_in_code_order every_enum_key_value_is_a_named_constant_of_its_variant |
+
+## Every principal named (REQ-ING-TIV-006)
+
+Same procedure; the test command is `--no-fail-fast --test contract_mode`.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| PN01 | src/contract/emit.rs | `.map(\|p\| c_string(Some(p.name.as_str())))` | `.map(\|p\| c_string((p.token == 0).then_some(p.name.as_str())))` | sub-consumers named | KILLED | c_strings_are_escaped generic_model_versions_and_previous_checks |
+| PN02 | src/contract/emit.rs | `.map(\|p\| c_string(Some(p.name.as_str())))` | `.map(\|p\| c_string((p.kind == Kind::Unix).then_some(p.name.as_str())))` | UART and in-process principals named | KILLED | a_model_without_uid_caps_or_defaults_still_compiles c_strings_are_escaped generic_model_versions_and_previous_checks |
+| PN03 | src/contract/emit.rs | `.map(\|p\| c_string(Some(p.name.as_str())))` | `.rev().map(\|p\| c_string(Some(p.name.as_str())))` | names in table order | KILLED | generic_model_versions_and_previous_checks |
