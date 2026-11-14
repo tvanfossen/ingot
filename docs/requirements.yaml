@@ -732,12 +732,13 @@ requirements:
       the list from the rows it rejected. contract.json and the keyspace carry it as
       shadow.rejected only when declared, so a model without it generates the same outputs. Its
       path is a delta path like any other (a malformed path, or one another delta row takes, is
-      refused) and, once declared, it is kept unchanged within a major (it may be added in a
+      refused), a model with no desired path is refused (there is nothing to reject) and, once declared, it is kept unchanged within a major (it may be added in a
       minor).
     acceptance_criteria: >-
       A declared path generates one delta reporter row of DSH_RK_REJECTED with no key or
       constant, and the tables compile; a model without it has no such row and no
-      shadow.rejected. The path of a reported key or a malformed path is refused; against a
+      shadow.rejected. The path of a reported key, a malformed path, and a model with no desired
+      path are refused; against a
       previous contract that declares it, dropping or moving it is refused and keeping it
       generates; adding it in a minor generates.
   REQ-ING-CMD-001:
