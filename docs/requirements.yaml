@@ -409,9 +409,11 @@ requirements:
       Principals (uid or token sub-consumer, kind, flags, heartbeat, caps, resync limits) are
       sorted by (kind, uid, token); rights per key come from (namespace, class) grants overridden
       by key grants, read on a secret only for its readers, packed in the specification's bitmap
-      layout; user names are emitted for UNIX token-0 principals only.
+      layout; every principal's declared name is emitted (a sub-consumer's and a UART or
+      in-process principal's as well as a UNIX uid's), never NULL.
     acceptance_criteria: >-
-      The generic model's rights rows match its grants bit for bit.
+      The generic model's rights rows match its grants bit for bit, and each principal's name
+      is its declared name.
   REQ-ING-TIV-007:
     name: Rates, queue bounds and budgets
     subsystem: Table interface
