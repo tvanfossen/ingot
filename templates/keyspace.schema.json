@@ -192,6 +192,13 @@
             "properties": { "topic": { "type": "string" }, "path": { "type": "string" }, "key": { "type": "string" }, "variants": { "$ref": "#/$defs/variants" } }
           }
         },
+        "rejected": {
+          "description": "Where the binder lists the desired members it rejected in the update it answers (the delta only); absent: no list.",
+          "$ref": "#/$defs/trusted",
+          "type": "object",
+          "required": ["path"],
+          "properties": { "path": { "type": "string" } }
+        },
         "full_max_bytes": { "type": "integer" },
         "delta_forced_bytes": { "type": "integer" }
       }

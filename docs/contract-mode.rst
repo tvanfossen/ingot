@@ -16,7 +16,7 @@ Inputs
    optional ``variants`` and ``units``), the queue and staging ``[bounds]``, ``[[reserved]]`` IDs,
    ``[[principals]]`` with their ``grants``, ``[[uid_caps]]``, ``[[error_groups]]``, and the
    contract-level shadow rows: ``[[apply_groups]]``, ``[[shadow_echo]]``,
-   ``[[shadow_constant]]``, ``[[topics]]`` and ``[[topic_payload]]``.
+   ``[[shadow_constant]]``, ``[shadow_rejected]``, ``[[topics]]`` and ``[[topic_payload]]``.
 
 Namespace files (every ``.toml`` in ``namespace_dir``)
    ``[meta]`` (``id``, ``namespace_id``, ``mfg``), ``[enums.<name>]``, ``[[classes]]`` with their
@@ -98,6 +98,12 @@ Key paths
 ``[[shadow_constant]]``
    A reported path with a literal ``value`` or an ``image`` value (the contract version, or the
    hash of the resolved keyspace body), optionally ``forced``.
+
+``[shadow_rejected]``
+   ``path``: the reported path where the binder lists the desired members it rejected in the
+   update it answers. It is a delta row (``DSH_RK_REJECTED``, shadow table interface 1.3) with no
+   key: the binder builds the list from the rows it rejected. Absent, no list is reported. Its
+   path is checked against the other delta rows, and it is kept unchanged within a major.
 
 ``[[topics]]``
    ``id``, ``template`` over ``{stage}``, ``{duid}``, ``{model}``, ``{thing}`` and

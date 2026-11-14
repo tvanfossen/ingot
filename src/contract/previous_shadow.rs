@@ -100,9 +100,11 @@ fn command_name(r: &ShadowCommand) -> String {
 /// The contract-level rows of `prev` are all still in `cur` unchanged.
 ///
 /// v2: topic payload members.
-/// @version 2
+/// v3: the rejected-settings list.
+/// @version 3
 /// @req REQ-ING-SHD-006
 /// @req REQ-ING-TOP-003
+/// @req REQ-ING-SHD-011
 pub fn rows_unchanged(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     let (old, new) = match (prev.shadow_rows(), cur.shadow_rows()) {
         (Ok(o), Ok(n)) => (o, n),
@@ -128,6 +130,12 @@ pub fn rows_unchanged(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     );
     rows_kept(&old.commands, &new.commands, command_name, errors);
     rows_kept(&old.payload, &new.payload, payload::name, errors);
+    rows_kept(
+        old.rejected.as_slice(),
+        new.rejected.as_slice(),
+        |r| format!("shadow_rejected {}", r.path),
+        errors,
+    );
 }
 
 #[cfg(test)]

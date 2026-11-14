@@ -198,6 +198,8 @@ const CASES: &[Case] = &[
     ("v1_0", "ns/drive.toml", "shadow = \"state.docked\"\nforced", "shadow = [{ path = \"state.docked\", scope = \"full\" }, { path = \"state.docked\", scope = \"both\" }]\nforced", "drive.state.docked: a shadow path is listed twice"),
     ("v1_0", "ns/drive.toml", "shadow = \"state.docked\"\nforced", "shadow = [{ path = \"state.docked\", scope = \"delta\" }, { path = \"state.docked\", as = \"integer\", scope = \"delta\" }]\nforced", "drive.state.docked: a shadow path is listed twice"),
     ("v1_0", "ns/drive.toml", "shadow = \"state.docked\"\nforced", "shadow = [\"state.docked\", { path = \"settings.planExists\", as = \"integer\", scope = \"delta\" }]\nforced", "shadow_echo: shadow path settings.planExists is taken by drive.state.docked"),
+    ("v1_0", "contract.toml", "[[shadow_constant]]\npath = \"state.connected\"", "[shadow_rejected]\npath = \"state.docked\"\n\n[[shadow_constant]]\npath = \"state.connected\"", "shadow_rejected: shadow path state.docked is taken by drive.state.docked"),
+    ("v1_0", "contract.toml", "[[shadow_constant]]\npath = \"state.connected\"", "[shadow_rejected]\npath = \"state..rejected\"\n\n[[shadow_constant]]\npath = \"state.connected\"", "shadow_rejected: malformed shadow path 'state..rejected'"),
     ("v1_0", "ns/drive.toml", "shadow = \"settings.fanSpeed\"\napply_group", "shadow = { path = \"settings.fanSpeed\", scope = \"both\" }\napply_group", "drive.settings.fan: scope is for reported paths of STATE and CONFIG keys"),
     ("v1_0", "ns/drive.toml", "shadow = \"state.docked\"\nforced", "shadow = { path = \"state.docked\", scope = \"full\" }\nforced", "drive.state.docked: forced needs a path in the delta"),
     ("v1_0", "ns/drive.toml", "shadow = \"state.docked\"\nforced", "shadow = { path = \"state.fanSpeed\", scope = \"delta\" }\nforced", "drive.state.docked: shadow path state.fanSpeed is taken by drive.state.fan_applied"),
@@ -451,6 +453,54 @@ fn previous_contract_refusals() {
         &older,
         "older than the previous",
     );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// The contract.toml text the rejected-settings list is declared before.
+const REJECTED_AT: &str = "[[shadow_constant]]\npath = \"state.connected\"";
+
+/// @brief `REJECTED_AT` with the list declared at `path` before it.
+/// @version 1
+fn rejected_at(path: &str) -> String {
+    format!("[shadow_rejected]\npath = \"{path}\"\n\n{REJECTED_AT}")
+}
+
+/// @brief Generate the `version` model with the list at `path` against the contract.json in
+/// `prev`; returns (success, stderr).
+/// @version 1
+fn against(dir: &Path, version: &str, path: Option<&str>, prev: &Path) -> (bool, String) {
+    let case = dir.join(format!("{version}_{}", path.unwrap_or("none")));
+    let edits = path.map(|p| ("contract.toml", REJECTED_AT, rejected_at(p)));
+    let edits: Vec<(&str, &str, &str)> =
+        edits.iter().map(|(f, a, b)| (*f, *a, b.as_str())).collect();
+    edited_copy(version, &case, &edits);
+    let previous = prev.join("contract.json");
+    let args = ["--previous-contract", previous.to_str().unwrap()];
+    generate(&case.join("contract.toml"), &case.join("out"), &args)
+}
+
+#[test]
+fn the_rejected_settings_path_is_kept_in_a_minor_and_may_be_added() {
+    let dir = unique_dir("previous_rejected");
+    let prev = dir.join("prev");
+    edited_copy(
+        "v1_0",
+        &prev,
+        &[("contract.toml", REJECTED_AT, &rejected_at("state.rejected"))],
+    );
+    let (ok, stderr) = generate(&prev.join("contract.toml"), &prev.join("out"), &[]);
+    assert!(ok, "{stderr}");
+    let removed = "shadow_rejected state.rejected changed or was removed in a minor";
+    for path in [None, Some("state.refused")] {
+        let (ok, stderr) = against(&dir, "v1_1", path, &prev.join("out"));
+        assert!(!ok && stderr.contains(removed), "{path:?}: {stderr}");
+    }
+    let (ok, stderr) = against(&dir, "v1_1", Some("state.rejected"), &prev.join("out"));
+    assert!(ok, "kept: {stderr}");
+    let plain = dir.join("plain");
+    generate_ok("v1_0", &plain, &[]);
+    let (ok, stderr) = against(&dir, "v1_1", Some("state.added"), &plain);
+    assert!(ok, "added in a minor: {stderr}");
     let _ = fs::remove_dir_all(&dir);
 }
 

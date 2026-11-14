@@ -25,6 +25,7 @@ pub struct ContractFile {
     pub shadow_echo: Vec<Echo>,
     #[serde(default)]
     pub shadow_constant: Vec<Constant>,
+    pub shadow_rejected: Option<Rejected>,
     #[serde(default)]
     pub topics: Vec<Topic>,
     #[serde(default)]

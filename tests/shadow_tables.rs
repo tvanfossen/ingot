@@ -514,6 +514,37 @@ fn a_bool_path_reports_0_1_in_one_document_and_true_false_in_the_other() {
 }
 
 #[test]
+fn the_rejected_settings_list_is_a_delta_row_at_its_declared_path() {
+    let dir = unique_dir("dsh_rejected");
+    let at = "[[shadow_constant]]\npath = \"state.connected\"";
+    let declared = format!("[shadow_rejected]\npath = \"state.rejected\"\n\n{at}");
+    let gen = generated(
+        &dir,
+        "rejected",
+        "sku_a",
+        &[("contract.toml", at, &declared)],
+    );
+    let rejected = row(&table(&gen, "dsh_reported"), ".kind = DSH_RK_REJECTED");
+    for part in [
+        ".path = \"state.rejected\"",
+        ".constant = NULL",
+        ".key = 0x00000000U",
+        ".scope = DSH_SC_DELTA, .flags = 0u",
+    ] {
+        assert!(rejected.contains(part), "{part}: {rejected}");
+    }
+    let shadow = &contract_json(&gen)["shadow"];
+    assert_eq!(shadow["rejected"]["path"], "state.rejected");
+    let plain = generated(&dir, "plain", "sku_a", &[]);
+    assert!(contract_json(&plain)["shadow"].get("rejected").is_none());
+    assert!(!fs::read_to_string(plain.join("dsh_tables.c"))
+        .unwrap()
+        .contains("DSH_RK_REJECTED"));
+    compile_and_walk(&gen);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn error_groups_carry_their_variant_base_reserved_bits_and_sorted_bits() {
     let dir = unique_dir("dsh_errors");
     let a = generated(&dir, "plain", "sku_a", &[]);
@@ -820,8 +851,9 @@ fn a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header() {
     assert!(ok, "{stderr}");
     let fixed = fs::read_to_string(types.join("dsh_types.h")).unwrap();
     assert_eq!(fixed, fs::read_to_string(gen.join("dsh_types.h")).unwrap());
-    assert!(fixed.contains("#define DSH_IF_MAJOR 1") && fixed.contains("#define DSH_IF_MINOR 2"));
+    assert!(fixed.contains("#define DSH_IF_MAJOR 1") && fixed.contains("#define DSH_IF_MINOR 3"));
     assert!(fixed.contains("DSH_FORM_BOOL_INTEGER = 4"));
+    assert!(fixed.contains("DSH_RK_REJECTED = 4"));
     let _ = fs::remove_dir_all(&dir);
 }
 

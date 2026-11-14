@@ -166,13 +166,15 @@ fn echo_rows(tables: &Tables) -> Vec<(String, String)> {
         .collect()
 }
 
-/// contract.toml's rows with their paths: constants, echo paths (by their scope), then
-/// error-group paths.
+/// contract.toml's rows with their paths: constants, echo paths (by their scope), error-group
+/// paths, then the rejected-settings list (delta only).
 ///
 /// v2: an echo row's scope (`echo_rows`).
-/// @version 2
+/// v3: the rejected-settings list.
+/// @version 3
 /// @req REQ-ING-DSH-002
 /// @req REQ-ING-SHD-007
+/// @req REQ-ING-SHD-011
 fn contract_rows(tables: &Tables, hash: &str) -> Vec<(String, String)> {
     let mut rows = Vec::new();
     let both = placement(true, true, false);
@@ -185,6 +187,11 @@ fn contract_rows(tables: &Tables, hash: &str) -> Vec<(String, String)> {
     rows.extend(echo_rows(tables));
     for p in error_paths(tables) {
         rows.push((p.to_string(), other(p, "DSH_RK_ERRORS", None, 0, &both)));
+    }
+    if let Some(r) = &tables.shadow.rejected {
+        let delta = placement(false, true, false);
+        let row = other(&r.path, "DSH_RK_REJECTED", None, 0, &delta);
+        rows.push((r.path.clone(), row));
     }
     rows
 }

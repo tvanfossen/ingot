@@ -332,14 +332,17 @@ fn echo_paths(t: &mut Trees, tables: &Tables) {
 }
 
 /// The contract-level rows: echo rows (`echo_paths`); constants in the full document, forced
-/// ones in the delta and the forced tree.
+/// ones in the delta and the forced tree; the rejected-settings list in the delta (its path
+/// only: the delta tree places paths, and only the full and forced trees are sized).
 ///
 /// v2: an echo row's scope.
 /// v3: echo rows through `echo_paths`.
-/// @version 3
+/// v4: the rejected-settings list.
+/// @version 4
 /// @req REQ-ING-SHD-002
 /// @req REQ-ING-SHD-003
 /// @req REQ-ING-SHD-007
+/// @req REQ-ING-SHD-011
 fn row_paths(t: &mut Trees, tables: &Tables) {
     echo_paths(t, tables);
     for c in &tables.shadow.constants {
@@ -349,6 +352,9 @@ fn row_paths(t: &mut Trees, tables: &Tables) {
             t.delta.add("shadow_constant", &c.path, size);
             t.forced.add("shadow_constant", &c.path, size);
         }
+    }
+    if let Some(r) = &tables.shadow.rejected {
+        t.delta.add("shadow_rejected", &r.path, 0);
     }
 }
 

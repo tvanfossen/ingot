@@ -230,6 +230,14 @@ pub fn scopes_meet(a: Option<Scope>, b: Option<Scope>) -> bool {
     (in_full(a) && in_full(b)) || (in_delta(a) && in_delta(b))
 }
 
+/// `[shadow_rejected]`: the reported path where the binder lists the desired members it rejected
+/// in the update it answers (in the delta only; the list is transient and has no key).
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct Rejected {
+    pub path: String,
+}
+
 /// A constant whose value the image supplies.
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]

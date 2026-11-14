@@ -5,7 +5,8 @@
 use super::keys::Errors;
 use super::model::{present_on, Tables};
 use super::schema::{
-    ApplyGroup, Constant, ContractFile, Echo, NamespaceFile, PayloadRow, ShadowCommand, Topic,
+    ApplyGroup, Constant, ContractFile, Echo, NamespaceFile, PayloadRow, Rejected, ShadowCommand,
+    Topic,
 };
 use super::shadow_size::{trees, SHADOW_QUOTA};
 use super::{payload, refuse_commands, refuse_shadow, topics};
@@ -23,6 +24,9 @@ pub struct Shadow {
     pub payload: Vec<PayloadRow>,
     /// The command rows that exist on the variant, in namespace-file order.
     pub commands: Vec<ShadowCommand>,
+    /// Where the binder lists the desired members it rejected (none: it lists none).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rejected: Option<Rejected>,
     /// Every (row, variant) the contract-level rows name, before the variant's rows are taken,
     /// for the declared-variant check.
     #[serde(skip)]
@@ -64,11 +68,13 @@ fn of_variant<T>(
 /// v2: topics and command rows.
 /// v3: echo paths limited to variants.
 /// v4: topic payload members.
-/// @version 4
+/// v5: the rejected-settings list.
+/// @version 5
 /// @req REQ-ING-SHD-002
 /// @req REQ-ING-CMD-001
 /// @req REQ-ING-TOP-001
 /// @req REQ-ING-TOP-003
+/// @req REQ-ING-SHD-011
 pub fn rows(
     file: &mut ContractFile,
     namespaces: &[NamespaceFile],
@@ -102,6 +108,7 @@ pub fn rows(
         topics: std::mem::take(&mut file.topics),
         payload,
         commands,
+        rejected: file.shadow_rejected.take(),
         variant_uses,
     }
 }
@@ -110,12 +117,18 @@ pub fn rows(
 /// stand for the command rows).
 ///
 /// v2: topics.
-/// @version 2
+/// v3: the rejected-settings list.
+/// @version 3
 /// @req REQ-ING-SHD-001
 /// @req REQ-ING-TOP-001
+/// @req REQ-ING-SHD-011
 pub fn declared(tables: &Tables) -> bool {
     let s = &tables.shadow;
-    let rows = s.apply_groups.len() + s.echo.len() + s.constants.len() + s.topics.len();
+    let rows = s.apply_groups.len()
+        + s.echo.len()
+        + s.constants.len()
+        + s.topics.len()
+        + usize::from(s.rejected.is_some());
     tables.keys.iter().any(|k| !k.wire.shadow.is_empty()) || rows > 0
 }
 
@@ -123,22 +136,28 @@ pub fn declared(tables: &Tables) -> bool {
 ///
 /// v2: topics and command rows.
 /// v3: topic payload members.
-/// @version 3
+/// v4: the rejected-settings list, only when declared.
+/// @version 4
 /// @req REQ-ING-SHD-002
 /// @req REQ-ING-SIZ-001
 /// @req REQ-ING-CMD-001
 /// @req REQ-ING-TOP-003
+/// @req REQ-ING-SHD-011
 pub fn json(tables: &Tables) -> Option<Value> {
     if !declared(tables) {
         return None;
     }
     let t = trees(tables);
     let s = &tables.shadow;
-    Some(json!({
+    let mut doc = json!({
         "apply_groups": s.apply_groups, "echo": s.echo, "constants": s.constants,
         "topics": s.topics, "payload": s.payload, "commands": s.commands,
         "full_max_bytes": t.reported.bytes(), "delta_forced_bytes": t.forced.bytes(),
-    }))
+    });
+    if let Some(r) = &s.rejected {
+        doc["rejected"] = json!(r);
+    }
+    Some(doc)
 }
 
 /// Every refusal of the mapping: keys and rows (S1, S3, S4, S5), the path trees (S1), the
