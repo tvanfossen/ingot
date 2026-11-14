@@ -88,8 +88,48 @@ static int violations(void)
 }
 
 /**
- * @brief   Walk the tables; the link itself proves every declared table is defined.
+ * @brief   Whether UNIX principal `p` and its uid's totals (when declared) take one value of
+ *          `max` bytes in flight.
  * @version 1
+ * @return  1 when they do.
+ */
+static int takes(size_t p, uint32_t max)
+{
+    const dmt_principal_t *q = &dmt_principals[p];
+    const size_t rows = DMT_NUM_UID_CAPS;   /* a variable: 0 rows is no constant comparison */
+    int uid = 1;
+    size_t i;
+    for (i = 0u; i < rows; i++) {
+        uid &= dmt_uid_caps[i].uid != q->uid
+            || (dmt_uid_caps[i].inflight_fd > 0u && dmt_uid_caps[i].inflight_bytes >= max);
+    }
+    return q->cap_inflight_fd > 0u && q->cap_inflight_bytes >= max && uid;
+}
+
+/**
+ * @brief   Count UNIX principals that may read a struct key but cannot take its largest value in
+ *          flight (R12: a store refuses such tables at startup).
+ * @version 1
+ * @return  the number of (principal, key) violations.
+ */
+static int struct_cap_violations(void)
+{
+    int bad = 0;
+    size_t p, k;
+    for (p = 0u; p < DMT_NUM_PRINCIPALS; p++) {
+        for (k = 0u; k < DMT_NUM_KEYS && dmt_principals[p].kind == DMT_PK_UNIX; k++) {
+            bad += dmt_keys[k].type == DMT_T_STRUCT
+                && (DMT_RIGHTS(dmt_rights[p], k) & DMT_RIGHT_READ) != 0u
+                && !takes(p, dmt_keys[k].max_size);
+        }
+    }
+    return bad;
+}
+
+/**
+ * @brief   Walk the tables; the link itself proves every declared table is defined.
+ *          v2: struct readers take a struct's largest value in flight.
+ * @version 2
  * @return  process exit status: 0 when consistent.
  */
 int main(void)
@@ -100,5 +140,6 @@ int main(void)
     for (i = 0u; i < sizeof tables / sizeof tables[0]; i++) {
         missing += tables[i] == NULL;
     }
+    missing += struct_cap_violations();
     return (violations() == 0 && missing == 0 && dmt_tiv_major_1 == 1u) ? 0 : 1;
 }

@@ -186,7 +186,7 @@ role = "state"
 id = "map_data"
 key_index = 0
 type = "struct"
-max_size = 65536
+max_size = 131072                    # 2.0: a 128 KiB value; every reader's in-flight caps take it
 introduced_in = "1.0"
 
 [[classes]]

@@ -103,7 +103,8 @@ static void command(size_t c, const uint32_t keys[3], uint32_t payload, uint32_t
  *          v3: the keys the shadow mapping of 1.x uses (fan, its twins, tones, docked), the
  *              drive command and its argument keys.
  *          v4: a sub-consumer's, the in-process and the UART principal's names.
- * @version 4
+ *          v5: drive.map.map_data moved to versioned (2.0 raises its max_size).
+ * @version 5
  */
 static void common(void)
 {
@@ -137,7 +138,6 @@ static void common(void)
     key(0x00440348u, 126u, 0u, 0u, 0u, 0x0010u, 0u, DMT_T_BINARY, DMT_P_NONE, DMT_R_COMMAND, 0x07u);
     key(0x00800040u, 64u, 1u, 4u, 0u, 0x0082u, 0u, DMT_T_STRING, DMT_P_DURABLE, DMT_R_CONFIG, 0x07u);
     key(0x00C20098u, 4u, 86400u, 4u, 5000u, 0x0000u, 0u, DMT_T_U32, DMT_P_DEFERRED, DMT_R_STATE, 0x07u);
-    key(0x00C40050u, 65536u, 0u, 0u, 0u, 0x0000u, 0u, DMT_T_STRUCT, DMT_P_NONE, DMT_R_STATE, 0x01u);
     key(0x00C60050u, 32776u, 1440u, 4u, 0u, 0x0010u, 0u, DMT_T_STRUCT, DMT_P_DURABLE, DMT_R_COMMAND, 0x01u);
     key(0x00C600C8u, 268u, 1440u, 4u, 0u, 0x0020u, 0u, DMT_T_BINARY, DMT_P_DURABLE, DMT_R_COMMAND, 0x07u);
     key(0x00C60148u, 512u, 1440u, 4u, 0u, 0x0040u, 0u, DMT_T_BINARY, DMT_P_DURABLE, DMT_R_COMMAND, 0x07u);
@@ -179,7 +179,8 @@ static void common(void)
 /**
  * @brief   Values of one version: 1.0 has the speed key and gain; 1.1 adds velocity (speed is
  *          its alias) and app.ota; 2.0 drops speed, label and gain and adds gain_pct.
- * @version 1
+ *          v2: drive.map.map_data: 64 KiB in 1.x, 128 KiB in 2.0.
+ * @version 2
  */
 static void versioned(void)
 {
@@ -188,6 +189,7 @@ static void versioned(void)
 #if DMT_CONTRACT_MAJOR == 1
     static const uint8_t gain[] = { 0x00, 0x00, 0xC0, 0x3F };   /* 1.5f */
     static const uint8_t label[] = { 'i', 'd', 'l', 'e' };
+    key(0x00C40050u, 65536u, 0u, 0u, 0u, 0x0000u, 0u, DMT_T_STRUCT, DMT_P_NONE, DMT_R_STATE, 0x01u);
     EXPECT(DMT_NUM_RESERVED == 2 && dmt_reserved_ids[1] == 0x00C20480u);
     value(0x00C00138u, gain, sizeof gain, 0u);
     value(0x00C201C0u, label, sizeof label, 0u);
@@ -204,6 +206,7 @@ static void versioned(void)
 #else
     static const uint8_t gain_pct[] = { 150 };
     EXPECT(DMT_NUM_RESERVED == 5 && key_at(0x00C20028u) == DMT_NUM_KEYS);
+    key(0x00C40050u, 131072u, 0u, 0u, 0u, 0x0000u, 0u, DMT_T_STRUCT, DMT_P_NONE, DMT_R_STATE, 0x01u);
     key(0x00C202A8u, 2u, 864000u, 20u, 0u, 0x0000u, 0u, DMT_T_I16, DMT_P_NONE, DMT_R_STATE, 0x07u);
     value(0x00C00208u, gain_pct, sizeof gain_pct, 0u);
     EXPECT(dmt_principals[5].introduced_in == 0u);
