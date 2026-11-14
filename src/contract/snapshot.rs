@@ -241,6 +241,9 @@ pub struct CommandJson {
     /// Why the command is not on the wire; absent unless internal.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub internal: Option<String>,
+    /// Name to code of the outcome enum; absent unless the command names one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<BTreeMap<String, i64>>,
 }
 
 /// Name of a principal kind: `unix`, `inproc` or `uart` (contract.json and the SDK context).
@@ -322,9 +325,11 @@ fn contract_json(tables: &Tables) -> ContractJson {
 ///
 /// v2: persistence names from Persist::name.
 /// v3: the internal reason.
-/// @version 3
+/// v4: the outcome names and codes.
+/// @version 4
 /// @req REQ-ING-TIV-009
 /// @req REQ-ING-CMD-001
+/// @req REQ-ING-TIV-018
 fn commands_json(tables: &Tables) -> Vec<CommandJson> {
     tables
         .commands
@@ -334,6 +339,7 @@ fn commands_json(tables: &Tables) -> Vec<CommandJson> {
             persist: c.persist.name().to_string(),
             owner: c.owner.clone(),
             internal: c.internal.clone(),
+            outcome: c.outcome.as_ref().map(enum_numbers),
         })
         .collect()
 }

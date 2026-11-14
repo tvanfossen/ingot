@@ -406,6 +406,8 @@ pub struct CommandDef {
     pub internal: Option<String>,
     /// The variants the command exists on; absent: every variant.
     pub variants: Option<Vec<String>>,
+    /// The namespace enum naming the codes of the result's outcome field.
+    pub outcome: Option<String>,
 }
 
 /// `error = { group, bit }` on an error key.

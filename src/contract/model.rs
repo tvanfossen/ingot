@@ -2,7 +2,9 @@
 
 use super::enums::{self, ResolvedEnum};
 use super::error_groups::{self, ErrorGroup};
-use super::keys::{command_key_names, command_keys, declared_key, ClassCtx, Errors, Key};
+use super::keys::{
+    command_key_names, command_keys, command_outcome, declared_key, ClassCtx, Errors, Key,
+};
 use super::ranges::Units;
 use super::rights::{self, Principal};
 use super::schema::{
@@ -29,6 +31,8 @@ pub struct Command {
     pub persist: Persist,
     /// Why the command is not on the wire, when it is internal.
     pub internal: Option<String>,
+    /// The resolved enum of the result's outcome codes, when the command names one.
+    pub outcome: Option<ResolvedEnum>,
 }
 
 /// A namespace's name, ID and classes `(name, class_index)`, for the layout checks.
@@ -377,9 +381,11 @@ fn collect_keys(
 
 /// The keys and commands of one class that exist on the context's variant.
 ///
-/// @version 1
+/// v2: each command's outcome enum.
+/// @version 2
 /// @req REQ-ING-TIV-003
 /// @req REQ-ING-PRS-001
+/// @req REQ-ING-TIV-018
 fn class_keys(
     ctx: &ClassCtx,
     (keys, commands): (&mut Vec<Key>, &mut Vec<Command>),
@@ -390,7 +396,8 @@ fn class_keys(
     keys.extend(declared.map(|def| declared_key(ctx, def, errors)));
     for def in ctx.class.commands.iter().filter(|d| here(&d.variants)) {
         let three = command_keys(ctx, def, errors);
-        commands.push(command_row(def, &three));
+        let outcome = command_outcome(ctx, def, errors);
+        commands.push(command_row(def, &three, outcome));
         keys.extend(three);
     }
 }
@@ -442,10 +449,12 @@ pub(super) fn variants_overlap(a: Option<&[String]>, b: Option<&[String]>) -> bo
 /// The `dmt_commands` row of a command type.
 ///
 /// v2: and why it is internal.
-/// @version 2
+/// v3: and its resolved outcome enum.
+/// @version 3
 /// @req REQ-ING-TIV-005
 /// @req REQ-ING-CMD-001
-fn command_row(def: &CommandDef, keys: &[Key; 3]) -> Command {
+/// @req REQ-ING-TIV-018
+fn command_row(def: &CommandDef, keys: &[Key; 3], outcome: Option<ResolvedEnum>) -> Command {
     Command {
         path: keys[0]
             .command
@@ -460,6 +469,7 @@ fn command_row(def: &CommandDef, keys: &[Key; 3]) -> Command {
         owner: def.owner.clone(),
         persist: def.persistence,
         internal: def.internal.clone(),
+        outcome,
     }
 }
 

@@ -356,6 +356,22 @@ pub fn command_keys(ctx: &ClassCtx, def: &CommandDef, errors: &mut Errors) -> [K
     })
 }
 
+/// The namespace enum a command type names as its outcomes, resolved for the variant; an
+/// undefined one is recorded against the command's path.
+///
+/// @version 1
+/// @req REQ-ING-TIV-018
+pub fn command_outcome(
+    ctx: &ClassCtx,
+    def: &CommandDef,
+    errors: &mut Errors,
+) -> Option<ResolvedEnum> {
+    let path = ctx.path(&def.id);
+    def.outcome
+        .as_ref()
+        .and_then(|e| enum_of(ctx, &path, e, errors))
+}
+
 /// Parse an `introduced_in`, recording an error (and using 0.0) when it is malformed.
 ///
 /// @version 1

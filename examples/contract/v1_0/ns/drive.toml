@@ -28,6 +28,14 @@ whisper = { value = 0, wire = "whisper", accept = ["quiet"] }
 beep = { value = 0, wire = "beep" }
 chime = { value = 1, wire = "chime" }
 
+[enums.drive_outcome.values]             # the drive command's result outcomes (outcome = ...)
+accepted = 0
+refused = 1
+busy = 2
+
+[enums.drive_outcome.variants.sku_b.values]   # sku_b's approve verb can find its offer stale
+stale_offer = 3
+
 [[classes]]
 id = "settings"
 class_index = 0
@@ -233,6 +241,7 @@ owner = "integrator"
 payload_max = 64
 result_max = 16
 dedupe_ring = 4
+outcome = "drive_outcome"
 doc = "A motion verb: go and stop; approve on sku_b."
 
 [[classes.keys]]

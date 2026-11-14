@@ -252,6 +252,11 @@ const CASES: &[Case] = &[
     // -- enum constants (dmt_constants.h) -------------------------------------------------------
     ("v1_0", "ns/drive.toml", "eco = 1\n", "eco = 1\na_value_name_long_enough_to_push_the_constant_past_the_limit = 7\n", "drive.settings.mode: enum constant DMT_E_DRIVE_SETTINGS_MODE_A_VALUE_NAME_LONG_ENOUGH_TO_PUSH_THE_CONSTANT_PAST_THE_LIMIT is longer than 63 characters"),
     ("v1_0", "ns/drive.toml", "eco = 1\n", "eco = 1\n\"eco-x\" = 7\n", "drive.settings.mode: enum constant DMT_E_DRIVE_SETTINGS_MODE_ECO-X is not a C identifier"),
+    // -- command outcomes (dmt_constants.h) ----------------------------------------------------
+    ("v1_0", "ns/drive.toml", "outcome = \"drive_outcome\"", "outcome = \"nope\"", "drive.command.drive: undefined enum 'nope'"),
+    ("v1_0", "ns/drive.toml", "outcome = \"drive_outcome\"", "outcome = \"core::drive_outcome\"", "drive.command.drive: undefined enum 'core::drive_outcome'"),
+    ("v1_0", "ns/drive.toml", "busy = 2\n", "busy = 2\na_value_name_long_enough_to_pass_the_limit = 9\n", "drive.command.drive: enum constant DMT_E_DRIVE_COMMAND_DRIVE_A_VALUE_NAME_LONG_ENOUGH_TO_PASS_THE_LIMIT is longer than 63 characters"),
+    ("v1_0", "ns/drive.toml", "stale_offer = 3\n", "\"stale-offer\" = 3\n", "drive.command.drive: enum constant DMT_E_DRIVE_COMMAND_DRIVE_STALE-OFFER is not a C identifier"),
     ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry/{duid}\"\ndirection = \"pub\"\nvars = [{ name = \"duid\", max_len = 8 }]", "topic telemetry: var duid must be an identifier other than a built-in placeholder"),
     ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry/{a-b}\"\ndirection = \"pub\"\nvars = [{ name = \"a-b\", max_len = 8 }]", "topic telemetry: var a-b must be an identifier other than a built-in placeholder"),
     ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry/{job}\"\ndirection = \"pub\"\nvars = [{ name = \"job\", max_len = 8 }, { name = \"job\", max_len = 4 }]", "topic telemetry: var job is declared twice"),
@@ -464,6 +469,9 @@ const PREVIOUS_CASES: &[(&str, &str, &str, &str, &str, &str)] = &[
     ("v1_1", "v1_0", "contract.toml", "value = \"1.0-gen\"", "value = \"1.1-gen\"", "shadow_constant sv changed or was removed in a minor"),
     ("v1_1", "v1_0", "contract.toml", "template = \"{stage}/{duid}/cmd/resp\"", "template = \"{stage}/{duid}/cmd/ack\"", "topic command_resp changed or was removed in a minor"),
     ("v1_1", "v1_0", "ns/drive.toml", "args = [ { field = \"mapid\", key = \"drive.command.map_id\", absent = 0 } ]", "args = [ { field = \"mapid\", key = \"drive.command.map_id\", absent = 1 } ]", "shadow_commands command_topic state=mapcmd changed or was removed in a minor"),
+    ("v1_1", "v1_0", "ns/drive.toml", "refused = 1\n", "refused = 4\n", "drive.command.drive: its outcomes were removed or changed in a minor"),
+    ("v1_1", "v1_0", "ns/drive.toml", "busy = 2\n", "", "drive.command.drive: its outcomes were removed or changed in a minor"),
+    ("v1_1", "v1_0", "ns/drive.toml", "outcome = \"drive_outcome\"\n", "", "drive.command.drive: its outcomes were removed or changed in a minor"),
     (
         "v2_0",
         "v1_1",

@@ -1,7 +1,9 @@
-//! `dmt_constants.h`: the code of every value of every enum key as a named C constant,
-//! `DMT_E_<KEY PATH>_<VALUE>`, for the variant the tables resolve, so a consumer never writes an
-//! enum code by hand. The header is per model and outside the table interface.
+//! `dmt_constants.h`: the code of every value of every enum key and of every command's outcome
+//! enum as a named C constant, `DMT_E_<KEY OR COMMAND PATH>_<VALUE>`, for the variant the tables
+//! resolve, so a consumer never writes an enum code by hand. The header is per model and outside
+//! the table interface.
 
+use super::enums::ResolvedEnum;
 use super::keys::Errors;
 use super::model::Tables;
 use crate::codegen::render_template;
@@ -29,22 +31,42 @@ fn name_of(key: &str, value: &str) -> String {
     format!("DMT_E_{}_{}", key.replace('.', "_"), value).to_uppercase()
 }
 
-/// The constants of every enum key, in key ID order and each key's values in code order.
+/// Every enum a constant is generated for, with the ID it is placed at and the path it is
+/// named after: each enum key's enum, and each command's outcome enum at its command key.
 ///
 /// @version 1
 /// @req REQ-ING-TIV-017
+/// @req REQ-ING-TIV-018
+fn sources(tables: &Tables) -> Vec<(u32, &str, &ResolvedEnum)> {
+    let keys = tables
+        .keys
+        .iter()
+        .filter_map(|k| k.enum_values.as_ref().map(|e| (k.id, k.path.as_str(), e)));
+    let commands = tables
+        .commands
+        .iter()
+        .filter_map(|c| c.outcome.as_ref().map(|e| (c.keys[0], c.path.as_str(), e)));
+    let mut all: Vec<_> = keys.chain(commands).collect();
+    all.sort_by_key(|(id, _, _)| *id);
+    all
+}
+
+/// The constants of every enum key and command outcome, in key ID order and each one's values
+/// in code order.
+///
+/// v2: command outcomes, at their command key's ID.
+/// @version 2
+/// @req REQ-ING-TIV-017
+/// @req REQ-ING-TIV-018
 pub fn enum_constants(tables: &Tables) -> Vec<EnumConstant> {
     let mut all = Vec::new();
-    for key in &tables.keys {
-        let Some(values) = &key.enum_values else {
-            continue;
-        };
+    for (_, path, values) in sources(tables) {
         let mut mine: Vec<EnumConstant> = values
             .iter()
             .map(|(name, m)| EnumConstant {
-                name: name_of(&key.path, name),
+                name: name_of(path, name),
                 value: m.value,
-                key: key.path.clone(),
+                key: path.to_string(),
             })
             .collect();
         mine.sort_by_key(|c| c.value);

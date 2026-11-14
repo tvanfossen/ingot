@@ -68,7 +68,8 @@ Contract Mode
 +--------------------------------+---------+--------------------------------------------------+
 
 Contract mode writes ``dmt_types.h``, ``dmt_tables.h``, ``dmt_tables.c``,
-``dmt_constants.h`` (the enum value constants) and ``contract.json`` for the selected ``--variant``, or nothing at all if the model
+``dmt_constants.h`` (the enum value constants of every enum key, and of every command that names
+its result codes with ``outcome = "<enum>"``) and ``contract.json`` for the selected ``--variant``, or nothing at all if the model
 breaks any rule; every refusal is logged. It always uses the built-in templates.
 A model that maps keys to the shadow also gets ``dsh_types.h`` (the fixed shadow
 table interface) and ``dsh_tables.h`` / ``dsh_tables.c``: the binder, reporter,

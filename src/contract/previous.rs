@@ -3,7 +3,7 @@
 
 use super::keys::Errors;
 use super::previous_shadow;
-use super::snapshot::{KeyJson, Snapshot};
+use super::snapshot::{CommandJson, KeyJson, Snapshot};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Roles whose writers a release review must see (with MFG keys). TRACE_ENABLE is not one: it
@@ -103,11 +103,14 @@ fn keys_kept(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
 /// v3: units, scale, sentinels and ranges (widen only), and the unit vocabulary.
 /// v4: the error groups.
 /// v5: the shadow wire mapping (P1); the per-key checks moved to `keys_kept`.
-/// @version 5
+/// v6: command outcomes.
+/// @version 6
 /// @req REQ-ING-TIV-012
 /// @req REQ-ING-SHD-006
+/// @req REQ-ING-TIV-018
 fn minor_additive(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     keys_kept(prev, cur, errors);
+    outcomes_kept(prev, cur, errors);
     let old_paths: BTreeSet<&str> = prev.keys.iter().map(|k| k.path.as_str()).collect();
     new_keys_at_this_version(prev, cur, &old_paths, errors);
     principals_unchanged(prev, cur, errors);
@@ -250,18 +253,29 @@ fn still_accepted(old: &KeyJson, new: &KeyJson) -> bool {
     }
 }
 
-/// Every previous enum member keeps its value, and every previous number its wire string.
+/// Whether `new` keeps every (name, code) member of `old`: both absent, or both present and
+/// every old name still has its code (a minor may add members).
 ///
-/// v2: wire strings too (a snapshot from before wire strings has none to keep).
-/// @version 2
-/// @req REQ-ING-TIV-012
+/// @version 1
 /// @req REQ-ING-TIV-016
-fn enum_kept(old: &KeyJson, new: &KeyJson) -> bool {
-    let values = match (&old.enum_values, &new.enum_values) {
+/// @req REQ-ING-TIV-018
+fn members_kept(old: Option<&BTreeMap<String, i64>>, new: Option<&BTreeMap<String, i64>>) -> bool {
+    match (old, new) {
         (None, None) => true,
         (Some(a), Some(b)) => a.iter().all(|(name, v)| b.get(name) == Some(v)),
         _ => false,
-    };
+    }
+}
+
+/// Every previous enum member keeps its value, and every previous number its wire string.
+///
+/// v2: wire strings too (a snapshot from before wire strings has none to keep).
+/// v3: the members compared by `members_kept`.
+/// @version 3
+/// @req REQ-ING-TIV-012
+/// @req REQ-ING-TIV-016
+fn enum_kept(old: &KeyJson, new: &KeyJson) -> bool {
+    let values = members_kept(old.enum_values.as_ref(), new.enum_values.as_ref());
     let empty = BTreeMap::new();
     let new_wire = new.enum_wire.as_ref().unwrap_or(&empty);
     let wires = old
@@ -270,6 +284,27 @@ fn enum_kept(old: &KeyJson, new: &KeyJson) -> bool {
         .flatten()
         .all(|(code, wire)| new_wire.get(code) == Some(wire));
     values && wires
+}
+
+/// Every previous command that named outcomes still names them, each previous outcome with its
+/// code (a command removed in a minor is refused with its keys).
+///
+/// @version 1
+/// @req REQ-ING-TIV-018
+fn outcomes_kept(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
+    let now: BTreeMap<&str, &CommandJson> =
+        cur.commands.iter().map(|c| (c.path.as_str(), c)).collect();
+    for old in prev.commands.iter().filter(|c| c.outcome.is_some()) {
+        let Some(new) = now.get(old.path.as_str()) else {
+            continue;
+        };
+        if !members_kept(old.outcome.as_ref(), new.outcome.as_ref()) {
+            errors.push(format!(
+                "{}: its outcomes were removed or changed in a minor",
+                old.path
+            ));
+        }
+    }
 }
 
 /// Every previous principal is still there with the same uid, token, kind and flags (R-V8).

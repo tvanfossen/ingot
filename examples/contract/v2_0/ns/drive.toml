@@ -24,6 +24,14 @@ boost = { value = 2, wire = "high", accept = ["max"] }
 [enums.fan.variants.sku_b.values]
 whisper = { value = 0, wire = "whisper", accept = ["quiet"] }
 
+[enums.drive_outcome.values]
+accepted = 0
+refused = 1
+busy = 2
+
+[enums.drive_outcome.variants.sku_b.values]
+stale_offer = 3
+
 [[classes]]
 id = "settings"
 class_index = 0
@@ -220,6 +228,7 @@ owner = "integrator"
 payload_max = 64
 result_max = 16
 dedupe_ring = 4
+outcome = "drive_outcome"
 doc = "A motion verb: go and stop; approve on sku_b."
 
 [[classes.keys]]

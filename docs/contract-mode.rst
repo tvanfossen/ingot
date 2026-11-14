@@ -40,6 +40,21 @@ A key's ID encodes its namespace, class, index and type. A class has a role (``s
 ``wk`` (a well-known role), ``doc``, ``variants`` (the variants it exists on), and an ``error``
 bit. A command type (``[[classes.commands]]``) creates its command, result and dedupe keys with
 its owner, payload kind and sizes; ``internal`` says why it is never requested on the wire.
+``outcome = "<enum>"`` names an enum of the command's namespace whose values are the codes its
+result's outcome field carries (``DMT_RESULT_HEADER_BYTES``: epoch, sequence, outcome); it changes
+no table, only ``dmt_constants.h`` and ``contract.json``:
+
+.. code-block:: toml
+
+   [enums.drive_outcome.values]
+   accepted = 0
+   refused = 1
+   busy = 2
+
+   [[classes.commands]]
+   id = "drive"
+   # ... indices, owner, sizes ...
+   outcome = "drive_outcome"   # DMT_E_DRIVE_COMMAND_DRIVE_ACCEPTED 0, ..._REFUSED 1, ..._BUSY 2
 
 Numeric keys may carry a ``unit`` (a token of the vocabulary), an inclusive ``min``/``max`` with
 ``step``, or a discrete ``allowed`` set, a ``scale``, and an ``unset`` sentinel default outside the
@@ -159,13 +174,15 @@ Outputs
 
 ``dmt_constants.h``
    The code of every value of every enum key as ``#define DMT_E_<KEY PATH>_<VALUE> <code>`` for the
-   selected variant (upper case, dots as underscores), so no consumer writes an enum code by hand.
-   It is per model, outside the table interface; a name that is not a C identifier, is longer than
-   63 characters, or is produced by two (key, value) pairs is refused. Constants are kept within a
-   major, as enum values are.
+   selected variant (upper case, dots as underscores), so no consumer writes an enum code by hand,
+   and of every command's ``outcome`` enum as ``#define DMT_E_<COMMAND PATH>_<VALUE> <code>``,
+   placed at the command key's ID. It is per model, outside the table interface; a name that is
+   not a C identifier, is longer than 63 characters, or is produced by two (key or command, value)
+   pairs is refused. Constants are kept within a major, as enum values and outcomes are.
 
 ``contract.json``
-   Every key, principal, right, command and shadow row, read back by ``--previous-contract``.
+   Every key, principal, right, command (with its ``outcome`` names and codes, when it has any)
+   and shadow row, read back by ``--previous-contract``.
 
 ``keyspace.json``, ``keyspace.<variant>.json`` (with ``.json.gz`` and ``.head.json``), ``keyspace.schema.json``
    The declaration for tooling: all variants with per-variant overrides, the resolved variant,
@@ -197,7 +214,8 @@ Versions
 
 Within a major a contract only grows: keys, principals and rights are added at a new minor,
 existing keys keep their ID, persistence, limits (ranges and sets may widen), enum values and
-well-known roles, error bits stay, and the shadow mapping only grows: a mapped key keeps its path
+well-known roles, a command keeps its outcomes (it may gain outcomes, or name them for the first
+time), error bits stay, and the shadow mapping only grows: a mapped key keeps its path
 entries and wire attributes, its paths and accept aliases may be added to, and every echo,
 constant, topic, command and payload row stays as it was. A major reserves the IDs of removed keys.
 ``--previous-contract`` checks all of this against the previous release's ``contract.json``.
@@ -210,7 +228,9 @@ Every rule above has a refusal, grouped as follows:
 * **Layout and IDs:** duplicate namespace IDs, names or encoded IDs, a reserved or zero ID, a
   key index out of range, a type that cannot hold its default or size.
 * **Values:** a default outside its type, enum, range or set; an unknown unit; a scale without a
-  unit; a range or set on a non-numeric or enum key.
+  unit; a range or set on a non-numeric or enum key; a key ``enum`` or command ``outcome`` naming
+  no enum of its namespace; an enum or outcome constant that is not a C identifier, longer than
+  63 characters, or named twice.
 * **Variants:** an undeclared ``--variant`` or variant named anywhere; an enum variant that
   removes an unknown name or makes a code, name or string ambiguous.
 * **Rights and principals:** grants on unknown keys or scopes, a secret's reader that is not a
