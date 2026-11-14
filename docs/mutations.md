@@ -1144,3 +1144,13 @@ Same procedure; the test command is `--no-fail-fast --test contract_refusals --t
 | II04 | src/contract/schema_shadow.rs | `#[serde(skip_serializing_if = "Option::is_none")]\n    pub internal_id: Option<u16>,` | `pub internal_id: Option<u16>,` | carried only where declared | KILLED | an_internal_row_carries_its_declared_id |
 | II05 | templates/dsh_types.h | `#define DSH_IF_MINOR 5` | `#define DSH_IF_MINOR 4` | the interface minor | KILLED | a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header a_model_without_vars_has_none_and_names_its_interface |
 | TV14 | templates/dsh_tables.h | `interface {{ interface \| replace(from="DSH ", to="") }}.` | `interface 1.1.` | the header names its interface | KILLED | a_model_without_vars_has_none_and_names_its_interface |
+
+## Topics limited to variants (REQ-ING-TOP-005)
+
+Same procedure; the test command is `--no-fail-fast --test contract_refusals --test shadow_tables --test shadow_rows`.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| TO01 | src/contract/shadow.rs | `(format!("topic {}", t.id), t.variants.as_deref())` | `(format!("topic {}", t.id), None)` | a topic only on its variants (and its variants checked) | KILLED | a_topic_exists_only_on_its_variants a_topic_is_frozen_per_variant every_refusal_has_a_triggering_model |
+| TO02 | src/contract/previous_shadow.rs | `variants: None,\n            ..t.clone()` | `..t.clone()` | topics compared without their variants | KILLED | a_topic_is_frozen_per_variant |
+| TO03 | src/contract/shadow.rs | `uses.extend(named);` | `let _ = named;` | undeclared variants of limited rows refused | KILLED | an_echo_row_names_declared_variants_only every_refusal_has_a_triggering_model |
