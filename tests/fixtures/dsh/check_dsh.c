@@ -306,14 +306,73 @@ static int topic_violations(void)
 }
 
 /**
- * @brief   Walk every table.
+ * @brief   Bytes of the longer of `n` and `path` with its terminator.
  * @version 1
+ * @return  the larger byte count.
+ */
+static size_t longer(size_t n, const char *path)
+{
+    size_t len = strlen(path) + 1u;
+    return len > n ? len : n;
+}
+
+/**
+ * @brief   Count binder bounds (minor 8) that differ from a walk of the binder and reporter
+ *          tables: rejected-list members and the longest desired or echo path.
+ * @version 1
+ * @return  the number of violations.
+ */
+static int binder_bound_violations(void)
+{
+    size_t i, path = 0u, items = 0u;
+    for (i = 0u; i < DSH_NUM_DESIRED; i++) {
+        path = longer(path, dsh_desired[i].path);
+    }
+    for (i = 0u; i < DSH_NUM_ECHO; i++) {
+        path = longer(path, dsh_echo[i].path);
+    }
+    for (i = 0u; i < DSH_NUM_REPORTED; i++) {
+        items = dsh_reported[i].kind == DSH_RK_REJECTED ? DSH_NUM_DESIRED + DSH_NUM_ECHO : items;
+    }
+    return (DSH_DESIRED_PATH_MAX_BYTES != path) + (DSH_REJECTED_MAX_ITEMS != items);
+}
+
+/**
+ * @brief   Count error bounds (minor 8) that differ from a walk of the error groups: the ids the
+ *          full table publishes and the largest id a published or declared bit carries.
+ * @version 1
+ * @return  the number of violations.
+ */
+static int error_bound_violations(void)
+{
+    size_t g, i, published = 0u;
+    uint32_t top = 0u;
+    for (g = 0u; g < DSH_NUM_ERROR_GROUPS; g++) {
+        const dsh_error_group_t *eg = &dsh_error_groups[g];
+        for (i = 0u; i <= eg->publish_max_bit; i++) {
+            int out = ((eg->reserved >> i) & 1u) == 0u;
+            published += (size_t)out;
+            top = out && eg->wire_base + i > top ? eg->wire_base + (uint32_t)i : top;
+        }
+        for (i = 0u; i < eg->bits_count; i++) {
+            uint32_t id = eg->wire_base + dsh_error_bits[eg->bits_first + i].bit;
+            top = id > top ? id : top;
+        }
+    }
+    return (DSH_ERROR_IDS_PUBLISHED != published) + (DSH_ERROR_ID_MAX != top);
+}
+
+/**
+ * @brief   Walk every table.
+ *          v2: the consumer bounds (minor 8).
+ * @version 2
  * @return  0 when the tables are consistent.
  */
 int main(void)
 {
     int bad = enum_violations() + binder_violations() + reporter_violations();
     bad += error_violations() + command_violations() + topic_violations();
+    bad += binder_bound_violations() + error_bound_violations();
     bad += dsh_if_major_1 != 1u;
     return bad != 0;
 }

@@ -147,17 +147,28 @@ fn row(tables: &Tables, key: &Key, f: &PathForm, pools: &mut Pools) -> String {
     )
 }
 
-/// Every desired path of every SETTINGS key, sorted by path.
+/// Every desired path form of every SETTINGS key, in key order: one `dsh_desired` row each.
 ///
 /// @version 1
 /// @req REQ-ING-DSH-001
+/// @req REQ-ING-DSH-006
+pub fn forms(tables: &Tables) -> impl Iterator<Item = (&Key, &PathForm)> {
+    tables
+        .keys
+        .iter()
+        .filter(|k| k.role == Role::Settings)
+        .flat_map(|k| k.wire.shadow_forms.iter().map(move |f| (k, f)))
+}
+
+/// Every desired path of every SETTINGS key, sorted by path.
+///
+/// v2: the forms from `forms`, shared with the consumer bounds.
+/// @version 2
+/// @req REQ-ING-DSH-001
 pub fn rows(tables: &Tables, pools: &mut Pools) -> Vec<String> {
-    let mut rows: Vec<(String, String)> = Vec::new();
-    for key in tables.keys.iter().filter(|k| k.role == Role::Settings) {
-        for f in &key.wire.shadow_forms {
-            rows.push((f.path.clone(), row(tables, key, f, pools)));
-        }
-    }
+    let mut rows: Vec<(String, String)> = forms(tables)
+        .map(|(key, f)| (f.path.clone(), row(tables, key, f, pools)))
+        .collect();
     rows.sort();
     rows.into_iter().map(|(_, r)| r).collect()
 }

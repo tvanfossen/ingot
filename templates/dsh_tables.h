@@ -18,6 +18,10 @@ extern "C" {
 #define DSH_INGOT_COMMIT       "{{ ingot_commit }}"
 #define DSH_FULL_MAX_BYTES     {{ full_max_bytes }}u     /* worst-case full reported document */
 #define DSH_DELTA_FORCED_BYTES {{ delta_forced_bytes }}u     /* worst-case forced delta rows */
+#define DSH_REJECTED_MAX_ITEMS {{ bounds.rejected_max_items }}u   /* members of one rejected-settings list (0: none) */
+#define DSH_DESIRED_PATH_MAX_BYTES {{ bounds.desired_path_max_bytes }}u   /* longest desired or echo path, with its terminator */
+#define DSH_ERROR_IDS_PUBLISHED {{ bounds.error_ids_published }}u   /* ids the full error table publishes */
+#define DSH_ERROR_ID_MAX {{ bounds.error_id_max }}u   /* largest wire id of an error payload */
 {%- for t in tables %}
 #define {{ t.count }} {{ t.len }}u
 {%- endfor %}

@@ -2,6 +2,7 @@
 //! command-router, error-group and topic rows of one variant, against the fixed `dsh_types.h`.
 //! The library's generic walkers read them; nothing in them is per-key code.
 
+mod bounds;
 mod commands;
 mod desired;
 mod enums;
@@ -212,9 +213,11 @@ fn tables_of(tables: &Tables, hash: &str) -> Vec<Table> {
 /// The rendering context of the two files.
 ///
 /// v2: the interface version the tables are written against.
-/// @version 2
+/// v3: the consumer bounds (interface minor 8).
+/// @version 3
 /// @req REQ-ING-DSH-001
 /// @req REQ-ING-DSH-005
+/// @req REQ-ING-DSH-006
 pub fn context(tables: &Tables, commit: &str, hash: &str) -> Context {
     let t = trees(tables);
     let v = &tables.version;
@@ -231,6 +234,7 @@ pub fn context(tables: &Tables, commit: &str, hash: &str) -> Context {
     ctx.insert("contract_hash", hash);
     ctx.insert("full_max_bytes", &t.reported.bytes());
     ctx.insert("delta_forced_bytes", &t.forced.bytes());
+    ctx.insert("bounds", &bounds::of(tables));
     ctx.insert("tables", &tables_of(tables, hash));
     ctx
 }

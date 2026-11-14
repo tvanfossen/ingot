@@ -177,7 +177,12 @@ Outputs
    enums with inbound and outbound strings, coupled writes, discrete sets), reporter
    (``dsh_reported`` in emission order), error-group, command-router (``dsh_commands``,
    ``dsh_steps``, ``dsh_args``) and topic (``dtp_topics``, ``dtp_payload``) tables, the contract
-   hash, and the worst-case full and forced-delta document sizes.
+   hash, and the worst-case full and forced-delta document sizes. Shadow table interface 1.8 adds
+   the bounds a consumer sizes its buffers with: ``DSH_REJECTED_MAX_ITEMS`` (one member per
+   desired and echo path; 0 without a rejected-settings list), ``DSH_DESIRED_PATH_MAX_BYTES`` (the
+   longest desired or echo path with its terminator), ``DSH_ERROR_IDS_PUBLISHED`` (every group's
+   bits up to ``publish_max_bit`` that are not reserved) and ``DSH_ERROR_ID_MAX`` (the largest wire
+   id of a published or declared bit).
 
 ``sdk/<principal>/`` (with ``--sdk-binding <DIR>``)
    Each file of the binding directory rendered once per principal, named after the file without a

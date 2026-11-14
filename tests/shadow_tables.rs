@@ -1030,7 +1030,7 @@ fn a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header() {
     assert!(ok, "{stderr}");
     let fixed = fs::read_to_string(types.join("dsh_types.h")).unwrap();
     assert_eq!(fixed, fs::read_to_string(gen.join("dsh_types.h")).unwrap());
-    assert!(fixed.contains("#define DSH_IF_MAJOR 1") && fixed.contains("#define DSH_IF_MINOR 7"));
+    assert!(fixed.contains("#define DSH_IF_MAJOR 1") && fixed.contains("#define DSH_IF_MINOR 8"));
     assert!(fixed.contains("DSH_FORM_BOOL_INTEGER = 4"));
     assert!(fixed.contains("DSH_RK_REJECTED = 4"));
     assert!(
