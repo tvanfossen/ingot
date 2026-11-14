@@ -837,6 +837,33 @@ fn a_pub_topic_declares_the_vars_its_publisher_fills() {
     let _ = fs::remove_dir_all(&dir);
 }
 
+/// @brief Whether the tables and contract.json in `gen` both have topic `id`.
+/// @version 1
+fn has_topic(gen: &Path, id: &str) -> bool {
+    let in_table = table(gen, "dtp_topics")
+        .iter()
+        .any(|r| r.contains(&format!(".id = \"{id}\"")));
+    let json = contract_json(gen)["shadow"]["topics"].clone();
+    let in_json = json.as_array().unwrap().iter().any(|t| t["id"] == id);
+    assert_eq!(in_table, in_json, "{id}: tables and contract.json agree");
+    in_table
+}
+
+#[test]
+fn a_topic_exists_only_on_its_variants() {
+    let dir = unique_dir("dtp_topic_variants");
+    let telemetry = "template = \"{stage}/{duid}/telemetry\"\ndirection = \"pub\"";
+    let limited = format!("{telemetry}\nvariants = [\"sku_b\"]");
+    let edits = [("contract.toml", telemetry, limited.as_str())];
+    let listed = generated(&dir, "listed", "sku_b", &edits);
+    assert!(has_topic(&listed, "telemetry"));
+    let other = generated(&dir, "other", "sku_a", &edits);
+    assert!(!has_topic(&other, "telemetry"));
+    compile_and_walk(&listed);
+    compile_and_walk(&other);
+    let _ = fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn a_model_without_vars_has_none_and_names_its_interface() {
     let dir = unique_dir("dtp_no_vars");

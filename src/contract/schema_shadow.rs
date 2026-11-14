@@ -332,6 +332,9 @@ pub struct Topic {
     /// Placeholders of a pub topic that the publisher fills per message, each `{name}`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub vars: Vec<TopicVar>,
+    /// The variants the topic exists on (absent: every variant).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variants: Option<Vec<String>>,
 }
 
 /// One per-message placeholder of a pub topic: its name and its longest value in bytes.

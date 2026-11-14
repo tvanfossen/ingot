@@ -116,7 +116,9 @@ Key paths
    name, max_len }]``: placeholders its publisher fills per message, each ``{name}`` in the
    template, at most 8 per topic and each up to 128 bytes (``dtp_vars``, shadow table interface
    1.4). A template placeholder that is neither per-device nor declared is refused, and so is a
-   declared var the template does not use.
+   declared var the template does not use. ``variants`` limits a topic to those variants: a
+   variant not listed has no row, and a topic is compared on a previous contract's variant (a
+   minor may add variants, not drop or change the topic there).
 
 ``[[topic_payload]]``
    One member of a pub topic's payload: ``topic``, ``path``, and one of ``key`` (any key with a

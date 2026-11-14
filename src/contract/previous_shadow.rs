@@ -6,7 +6,7 @@
 use super::keys::Errors;
 use super::payload;
 use super::refuse_commands::selector_text;
-use super::schema::{PathForm, Rejected, ShadowCommand};
+use super::schema::{PathForm, Rejected, ShadowCommand, Topic};
 use super::snapshot::{KeyJson, Mapping, Snapshot};
 use super::wire::KeyWire;
 
@@ -97,16 +97,33 @@ fn command_name(r: &ShadowCommand) -> String {
     format!("shadow_commands {} {}", r.topic, selector_text(&r.selector))
 }
 
+/// The topics of `rows` without their variants: a topic is compared on the snapshot's variant,
+/// so a minor may add variants to it.
+///
+/// @version 1
+/// @req REQ-ING-TOP-005
+fn topics_on_variant(rows: &[Topic]) -> Vec<Topic> {
+    rows.iter()
+        .map(|t| Topic {
+            variants: None,
+            ..t.clone()
+        })
+        .collect()
+}
+
 /// The contract-level rows of `prev` are all still in `cur` unchanged; the rejected-settings
-/// list by its path on the snapshot's variant (it may gain variants).
+/// list by its path and topics without their variants, on the snapshot's variant (both may gain
+/// variants).
 ///
 /// v2: topic payload members.
 /// v3: the rejected-settings list.
 /// v4: the list compared by path, so a minor may add variants.
-/// @version 4
+/// v5: topics compared without their variants.
+/// @version 5
 /// @req REQ-ING-SHD-006
 /// @req REQ-ING-TOP-003
 /// @req REQ-ING-SHD-011
+/// @req REQ-ING-TOP-005
 pub fn rows_unchanged(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     let (old, new) = match (prev.shadow_rows(), cur.shadow_rows()) {
         (Ok(o), Ok(n)) => (o, n),
@@ -125,8 +142,8 @@ pub fn rows_unchanged(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
         errors,
     );
     rows_kept(
-        &old.topics,
-        &new.topics,
+        &topics_on_variant(&old.topics),
+        &topics_on_variant(&new.topics),
         |t| format!("topic {}", t.id),
         errors,
     );

@@ -69,13 +69,15 @@ fn of_variant<T>(
 /// v3: echo paths limited to variants.
 /// v4: topic payload members.
 /// v5: the rejected-settings list.
-/// v6: the rejected-settings list on its variants only (`rejected_on`).
-/// @version 6
+/// v6: the rejected-settings list on its variants only.
+/// v7: topics on their variants only; the variant-limited rows through `limited_rows`.
+/// @version 7
 /// @req REQ-ING-SHD-002
 /// @req REQ-ING-CMD-001
 /// @req REQ-ING-TOP-001
 /// @req REQ-ING-TOP-003
 /// @req REQ-ING-SHD-011
+/// @req REQ-ING-TOP-005
 pub fn rows(
     file: &mut ContractFile,
     namespaces: &[NamespaceFile],
@@ -87,50 +89,68 @@ pub fn rows(
         .filter(|r| present_on(r.variants.as_deref(), variant))
         .cloned()
         .collect();
-    let echo = std::mem::take(&mut file.shadow_echo);
-    let (echo, mut variant_uses) = of_variant(
-        echo,
-        variant,
-        |e| format!("shadow_echo {}", e.path),
-        |e| e.variants.as_deref(),
-    );
-    let payload = std::mem::take(&mut file.topic_payload);
-    let (payload, payload_uses) = of_variant(
-        payload,
-        variant,
-        |p| format!("topic_payload {} {}", p.topic, p.path),
-        |p| p.variants.as_deref(),
-    );
-    variant_uses.extend(payload_uses);
-    let (rejected, rejected_uses) = rejected_on(file.shadow_rejected.take(), variant);
-    variant_uses.extend(rejected_uses);
-    Shadow {
+    let mut s = Shadow {
         apply_groups: std::mem::take(&mut file.apply_groups),
-        echo,
         constants: std::mem::take(&mut file.shadow_constant),
-        topics: std::mem::take(&mut file.topics),
-        payload,
         commands,
-        rejected,
-        variant_uses,
-    }
+        ..Shadow::default()
+    };
+    limited_rows(&mut s, file, OnVariant { variant });
+    s
 }
 
-/// The rejected-settings list if it exists on `variant`, and every (row, variant) it names.
+/// The rows that may be limited to variants (echo paths, payload members, topics and the
+/// rejected-settings list), taken out of `file` into `s` for `on`, with every (row, variant)
+/// they name.
 ///
 /// @version 1
-/// @req REQ-ING-SHD-011
-fn rejected_on(
-    declared: Option<Rejected>,
-    variant: Option<&str>,
-) -> (Option<Rejected>, Vec<(String, String)>) {
-    let (mine, uses) = of_variant(
-        declared.into_iter().collect(),
-        variant,
-        |r| format!("shadow_rejected {}", r.path),
-        |r| r.variants.as_deref(),
-    );
-    (mine.into_iter().next(), uses)
+/// @req REQ-ING-SHD-004
+/// @req REQ-ING-TOP-005
+fn limited_rows(s: &mut Shadow, file: &mut ContractFile, on: OnVariant) {
+    let uses = &mut s.variant_uses;
+    s.echo = on.take(std::mem::take(&mut file.shadow_echo), uses, |e| {
+        (format!("shadow_echo {}", e.path), e.variants.as_deref())
+    });
+    s.payload = on.take(std::mem::take(&mut file.topic_payload), uses, |p| {
+        (
+            format!("topic_payload {} {}", p.topic, p.path),
+            p.variants.as_deref(),
+        )
+    });
+    s.topics = on.take(std::mem::take(&mut file.topics), uses, |t| {
+        (format!("topic {}", t.id), t.variants.as_deref())
+    });
+    let rejected = file.shadow_rejected.take().into_iter().collect();
+    s.rejected = on
+        .take(rejected, uses, |r| {
+            (format!("shadow_rejected {}", r.path), r.variants.as_deref())
+        })
+        .into_iter()
+        .next();
+}
+
+/// The variant a row set is taken for.
+struct OnVariant<'a> {
+    variant: Option<&'a str>,
+}
+
+impl OnVariant<'_> {
+    /// The rows of `declared` that exist on the variant, recording into `uses` every (row,
+    /// variant) they name; `about` gives a row's name and its variants.
+    ///
+    /// @version 1
+    /// @req REQ-ING-SHD-004
+    /// @req REQ-ING-TOP-005
+    fn take<T>(
+        &self,
+        declared: Vec<T>,
+        uses: &mut Vec<(String, String)>,
+        about: impl Fn(&T) -> (String, Option<&[String]>),
+    ) -> Vec<T> {
+        let (mine, named) = of_variant(declared, self.variant, |r| about(r).0, |r| about(r).1);
+        uses.extend(named);
+        mine
+    }
 }
 
 /// Whether the model maps anything to the shadow (a command row needs a topic, so the topics

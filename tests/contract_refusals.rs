@@ -242,6 +242,7 @@ const CASES: &[Case] = &[
     ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry/{job}\"\ndirection = \"pub\"\nvars = [{ name = \"job\", max_len = 129 }]", "topic telemetry: var job needs max_len 1..=128"),
     ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry\"\ndirection = \"pub\"\nvars = [{ name = \"job\", max_len = 8 }]", "topic telemetry: var job is not used by its template"),
     ("v1_0", "contract.toml", TELEMETRY, NINE_VARS, "topic telemetry: more than 8 vars"),
+    ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry\"\ndirection = \"pub\"\nvariants = [\"sku_c\"]", "topic telemetry: variant sku_c is not declared"),
     ("v1_0", "contract.toml", "template = \"{stage}/{duid}/cmd/req\"\ndirection = \"sub\"", "template = \"{stage}/{duid}/cmd/req/{job}\"\ndirection = \"sub\"\nvars = [{ name = \"job\", max_len = 8 }]", "topic command_topic: vars are for pub topics"),
     ("v1_0", "contract.toml", "id = \"telemetry\"", "id = \"command_resp\"", "topics: id command_resp is used twice"),
     ("v1_0", "contract.toml", "template = \"{stage}/{duid}/telemetry\"", "template = \"{stage}/{duid}/cmd/resp\"", "topics: template {stage}/{duid}/cmd/resp is used twice"),
@@ -547,6 +548,50 @@ fn the_rejected_settings_path_is_frozen_per_variant() {
     let (ok, stderr) = against(&dir, "elsewhere", Some(elsewhere), &prev);
     assert!(
         !ok && stderr.contains(REJECTED_REMOVED),
+        "dropped on sku_a: {stderr}"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// @brief The telemetry topic limited to `variants` (a TOML list).
+/// @version 1
+fn telemetry_on(variants: &str) -> String {
+    format!("{TELEMETRY}\nvariants = {variants}")
+}
+
+/// @brief Generate the 1.1 model with the telemetry topic on `variants` against `prev`;
+/// returns (success, stderr).
+/// @version 1
+fn telemetry_against(dir: &Path, tag: &str, variants: &str, prev: &Path) -> (bool, String) {
+    let case = dir.join(tag);
+    edited_copy(
+        "v1_1",
+        &case,
+        &[("contract.toml", TELEMETRY, &telemetry_on(variants))],
+    );
+    let previous = prev.join("contract.json");
+    let args = ["--previous-contract", previous.to_str().unwrap()];
+    generate(&case.join("contract.toml"), &case.join("out"), &args)
+}
+
+#[test]
+fn a_topic_is_frozen_per_variant() {
+    let dir = unique_dir("previous_topic_variants");
+    let prev = dir.join("prev");
+    edited_copy(
+        "v1_0",
+        &prev,
+        &[("contract.toml", TELEMETRY, &telemetry_on("[\"sku_a\"]"))],
+    );
+    let (ok, stderr) = generate(&prev.join("contract.toml"), &prev.join("out"), &[]);
+    assert!(ok, "{stderr}");
+    let prev = prev.join("out");
+    let (ok, stderr) = telemetry_against(&dir, "widened", "[\"sku_a\", \"sku_b\"]", &prev);
+    assert!(ok, "another variant added in a minor: {stderr}");
+    let (ok, stderr) = telemetry_against(&dir, "elsewhere", "[\"sku_b\"]", &prev);
+    let removed = "topic telemetry changed or was removed in a minor";
+    assert!(
+        !ok && stderr.contains(removed),
         "dropped on sku_a: {stderr}"
     );
     let _ = fs::remove_dir_all(&dir);

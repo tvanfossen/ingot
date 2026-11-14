@@ -125,6 +125,7 @@
         "template": { "type": "string" },
         "direction": { "enum": ["pub", "sub"] },
         "connection": { "type": "string" },
+        "variants": { "$ref": "#/$defs/variants" },
         "settings_in_every_body": {
           "description": "Every body on this topic, whatever its verb, also runs the settings binder on its top-level fields before the verb.",
           "type": "boolean"
