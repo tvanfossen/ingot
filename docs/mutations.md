@@ -1110,3 +1110,24 @@ Same procedure; the test command is `--no-fail-fast --test contract_refusals --t
 | RV01 | src/contract/shadow.rs | `\|r\| r.variants.as_deref(),` | `\|_\| None,` | the row only on its variants | KILLED | every_refusal_has_a_triggering_model the_rejected_settings_list_exists_only_on_its_variants the_rejected_settings_path_is_frozen_per_variant |
 | RV02 | src/contract/shadow.rs | `variant_uses.extend(rejected_uses);` | `let _ = rejected_uses;` | undeclared variants refused | KILLED | every_refusal_has_a_triggering_model |
 | RV03 | src/contract/previous_shadow.rs | `let path = \|s: &Option<Rejected>\| s.iter().map(\|r\| r.path.clone()).collect::<Vec<_>>();` | `let path = \|s: &Option<Rejected>\| s.iter().map(\|r\| format!("{r:?}")).collect::<Vec<_>>();` | compared by path (variants may grow) | KILLED | the_rejected_settings_path_is_frozen_per_variant the_rejected_settings_path_is_kept_in_a_minor_and_may_be_added |
+
+## Per-message topic placeholders (REQ-ING-TOP-004)
+
+Same procedure; the test command is `--no-fail-fast --test contract_refusals --test shadow_tables`.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| TV01 | src/contract/topics.rs | `PLACEHOLDERS.contains(&name) \|\| topic_vars::declared(t, name)` | `PLACEHOLDERS.contains(&name)` | a template uses its vars | KILLED | a_pub_topic_declares_the_vars_its_publisher_fills |
+| TV02 | src/contract/topic_vars.rs | `if !t.vars.is_empty() && t.direction == Direction::Sub {` | `if false {` | vars are for pub topics | KILLED | every_refusal_has_a_triggering_model |
+| TV03 | src/contract/topic_vars.rs | `if t.vars.len() > VARS_MAX {` | `if false {` | the count bound | KILLED | every_refusal_has_a_triggering_model |
+| TV04 | src/contract/topic_vars.rs | `if !seen.insert(&v.name) {` | `if !seen.insert(&v.name) && false {` | a name declared twice | KILLED | every_refusal_has_a_triggering_model |
+| TV05 | src/contract/topic_vars.rs | `\|\| PLACEHOLDERS.contains(&name.as_str())` | `\|\| false` | a per-device placeholder is not a var | KILLED | every_refusal_has_a_triggering_model |
+| TV06 | src/contract/topic_vars.rs | `if !valid_path(name) \|\| name.contains('.')` | `if name.contains('.')` | a var is an identifier | KILLED | every_refusal_has_a_triggering_model |
+| TV07 | src/contract/topic_vars.rs | `if v.max_len == 0 \|\| v.max_len > VAR_LEN_MAX {` | `if v.max_len > VAR_LEN_MAX {` | max_len at least 1 | KILLED | every_refusal_has_a_triggering_model |
+| TV08 | src/contract/topic_vars.rs | `if v.max_len == 0 \|\| v.max_len > VAR_LEN_MAX {` | `if v.max_len == 0 {` | max_len at most 128 | KILLED | every_refusal_has_a_triggering_model |
+| TV09 | src/contract/topic_vars.rs | `if !t.template.contains(&format!("{{{name}}}")) {` | `if false {` | an unused var refused | KILLED | every_refusal_has_a_triggering_model |
+| TV10 | src/contract/dsh/topics.rs | `format!(".vars_first = {first}u, .vars_count = {}u", t.vars.len())` | `format!(".vars_first = 0u, .vars_count = {}u", t.vars.len())` | each topic's slice | KILLED | a_pub_topic_declares_the_vars_its_publisher_fills |
+| TV11 | src/contract/dsh/topics.rs | `text(Some(&v.name)),` | `text(None),` | the var's name emitted | KILLED | a_pub_topic_declares_the_vars_its_publisher_fills |
+| TV12 | src/contract/schema_shadow.rs | `#[serde(default, skip_serializing_if = "Vec::is_empty")]\n    pub vars: Vec<TopicVar>,` | `#[serde(default)]\n    pub vars: Vec<TopicVar>,` | contract.json carries vars only where declared | KILLED | a_pub_topic_declares_the_vars_its_publisher_fills |
+| TV13 | templates/dsh_types.h | `#define DSH_IF_MINOR 4` | `#define DSH_IF_MINOR 3` | the interface minor | KILLED | a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header |
+| TV14 | templates/dsh_tables.h | `interface {{ interface \| replace(from="DSH ", to="") }}.` | `interface 1.1.` | the header names its interface | KILLED | a_pub_topic_declares_the_vars_its_publisher_fills |
