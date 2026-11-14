@@ -1223,3 +1223,14 @@ Same procedure; the test command is `--no-fail-fast --test shadow_bounds --test 
 | DB08 | src/contract/dsh/bounds.rs | `.map(\|g\| published(g).count())` | `.map(\|g\| published(g).count().min(1))` | every published id counted | KILLED | a_bool_path_reports_0_1_in_one_document_and_true_false_in_the_other a_config_key_is_reported_and_never_desired a_declared_placeholder_is_emitted_for_the_consumer_to_configure a_discrete_set_a_sentinel_and_an_integer_form_reach_the_binder a_pub_topic_declares_the_vars_its_publisher_fills a_raw_unknown_an_integer_path_and_a_scope_reach_the_reporter a_row_submits_further_commands_as_steps a_sub_topic_declares_the_vars_its_consumer_extracts a_topic_exists_only_on_its_variants a_topic_payload_is_built_from_keys_and_constants an_internal_row_carries_its_declared_id argument_forms_resolve_names_elements_and_encodings base64_text_decodes_into_a_struct_argument_and_steps_name_their_command_type error_bits_are_sorted_by_bit_not_by_key reserved_bits_and_publish_max_bit_bound_the_published_ids rows_without_a_command_answer_stay_internal_or_write_state the_generic_model_states_its_bounds_per_variant the_rejected_settings_list_exists_only_on_its_variants the_rejected_settings_list_is_a_delta_row_at_its_declared_path the_tables_compile_and_walk_on_every_variant |
 | DB09 | templates/dsh_types.h | `#define DSH_IF_MINOR 8` | `#define DSH_IF_MINOR 7` | the interface minor | KILLED | a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header a_model_without_vars_has_none_and_names_its_interface |
 | DB10 | src/codegen/tables.rs | `("dsh_types.h", "DSH 1.8")` | `("dsh_types.h", "DSH 1.7")` | the interface the tables name | KILLED | a_model_without_vars_has_none_and_names_its_interface |
+
+## A 128 KiB struct key; struct readers take it in flight (R12)
+
+Same procedure; the test command is `--no-fail-fast --test contract_mode`. SK01 fails in check_values, SK02-SK04 in check_tables (checked by hand).
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| SK01 | examples/contract/v2_0/ns/drive.toml | `max_size = 131072` | `max_size = 65536` | 2.0 map_data is 128 KiB | KILLED | generic_model_versions_and_previous_checks |
+| SK02 | examples/contract/v2_0/contract.toml | `inflight_bytes = 4194304` | `inflight_bytes = 65536` | a reader's own in-flight bytes below max_size | KILLED | generic_model_versions_and_previous_checks |
+| SK03 | examples/contract/v2_0/contract.toml | `uid = 2001\ninflight_fd = 4\ninflight_bytes = 1048576` | `uid = 2001\ninflight_fd = 4\ninflight_bytes = 65536` | a reader's uid totals below max_size | KILLED | generic_model_versions_and_previous_checks |
+| SK04 | examples/contract/v2_0/contract.toml | `caps = { inflight_fd = 8, inflight_bytes = 4194304` | `caps = { inflight_fd = 0, inflight_bytes = 4194304` | a reader with no in-flight fd | KILLED | generic_model_versions_and_previous_checks |
