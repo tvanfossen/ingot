@@ -1100,3 +1100,13 @@ Same procedure; the test command is `--no-fail-fast --test contract_refusals --t
 | RJ07 | src/contract/dsh/reported.rs | `rows.push((r.path.clone(), row));` | `let _ = row;` | the reporter row | KILLED | the_rejected_settings_list_is_a_delta_row_at_its_declared_path |
 | RJ08 | templates/dsh_types.h | `DSH_RK_REJECTED = 4` | `DSH_RK_REJECTED = 5` | the appended kind | KILLED | a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header |
 | RJ09 | templates/dsh_types.h | `#define DSH_IF_MINOR 3` | `#define DSH_IF_MINOR 2` | the interface minor | KILLED | a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header |
+
+## The rejected-settings list limited to variants (REQ-ING-SHD-011)
+
+Same procedure; the test command is `--no-fail-fast --test contract_refusals --test shadow_tables`.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| RV01 | src/contract/shadow.rs | `\|r\| r.variants.as_deref(),` | `\|_\| None,` | the row only on its variants | KILLED | every_refusal_has_a_triggering_model the_rejected_settings_list_exists_only_on_its_variants the_rejected_settings_path_is_frozen_per_variant |
+| RV02 | src/contract/shadow.rs | `variant_uses.extend(rejected_uses);` | `let _ = rejected_uses;` | undeclared variants refused | KILLED | every_refusal_has_a_triggering_model |
+| RV03 | src/contract/previous_shadow.rs | `let path = \|s: &Option<Rejected>\| s.iter().map(\|r\| r.path.clone()).collect::<Vec<_>>();` | `let path = \|s: &Option<Rejected>\| s.iter().map(\|r\| format!("{r:?}")).collect::<Vec<_>>();` | compared by path (variants may grow) | KILLED | the_rejected_settings_path_is_frozen_per_variant the_rejected_settings_path_is_kept_in_a_minor_and_may_be_added |
