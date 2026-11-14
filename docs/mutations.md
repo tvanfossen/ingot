@@ -1154,3 +1154,14 @@ Same procedure; the test command is `--no-fail-fast --test contract_refusals --t
 | TO01 | src/contract/shadow.rs | `(format!("topic {}", t.id), t.variants.as_deref())` | `(format!("topic {}", t.id), None)` | a topic only on its variants (and its variants checked) | KILLED | a_topic_exists_only_on_its_variants a_topic_is_frozen_per_variant every_refusal_has_a_triggering_model |
 | TO02 | src/contract/previous_shadow.rs | `variants: None,\n            ..t.clone()` | `..t.clone()` | topics compared without their variants | KILLED | a_topic_is_frozen_per_variant |
 | TO03 | src/contract/shadow.rs | `uses.extend(named);` | `let _ = named;` | undeclared variants of limited rows refused | KILLED | an_echo_row_names_declared_variants_only every_refusal_has_a_triggering_model |
+
+## Per-message placeholders on sub topics (REQ-ING-TOP-006)
+
+Same procedure; the test command is `--no-fail-fast --test contract_refusals --test shadow_tables`.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| SV01 | src/contract/topic_vars.rs | `.filter(\|v\| sub && !one_whole_level(&t.template, &v.name))` | `.filter(\|v\| sub)` | a whole-level var on a sub topic is accepted | KILLED | a_sub_topic_declares_the_vars_its_consumer_extracts |
+| SV02 | src/contract/topic_vars.rs | `.filter(\|v\| sub && !one_whole_level(&t.template, &v.name))` | `.filter(\|v\| sub && false)` | a var inside a level is refused | KILLED | every_refusal_has_a_triggering_model |
+| SV03 | src/contract/topic_vars.rs | `levels == 1 && template.matches(&placeholder).count() == 1` | `levels >= 1` | used once | KILLED | every_refusal_has_a_triggering_model |
+| SV04 | templates/dsh_types.h | `#define DSH_IF_MINOR 6` | `#define DSH_IF_MINOR 5` | the interface minor | KILLED | a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header a_model_without_vars_has_none_and_names_its_interface |
