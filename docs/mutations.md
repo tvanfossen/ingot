@@ -1234,3 +1234,26 @@ Same procedure; the test command is `--no-fail-fast --test contract_mode`. SK01 
 | SK02 | examples/contract/v2_0/contract.toml | `inflight_bytes = 4194304` | `inflight_bytes = 65536` | a reader's own in-flight bytes below max_size | KILLED | generic_model_versions_and_previous_checks |
 | SK03 | examples/contract/v2_0/contract.toml | `uid = 2001\ninflight_fd = 4\ninflight_bytes = 1048576` | `uid = 2001\ninflight_fd = 4\ninflight_bytes = 65536` | a reader's uid totals below max_size | KILLED | generic_model_versions_and_previous_checks |
 | SK04 | examples/contract/v2_0/contract.toml | `caps = { inflight_fd = 8, inflight_bytes = 4194304` | `caps = { inflight_fd = 0, inflight_bytes = 4194304` | a reader with no in-flight fd | KILLED | generic_model_versions_and_previous_checks |
+
+## Command outcome constants (REQ-ING-TIV-018)
+
+Same procedure, on a copy of the tree; the test command is `--test enum_constants --test contract_refusals --test contract_mode`.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| OC01 | src/contract/keys.rs | `.and_then(\|e\| enum_of(ctx, &path, e, errors))` | `.and_then(\|e\| enum_of(ctx, &path, e, &mut Vec::new()))` | an undefined outcome enum is refused | KILLED | every_refusal_has_a_triggering_model |
+| OC02 | src/contract/keys.rs | `let path = ctx.path(&def.id);` | `let path = def.id.clone();` | the outcome refusal names the command path | KILLED | every_refusal_has_a_triggering_model |
+| OC03 | src/contract/model.rs | `commands.push(command_row(def, &three, outcome));` | `commands.push(command_row(def, &three, None));` | the command row carries its resolved outcome | KILLED | every_refusal_has_a_triggering_model previous_contract_refusals |
+| OC04 | src/contract/constants.rs | `all.sort_by_key(\|(id, _, _)\| *id);` | `all.sort_by_key(\|(_, _, _)\| 0);` | outcome constants placed in key ID order | KILLED | a_command_s_outcomes_sit_at_its_command_key |
+| OC05 | src/contract/constants.rs | `(c.keys[0], c.path.as_str(), e)` | `(u32::MAX, c.path.as_str(), e)` | outcome constants sit at the command key's ID | KILLED | a_command_s_outcomes_sit_at_its_command_key |
+| OC06 | src/contract/constants.rs | `(c.keys[0], c.path.as_str(), e)` | `(c.keys[0], c.owner.as_str(), e)` | outcome constants are named after the command path | KILLED | every_refusal_has_a_triggering_model |
+| OC07 | src/contract/constants.rs | `mine.sort_by_key(\|c\| c.value);` | `mine.sort_by_key(\|_\| 0);` | each outcome enum's constants in code order | KILLED | a_command_s_outcomes_are_named_constants_of_its_variant a_command_s_outcomes_sit_at_its_command_key a_key_s_constants_are_in_code_order |
+| OC08 | src/contract/snapshot.rs | `outcome: c.outcome.as_ref().map(enum_numbers),` | `outcome: None,` | contract.json carries the outcomes | KILLED | previous_contract_refusals |
+| OC09 | src/contract/previous.rs | `outcomes_kept(prev, cur, errors);` | (removed) | outcomes are checked against the previous contract | KILLED | previous_contract_refusals |
+| OC10 | src/contract/previous.rs | `.filter(\|c\| c.outcome.is_some())` | `.filter(\|_\| true)` | a command may name outcomes for the first time in a minor | KILLED | a_minor_may_add_outcomes_and_name_new_ones |
+| OC11 | src/contract/previous.rs | `now.get(old.path.as_str())` | `now.get("")` | the outcome check finds the current command by path | KILLED | previous_contract_refusals |
+| OC12 | src/contract/previous.rs | `(Some(a), Some(b)) => a.iter().all(\|(name, v)\| b.get(name) == Some(v)),` | `(Some(_), Some(_)) => true,` | every previous outcome keeps its code | KILLED | a_snapshot_from_before_wire_strings_is_still_checked previous_contract_refusals |
+| OC13 | src/contract/previous.rs | `_ => false,` (members_kept) | `_ => true,` | a removed outcome enum is refused | KILLED | a_snapshot_from_before_wire_strings_is_still_checked previous_contract_refusals |
+| OC14 | examples/contract/v1_1/ns/drive.toml | `outcome = "drive_outcome"` | (removed) | the generic 1.1 drive command names its outcomes | KILLED | generic_model_versions_and_previous_checks |
+| OC15 | examples/contract/v1_1/ns/drive.toml | `stale_offer = 3` | (removed) | sku_b resolves its own outcome | KILLED | a_command_s_outcomes_are_named_constants_of_its_variant contract_json_carries_a_command_s_outcomes |
+| OC16 | examples/contract/v1_0/ns/drive.toml | `outcome = "drive_outcome"` | (removed) | the generic 1.0 drive command names its outcomes | KILLED | every_refusal_has_a_triggering_model previous_contract_refusals |
