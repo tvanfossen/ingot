@@ -729,18 +729,22 @@ requirements:
       contract.toml may declare `[shadow_rejected] path = "<dotted path>"`: the reported path where
       the binder lists the desired members it rejected in the update it answers. It is a delta
       row of kind DSH_RK_REJECTED (shadow table interface minor 3) with no key; the binder builds
-      the list from the rows it rejected. contract.json and the keyspace carry it as
-      shadow.rejected only when declared, so a model without it generates the same outputs. Its
-      path is a delta path like any other (a malformed path, or one another delta row takes, is
-      refused), a model with no desired path is refused (there is nothing to reject) and, once declared, it is kept unchanged within a major (it may be added in a
-      minor).
+      the list from the rows it rejected. `variants` limits it to those variants: a variant not
+      listed has no row, and an undeclared variant is refused. contract.json and the keyspace
+      carry it as shadow.rejected only on a variant that has it, so a model without it
+      generates the same outputs. Each rule holds per variant: its path is a delta path like
+      any other (a malformed path, or one another delta row takes, is refused), a variant with
+      no desired path is refused (there is nothing to reject) and, once a variant has it, its
+      path is kept on that variant within a major (it may be added in a minor, on a new variant
+      too).
     acceptance_criteria: >-
       A declared path generates one delta reporter row of DSH_RK_REJECTED with no key or
       constant, and the tables compile; a model without it has no such row and no
-      shadow.rejected. The path of a reported key, a malformed path, and a model with no desired
-      path are refused; against a
-      previous contract that declares it, dropping or moving it is refused and keeping it
-      generates; adding it in a minor generates.
+      shadow.rejected; limited to sku_b, sku_b has the row and sku_a neither the row nor
+      shadow.rejected. The path of a reported key, a malformed path, an undeclared variant and a
+      model with no desired path are refused. Against a previous contract that has it, dropping
+      or moving it is refused and keeping it generates; adding it in a minor generates; adding
+      a variant generates, and moving it off the previous contract's variant is refused.
   REQ-ING-CMD-001:
     name: Shadow commands enumerate every command
     subsystem: Generated outputs (G2)
