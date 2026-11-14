@@ -874,6 +874,19 @@ requirements:
       order and its slice, other topics an empty slice; the header names the interface version it is written against and the
       tables compile and walk; a model without vars has DTP_NUM_VARS 0 and no vars in
       contract.json. Each refusal above has a triggering model.
+  REQ-ING-TOP-005:
+    name: Topics limited to variants
+    subsystem: Generated outputs (G2)
+    description: >-
+      A topic may declare `variants`: a variant not listed has no dtp_topics row and no entry in
+      contract.json or the keyspace, and rows that name the topic on that variant are refused as
+      naming an unknown topic. An undeclared variant is refused. Against a previous contract a
+      topic is compared on that contract's variant without its variants, so a minor may add
+      variants to a topic but may not drop it or change it there.
+    acceptance_criteria: >-
+      The telemetry topic limited to sku_b has its row on sku_b and none on sku_a, both
+      compiling; sku_c is refused; against a 1.0 with the topic on sku_a, widening it to sku_a and
+      sku_b generates and moving it to sku_b only is refused.
   REQ-ING-SIZ-001:
     name: Worst-case shadow document size
     subsystem: Generated outputs (G2)
