@@ -1165,3 +1165,19 @@ Same procedure; the test command is `--no-fail-fast --test contract_refusals --t
 | SV02 | src/contract/topic_vars.rs | `.filter(\|v\| sub && !one_whole_level(&t.template, &v.name))` | `.filter(\|v\| sub && false)` | a var inside a level is refused | KILLED | every_refusal_has_a_triggering_model |
 | SV03 | src/contract/topic_vars.rs | `levels == 1 && template.matches(&placeholder).count() == 1` | `levels >= 1` | used once | KILLED | every_refusal_has_a_triggering_model |
 | SV04 | templates/dsh_types.h | `#define DSH_IF_MINOR 6` | `#define DSH_IF_MINOR 5` | the interface minor | KILLED | a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header a_model_without_vars_has_none_and_names_its_interface |
+
+## Declared topic placeholders (REQ-ING-TOP-007)
+
+Same procedure; the test command is `--no-fail-fast --test contract_refusals --test shadow_tables`.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| PH01 | src/contract/topics.rs | `\|\| placeholders.iter().any(\|p\| p.name == name)` | `\|\| false` | a template uses a declared placeholder | KILLED | a_declared_placeholder_is_emitted_for_the_consumer_to_configure a_placeholder_is_kept_in_a_minor_and_may_be_added |
+| PH02 | src/contract/topic_vars.rs | `if !s.topics.iter().any(\|t\| uses(&t.template, &p.name)) {` | `if false {` | an unused placeholder refused | KILLED | every_refusal_has_a_triggering_model |
+| PH03 | src/contract/topic_vars.rs | `if placeholders.iter().any(\|p\| &p.name == name) {` | `if false {` | a var may not take a placeholder's name | KILLED | every_refusal_has_a_triggering_model |
+| PH04 | src/contract/topic_vars.rs | `errors.extend(list_rules("placeholder", &s.placeholders));` | `let _ = &s.placeholders;` | the list rules apply to placeholders | KILLED | every_refusal_has_a_triggering_model |
+| PH05 | src/contract/shadow.rs | `placeholders: std::mem::take(&mut file.placeholders),` | `placeholders: Vec::new(),` | the declaration is read | KILLED | a_declared_placeholder_is_emitted_for_the_consumer_to_configure a_placeholder_is_kept_in_a_minor_and_may_be_added every_refusal_has_a_triggering_model |
+| PH06 | src/contract/shadow.rs | `doc["placeholders"] = json!(s.placeholders);` | `let _ = &s.placeholders;` | contract.json carries them | KILLED | a_declared_placeholder_is_emitted_for_the_consumer_to_configure a_placeholder_is_kept_in_a_minor_and_may_be_added |
+| PH07 | src/contract/previous_shadow.rs | `&old.placeholders,` | `&new.placeholders,` | frozen within a major | KILLED | a_placeholder_is_kept_in_a_minor_and_may_be_added |
+| PH08 | src/contract/dsh/mod.rs | `.map(topics::var_row)` | `.filter(\|_\| false).map(topics::var_row)` | the rows emitted | KILLED | a_declared_placeholder_is_emitted_for_the_consumer_to_configure |
+| PH09 | templates/dsh_types.h | `#define DSH_IF_MINOR 7` | `#define DSH_IF_MINOR 6` | the interface minor | KILLED | a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header a_model_without_vars_has_none_and_names_its_interface |
