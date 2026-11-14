@@ -6,7 +6,7 @@ use super::keys::Errors;
 use super::model::{present_on, Tables};
 use super::schema::{
     ApplyGroup, Constant, ContractFile, Echo, NamespaceFile, PayloadRow, Rejected, ShadowCommand,
-    Topic,
+    Topic, TopicVar,
 };
 use super::shadow_size::{trees, SHADOW_QUOTA};
 use super::{payload, refuse_commands, refuse_shadow, topics};
@@ -27,6 +27,9 @@ pub struct Shadow {
     /// Where the binder lists the desired members it rejected (none: it lists none).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rejected: Option<Rejected>,
+    /// Named values the consumer is configured with, usable in any topic template.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub placeholders: Vec<TopicVar>,
     /// Every (row, variant) the contract-level rows name, before the variant's rows are taken,
     /// for the declared-variant check.
     #[serde(skip)]
@@ -71,7 +74,9 @@ fn of_variant<T>(
 /// v5: the rejected-settings list.
 /// v6: the rejected-settings list on its variants only.
 /// v7: topics on their variants only; the variant-limited rows through `limited_rows`.
-/// @version 7
+/// v8: the declared placeholders.
+/// @version 8
+/// @req REQ-ING-TOP-007
 /// @req REQ-ING-SHD-002
 /// @req REQ-ING-CMD-001
 /// @req REQ-ING-TOP-001
@@ -92,6 +97,7 @@ pub fn rows(
     let mut s = Shadow {
         apply_groups: std::mem::take(&mut file.apply_groups),
         constants: std::mem::take(&mut file.shadow_constant),
+        placeholders: std::mem::take(&mut file.placeholders),
         commands,
         ..Shadow::default()
     };
@@ -171,7 +177,9 @@ pub fn declared(tables: &Tables) -> bool {
 /// v2: topics and command rows.
 /// v3: topic payload members.
 /// v4: the rejected-settings list, only when declared.
-/// @version 4
+/// v5: the declared placeholders, only when there are any.
+/// @version 5
+/// @req REQ-ING-TOP-007
 /// @req REQ-ING-SHD-002
 /// @req REQ-ING-SIZ-001
 /// @req REQ-ING-CMD-001
@@ -190,6 +198,9 @@ pub fn json(tables: &Tables) -> Option<Value> {
     });
     if let Some(r) = &s.rejected {
         doc["rejected"] = json!(r);
+    }
+    if !s.placeholders.is_empty() {
+        doc["placeholders"] = json!(s.placeholders);
     }
     Some(doc)
 }

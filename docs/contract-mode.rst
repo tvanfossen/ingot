@@ -16,7 +16,8 @@ Inputs
    optional ``variants`` and ``units``), the queue and staging ``[bounds]``, ``[[reserved]]`` IDs,
    ``[[principals]]`` with their ``grants``, ``[[uid_caps]]``, ``[[error_groups]]``, and the
    contract-level shadow rows: ``[[apply_groups]]``, ``[[shadow_echo]]``,
-   ``[[shadow_constant]]``, ``[shadow_rejected]``, ``[[topics]]`` and ``[[topic_payload]]``.
+   ``[[shadow_constant]]``, ``[shadow_rejected]``, ``[[topics]]``, ``[[topic_payload]]`` and
+   ``[[placeholders]]``.
 
 Namespace files (every ``.toml`` in ``namespace_dir``)
    ``[meta]`` (``id``, ``namespace_id``, ``mfg``), ``[enums.<name>]``, ``[[classes]]`` with their
@@ -121,6 +122,12 @@ Key paths
    var the template does not use. ``variants`` limits a topic to those variants: a
    variant not listed has no row, and a topic is compared on a previous contract's variant (a
    minor may add variants, not drop or change the topic there).
+
+``[[placeholders]]``
+   ``name`` and ``max_len``: a named value the consumer is configured with (a build or device
+   value), usable as ``{name}`` in any topic template; at most 8, each up to 128 bytes, each used
+   by some topic, and no topic var may take its name (``dtp_placeholders``, shadow table interface
+   1.7). They are kept unchanged within a major.
 
 ``[[topic_payload]]``
    One member of a pub topic's payload: ``topic``, ``path``, and one of ``key`` (any key with a

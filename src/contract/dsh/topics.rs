@@ -1,7 +1,7 @@
 //! The topic table `dtp_topics` (G2 section 4), with each sub topic's envelope (1.4.8).
 
 use super::super::model::Tables;
-use super::super::schema::{Direction, Envelope, Topic};
+use super::super::schema::{Direction, Envelope, Topic, TopicVar};
 use super::{index16, text, Pools};
 
 /// `.source_field`, `.source_absent` and `.source_enum` of an envelope's source.
@@ -54,20 +54,28 @@ fn envelope(
     (fields, flags)
 }
 
-/// `.vars_first` and `.vars_count` of topic `t`, its vars appended to the pool in declaration
-/// order.
+/// One `dtp_var_t` row: a placeholder's name and longest value.
 ///
 /// @version 1
 /// @req REQ-ING-TOP-004
+/// @req REQ-ING-TOP-007
+pub fn var_row(v: &TopicVar) -> String {
+    format!(
+        "{{ .name = {}, .max_len = {}u }}",
+        text(Some(&v.name)),
+        v.max_len
+    )
+}
+
+/// `.vars_first` and `.vars_count` of topic `t`, its vars appended to the pool in declaration
+/// order.
+///
+/// v2: rows through `var_row`.
+/// @version 2
+/// @req REQ-ING-TOP-004
 fn vars(t: &Topic, pools: &mut Pools) -> String {
     let first = pools.vars.len();
-    for v in &t.vars {
-        pools.vars.push(format!(
-            "{{ .name = {}, .max_len = {}u }}",
-            text(Some(&v.name)),
-            v.max_len
-        ));
-    }
+    pools.vars.extend(t.vars.iter().map(var_row));
     format!(".vars_first = {first}u, .vars_count = {}u", t.vars.len())
 }
 

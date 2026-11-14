@@ -30,6 +30,9 @@ pub struct ContractFile {
     pub topics: Vec<Topic>,
     #[serde(default)]
     pub topic_payload: Vec<PayloadRow>,
+    /// Named values a topic template may use, which the consumer is configured with.
+    #[serde(default)]
+    pub placeholders: Vec<TopicVar>,
 }
 
 /// `[contract]`: name, version and where the namespace files are.

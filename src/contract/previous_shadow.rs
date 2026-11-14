@@ -119,11 +119,13 @@ fn topics_on_variant(rows: &[Topic]) -> Vec<Topic> {
 /// v3: the rejected-settings list.
 /// v4: the list compared by path, so a minor may add variants.
 /// v5: topics compared without their variants.
-/// @version 5
+/// v6: the declared placeholders.
+/// @version 6
 /// @req REQ-ING-SHD-006
 /// @req REQ-ING-TOP-003
 /// @req REQ-ING-SHD-011
 /// @req REQ-ING-TOP-005
+/// @req REQ-ING-TOP-007
 pub fn rows_unchanged(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     let (old, new) = match (prev.shadow_rows(), cur.shadow_rows()) {
         (Ok(o), Ok(n)) => (o, n),
@@ -154,6 +156,12 @@ pub fn rows_unchanged(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
         &path(&old.rejected),
         &path(&new.rejected),
         |p| format!("shadow_rejected {p}"),
+        errors,
+    );
+    rows_kept(
+        &old.placeholders,
+        &new.placeholders,
+        |p| format!("placeholder {}", p.name),
         errors,
     );
 }

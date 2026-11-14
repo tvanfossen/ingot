@@ -884,6 +884,36 @@ fn a_sub_topic_declares_the_vars_its_consumer_extracts() {
 }
 
 #[test]
+fn a_declared_placeholder_is_emitted_for_the_consumer_to_configure() {
+    let dir = unique_dir("dtp_placeholders");
+    let topic = "[[topics]]\nid = \"telemetry\"\ntemplate = \"{stage}/{duid}/telemetry\"";
+    let declared = "[[placeholders]]\nname = \"sku\"\nmax_len = 32\n\n[[placeholders]]\nname = \"env\"\nmax_len = 8\n\n[[topics]]\nid = \"telemetry\"\ntemplate = \"rules/x_{env}/{sku}/{duid}/telemetry\"";
+    let gen = generated(
+        &dir,
+        "declared",
+        "sku_a",
+        &[("contract.toml", topic, declared)],
+    );
+    assert_eq!(
+        table(&gen, "dtp_placeholders"),
+        vec![
+            "{ .name = \"sku\", .max_len = 32u }",
+            "{ .name = \"env\", .max_len = 8u }"
+        ]
+    );
+    let json = &contract_json(&gen)["shadow"]["placeholders"];
+    assert_eq!(json[1]["name"], "env");
+    compile_and_walk(&gen);
+    let plain = generated(&dir, "plain", "sku_a", &[]);
+    let h = fs::read_to_string(plain.join("dsh_tables.h")).unwrap();
+    assert!(h.contains("#define DTP_NUM_PLACEHOLDERS 0u"), "{h}");
+    assert!(contract_json(&plain)["shadow"]
+        .get("placeholders")
+        .is_none());
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn a_model_without_vars_has_none_and_names_its_interface() {
     let dir = unique_dir("dtp_no_vars");
     let plain = generated(&dir, "plain", "sku_a", &[]);
@@ -1000,7 +1030,7 @@ fn a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header() {
     assert!(ok, "{stderr}");
     let fixed = fs::read_to_string(types.join("dsh_types.h")).unwrap();
     assert_eq!(fixed, fs::read_to_string(gen.join("dsh_types.h")).unwrap());
-    assert!(fixed.contains("#define DSH_IF_MAJOR 1") && fixed.contains("#define DSH_IF_MINOR 6"));
+    assert!(fixed.contains("#define DSH_IF_MAJOR 1") && fixed.contains("#define DSH_IF_MINOR 7"));
     assert!(fixed.contains("DSH_FORM_BOOL_INTEGER = 4"));
     assert!(fixed.contains("DSH_RK_REJECTED = 4"));
     assert!(

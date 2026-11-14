@@ -9,7 +9,7 @@ use super::model::hex;
 use super::model::Tables;
 use super::ranges::Range;
 use super::schema::{
-    Constant, Echo, ErrorRef, Kind, PayloadRow, Rejected, ShadowCommand, Topic, UnitDef,
+    Constant, Echo, ErrorRef, Kind, PayloadRow, Rejected, ShadowCommand, Topic, TopicVar, UnitDef,
 };
 use super::types::WK_RULES;
 use super::wire::KeyWire;
@@ -56,6 +56,8 @@ pub struct ShadowRows {
     pub payload: Vec<PayloadRow>,
     /// The rejected-settings list; absent in snapshots that declare none.
     pub rejected: Option<Rejected>,
+    /// The declared topic placeholders; absent in snapshots that declare none.
+    pub placeholders: Vec<TopicVar>,
 }
 
 impl Snapshot {

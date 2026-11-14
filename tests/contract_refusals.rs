@@ -16,13 +16,21 @@ type Case = (
     &'static str,
 );
 
-/// Edits of the generic model that each trigger one refusal.
 /// The pub telemetry topic's template and direction, the text the topic-var cases replace.
 const TELEMETRY: &str = "template = \"{stage}/{duid}/telemetry\"\ndirection = \"pub\"";
+
+/// The telemetry topic's header, template and direction, the text the placeholder cases replace
+/// (a placeholder declared before it, the topic after).
+const TELEMETRY_TOPIC: &str =
+    "[[topics]]\nid = \"telemetry\"\ntemplate = \"{stage}/{duid}/telemetry\"\ndirection = \"pub\"";
 
 /// The telemetry topic with nine vars, one over the bound.
 const NINE_VARS: &str = "template = \"{a}{b}{c}{d}{e}{f}{g}{h}{i}\"\ndirection = \"pub\"\nvars = [{ name = \"a\", max_len = 1 }, { name = \"b\", max_len = 1 }, { name = \"c\", max_len = 1 }, { name = \"d\", max_len = 1 }, { name = \"e\", max_len = 1 }, { name = \"f\", max_len = 1 }, { name = \"g\", max_len = 1 }, { name = \"h\", max_len = 1 }, { name = \"i\", max_len = 1 }]";
 
+/// Nine placeholders, one over the bound, all used by the telemetry topic.
+const NINE_PLACEHOLDERS: &str = "[[placeholders]]\nname = \"a\"\nmax_len = 1\n\n[[placeholders]]\nname = \"b\"\nmax_len = 1\n\n[[placeholders]]\nname = \"c\"\nmax_len = 1\n\n[[placeholders]]\nname = \"d\"\nmax_len = 1\n\n[[placeholders]]\nname = \"e\"\nmax_len = 1\n\n[[placeholders]]\nname = \"f\"\nmax_len = 1\n\n[[placeholders]]\nname = \"g\"\nmax_len = 1\n\n[[placeholders]]\nname = \"h\"\nmax_len = 1\n\n[[placeholders]]\nname = \"i\"\nmax_len = 1\n\n[[topics]]\nid = \"telemetry\"\ntemplate = \"{a}{b}{c}{d}{e}{f}{g}{h}{i}\"\ndirection = \"pub\"";
+
+/// Edits of the generic model that each trigger one refusal.
 const CASES: &[Case] = &[
     ("v1_0", "ns/core.toml", "key_index = 0\ntype = \"bool\"", "type = \"bool\"", "missing field `key_index`"),
     ("v1_0", "ns/drive.toml", "unit = \"mm/s\"", "units = \"mm/s\"", "unknown field"),
@@ -234,7 +242,13 @@ const CASES: &[Case] = &[
     ("v1_0", "contract.toml", "template = \"{stage}/{duid}/telemetry\"", "template = \"{stage}/{dui}/telemetry\"", "topic telemetry: template {stage}/{dui}/telemetry uses a placeholder outside {stage}, {duid}, {model}, {thing}, {shadow_name}"),
     ("v1_0", "contract.toml", "template = \"{stage}/{duid}/telemetry\"", "template = \"{stage}/duid}/telemetry\"", "topic telemetry: template {stage}/duid}/telemetry uses a placeholder outside"),
     ("v1_0", "contract.toml", "template = \"{stage}/{duid}/telemetry\"", "template = \"st}age/{duid}/telemetry\"", "topic telemetry: template st}age/{duid}/telemetry uses a placeholder outside"),
-    ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry/{session}\"\ndirection = \"pub\"\nvars = [{ name = \"job\", max_len = 8 }]", "topic telemetry: template {stage}/{duid}/telemetry/{session} uses a placeholder outside {stage}, {duid}, {model}, {thing}, {shadow_name} and the topic's vars"),
+    ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry/{session}\"\ndirection = \"pub\"\nvars = [{ name = \"job\", max_len = 8 }]", "topic telemetry: template {stage}/{duid}/telemetry/{session} uses a placeholder outside {stage}, {duid}, {model}, {thing}, {shadow_name}, the declared placeholders and the topic's vars"),
+    ("v1_0", "contract.toml", TELEMETRY_TOPIC, "[[placeholders]]\nname = \"sku\"\nmax_len = 32\n\n[[topics]]\nid = \"telemetry\"\ntemplate = \"{stage}/{duid}/telemetry\"\ndirection = \"pub\"", "placeholder sku is used by no topic"),
+    ("v1_0", "contract.toml", TELEMETRY_TOPIC, "[[placeholders]]\nname = \"sku\"\nmax_len = 32\n\n[[placeholders]]\nname = \"sku\"\nmax_len = 8\n\n[[topics]]\nid = \"telemetry\"\ntemplate = \"{stage}/{sku}/telemetry\"\ndirection = \"pub\"", "placeholder sku is declared twice"),
+    ("v1_0", "contract.toml", TELEMETRY_TOPIC, "[[placeholders]]\nname = \"stage\"\nmax_len = 32\n\n[[topics]]\nid = \"telemetry\"\ntemplate = \"{stage}/{duid}/telemetry\"\ndirection = \"pub\"", "placeholder stage must be an identifier other than a built-in placeholder"),
+    ("v1_0", "contract.toml", TELEMETRY_TOPIC, "[[placeholders]]\nname = \"sku\"\nmax_len = 0\n\n[[topics]]\nid = \"telemetry\"\ntemplate = \"{stage}/{sku}/telemetry\"\ndirection = \"pub\"", "placeholder sku needs max_len 1..=128"),
+    ("v1_0", "contract.toml", TELEMETRY_TOPIC, "[[placeholders]]\nname = \"sku\"\nmax_len = 32\n\n[[topics]]\nid = \"telemetry\"\ntemplate = \"{stage}/{sku}/telemetry\"\ndirection = \"pub\"\nvars = [{ name = \"sku\", max_len = 8 }]", "topic telemetry: var sku is a declared placeholder"),
+    ("v1_0", "contract.toml", TELEMETRY_TOPIC, NINE_PLACEHOLDERS, "more than 8 placeholders"),
     ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry/{duid}\"\ndirection = \"pub\"\nvars = [{ name = \"duid\", max_len = 8 }]", "topic telemetry: var duid must be an identifier other than a built-in placeholder"),
     ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry/{a-b}\"\ndirection = \"pub\"\nvars = [{ name = \"a-b\", max_len = 8 }]", "topic telemetry: var a-b must be an identifier other than a built-in placeholder"),
     ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry/{job}\"\ndirection = \"pub\"\nvars = [{ name = \"job\", max_len = 8 }, { name = \"job\", max_len = 4 }]", "topic telemetry: var job is declared twice"),
@@ -595,6 +609,56 @@ fn a_topic_is_frozen_per_variant() {
         !ok && stderr.contains(removed),
         "dropped on sku_a: {stderr}"
     );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// @brief Placeholder sku of `max_len` and a new topic using it, declared before the telemetry
+/// topic (which stays as it is).
+/// @version 1
+fn sku_placeholder(max_len: u16) -> String {
+    format!("[[placeholders]]\nname = \"sku\"\nmax_len = {max_len}\n\n[[topics]]\nid = \"by_sku\"\ntemplate = \"{{stage}}/{{sku}}/by\"\ndirection = \"pub\"\n\n{TELEMETRY_TOPIC}")
+}
+
+/// @brief Generate `version` with the sku placeholder of `max_len` (none: unedited) into
+/// `dir/tag`, against `prev` when given; returns (success, stderr).
+/// @version 1
+fn with_sku(
+    dir: &Path,
+    tag: &str,
+    version: &str,
+    max_len: Option<u16>,
+    prev: Option<&Path>,
+) -> (bool, String) {
+    let case = dir.join(tag);
+    let text = max_len.map(sku_placeholder);
+    let edits: Vec<(&str, &str, &str)> = text
+        .iter()
+        .map(|t| ("contract.toml", TELEMETRY_TOPIC, t.as_str()))
+        .collect();
+    edited_copy(version, &case, &edits);
+    let previous = prev.map(|p| p.join("out").join("contract.json"));
+    let args: Vec<&str> = previous
+        .iter()
+        .flat_map(|p| ["--previous-contract", p.to_str().unwrap()])
+        .collect();
+    generate(&case.join("contract.toml"), &case.join("out"), &args)
+}
+
+#[test]
+fn a_placeholder_is_kept_in_a_minor_and_may_be_added() {
+    let dir = unique_dir("previous_placeholders");
+    assert!(with_sku(&dir, "prev", "v1_0", Some(32), None).0);
+    assert!(with_sku(&dir, "plain", "v1_0", None, None).0);
+    let prev = dir.join("prev");
+    let removed = "placeholder sku changed or was removed in a minor";
+    for (tag, max_len) in [("dropped", None), ("changed", Some(16))] {
+        let (ok, stderr) = with_sku(&dir, tag, "v1_1", max_len, Some(&prev));
+        assert!(!ok && stderr.contains(removed), "{tag}: {stderr}");
+    }
+    let (ok, stderr) = with_sku(&dir, "kept", "v1_1", Some(32), Some(&prev));
+    assert!(ok, "kept: {stderr}");
+    let (ok, stderr) = with_sku(&dir, "added", "v1_1", Some(32), Some(&dir.join("plain")));
+    assert!(ok, "added in a minor: {stderr}");
     let _ = fs::remove_dir_all(&dir);
 }
 

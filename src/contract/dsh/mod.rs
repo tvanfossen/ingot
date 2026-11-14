@@ -146,17 +146,28 @@ fn blob_rows(blob: &[u8]) -> Vec<String> {
         .collect()
 }
 
+/// The `dsh_apply_groups` rows: each group's id.
+///
+/// @version 1
+/// @req REQ-ING-DSH-001
+fn group_names(tables: &Tables) -> Vec<String> {
+    let groups = &tables.shadow.apply_groups;
+    groups.iter().map(|g| text(Some(&g.id))).collect()
+}
+
 /// Every table of the variant, in the order the header declares them.
 ///
 /// v2: the topic payloads.
 /// v3: the topic vars (`dtp_vars`, appended).
-/// @version 3
+/// v4: the declared placeholders (`dtp_placeholders`, appended); group names in `group_names`.
+/// @version 4
 /// @req REQ-ING-DSH-001
 /// @req REQ-ING-DSH-002
 /// @req REQ-ING-DSH-003
 /// @req REQ-ING-TOP-002
 /// @req REQ-ING-TOP-003
 /// @req REQ-ING-TOP-004
+/// @req REQ-ING-TOP-007
 fn tables_of(tables: &Tables, hash: &str) -> Vec<Table> {
     let mut pools = Pools::default();
     let (payload, slices) = payload::rows(tables, hash, &mut pools);
@@ -166,14 +177,15 @@ fn tables_of(tables: &Tables, hash: &str) -> Vec<Table> {
     let reported = reported::rows(tables, hash, &mut pools);
     let (groups, bits) = reported::error_rows(tables);
     let commands = commands::rows(tables, &mut pools);
-    let groups_list: Vec<String> = tables
-        .shadow
-        .apply_groups
-        .iter()
-        .map(|g| text(Some(&g.id)))
-        .collect();
+    let groups_list = group_names(tables);
     let allowed: Vec<String> = pools.allowed.iter().map(|v| v.to_string()).collect();
     let (enums, outbound, inbound) = pools.enums.rows();
+    let placeholders = tables
+        .shadow
+        .placeholders
+        .iter()
+        .map(topics::var_row)
+        .collect();
     vec![
         Table::blob(&pools.blob),
         Table::new("dsh_enum_t", "dsh_enums", enums, "{ 0 }"),
@@ -193,6 +205,7 @@ fn tables_of(tables: &Tables, hash: &str) -> Vec<Table> {
         Table::new("dtp_topic_t", "dtp_topics", topics, "{ 0 }"),
         Table::new("dsh_reported_t", "dtp_payload", payload, "{ 0 }"),
         Table::new("dtp_var_t", "dtp_vars", pools.vars, "{ 0 }"),
+        Table::new("dtp_var_t", "dtp_placeholders", placeholders, "{ 0 }"),
     ]
 }
 

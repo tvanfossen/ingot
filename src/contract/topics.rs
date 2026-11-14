@@ -2,7 +2,7 @@
 
 use super::keys::Errors;
 use super::model::Tables;
-use super::schema::{Direction, Topic};
+use super::schema::{Direction, Topic, TopicVar};
 use super::topic_vars;
 use std::collections::BTreeSet;
 
@@ -18,37 +18,47 @@ const SHADOW_NAME: &str = "{shadow_name}";
 /// Every topic refusal.
 ///
 /// v2: a template may use its topic's vars; the var rules.
-/// @version 2
+/// v3: the declared placeholders.
+/// @version 3
 /// @req REQ-ING-TOP-001
 /// @req REQ-ING-TOP-004
+/// @req REQ-ING-TOP-007
 pub fn check(tables: &Tables, errors: &mut Errors) {
     let topics = &tables.shadow.topics;
+    let placeholders = &tables.shadow.placeholders;
     unique(topics, errors);
     for t in topics {
-        if !template_ok(t) {
+        if !template_ok(t, placeholders) {
             errors.push(format!(
-                "topic {}: template {} uses a placeholder outside {{{}}} and the topic's vars",
+                "topic {}: template {} uses a placeholder outside {{{}}}, the declared placeholders and the topic's vars",
                 t.id,
                 t.template,
                 PLACEHOLDERS.join("}, {")
             ));
         }
-        topic_vars::check(t, errors);
+        topic_vars::check(t, placeholders, errors);
         placement(topics, t, errors);
         envelope(tables, t, errors);
     }
+    topic_vars::check_placeholders(tables, errors);
     shadow_names(topics, errors);
 }
 
-/// Whether every `{...}` of the topic's template is a per-device placeholder or a var of the
-/// topic, and every brace is paired.
+/// Whether every `{...}` of the topic's template is a per-device placeholder, a declared
+/// placeholder (`placeholders`) or a var of the topic, and every brace is paired.
 ///
 /// v2: the topic's vars.
-/// @version 2
+/// v3: the declared placeholders.
+/// @version 3
 /// @req REQ-ING-TOP-001
 /// @req REQ-ING-TOP-004
-fn template_ok(t: &Topic) -> bool {
-    let known = |name: &str| PLACEHOLDERS.contains(&name) || topic_vars::declared(t, name);
+/// @req REQ-ING-TOP-007
+fn template_ok(t: &Topic, placeholders: &[TopicVar]) -> bool {
+    let known = |name: &str| {
+        PLACEHOLDERS.contains(&name)
+            || placeholders.iter().any(|p| p.name == name)
+            || topic_vars::declared(t, name)
+    };
     let mut pieces = t.template.split('{');
     let head = pieces.next().unwrap_or_default();
     !head.contains('}')

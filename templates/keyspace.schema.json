@@ -211,6 +211,16 @@
           "required": ["path"],
           "properties": { "path": { "type": "string" }, "variants": { "$ref": "#/$defs/variants" } }
         },
+        "placeholders": {
+          "description": "Named values the consumer is configured with (a build or device value), usable as {name} in any topic template, with the longest value in bytes.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/trusted",
+            "type": "object",
+            "required": ["name", "max_len"],
+            "properties": { "name": { "type": "string" }, "max_len": { "type": "integer", "minimum": 1, "maximum": 128 } }
+          }
+        },
         "full_max_bytes": { "type": "integer" },
         "delta_forced_bytes": { "type": "integer" }
       }
