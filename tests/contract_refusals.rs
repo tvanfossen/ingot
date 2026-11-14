@@ -249,6 +249,9 @@ const CASES: &[Case] = &[
     ("v1_0", "contract.toml", TELEMETRY_TOPIC, "[[placeholders]]\nname = \"sku\"\nmax_len = 0\n\n[[topics]]\nid = \"telemetry\"\ntemplate = \"{stage}/{sku}/telemetry\"\ndirection = \"pub\"", "placeholder sku needs max_len 1..=128"),
     ("v1_0", "contract.toml", TELEMETRY_TOPIC, "[[placeholders]]\nname = \"sku\"\nmax_len = 32\n\n[[topics]]\nid = \"telemetry\"\ntemplate = \"{stage}/{sku}/telemetry\"\ndirection = \"pub\"\nvars = [{ name = \"sku\", max_len = 8 }]", "topic telemetry: var sku is a declared placeholder"),
     ("v1_0", "contract.toml", TELEMETRY_TOPIC, NINE_PLACEHOLDERS, "more than 8 placeholders"),
+    // -- enum constants (dmt_constants.h) -------------------------------------------------------
+    ("v1_0", "ns/drive.toml", "eco = 1\n", "eco = 1\na_value_name_long_enough_to_push_the_constant_past_the_limit = 7\n", "drive.settings.mode: enum constant DMT_E_DRIVE_SETTINGS_MODE_A_VALUE_NAME_LONG_ENOUGH_TO_PUSH_THE_CONSTANT_PAST_THE_LIMIT is longer than 63 characters"),
+    ("v1_0", "ns/drive.toml", "eco = 1\n", "eco = 1\n\"eco-x\" = 7\n", "drive.settings.mode: enum constant DMT_E_DRIVE_SETTINGS_MODE_ECO-X is not a C identifier"),
     ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry/{duid}\"\ndirection = \"pub\"\nvars = [{ name = \"duid\", max_len = 8 }]", "topic telemetry: var duid must be an identifier other than a built-in placeholder"),
     ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry/{a-b}\"\ndirection = \"pub\"\nvars = [{ name = \"a-b\", max_len = 8 }]", "topic telemetry: var a-b must be an identifier other than a built-in placeholder"),
     ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry/{job}\"\ndirection = \"pub\"\nvars = [{ name = \"job\", max_len = 8 }, { name = \"job\", max_len = 4 }]", "topic telemetry: var job is declared twice"),
@@ -779,6 +782,19 @@ type MultiCase = (
 );
 
 const MULTI_CASES: &[MultiCase] = &[
+    // two (key, value) pairs that name one enum constant
+    (
+        "v1_0",
+        &[
+            ("ns/drive.toml", "eco = 1\n", "eco = 1\neco_off = 9\n"),
+            (
+                "ns/drive.toml",
+                "[[classes.keys]]\nid = \"mode\"",
+                "[[classes.keys]]\nid = \"mode_eco\"\nkey_index = 9\ntype = \"uint8\"\nenum = \"mode\"\nintroduced_in = \"1.0\"\nwrite_rate = \"1/min\"\ndefault = 1\n\n[[classes.keys]]\nid = \"mode\"",
+            ),
+        ],
+        "drive.settings.mode_eco: enum constant DMT_E_DRIVE_SETTINGS_MODE_ECO_OFF is also drive.settings.mode's",
+    ),
     // a command role moved onto a plain key
     (
         "v1_0",

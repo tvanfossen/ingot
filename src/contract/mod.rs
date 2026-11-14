@@ -5,6 +5,7 @@
 //! contract, `release-review.txt`. Every refusal of section 8 is an error.
 
 pub mod bounds;
+pub mod constants;
 pub mod digest;
 pub mod dsh;
 pub mod emit;
@@ -113,7 +114,9 @@ pub fn generate(opts: &Options, tera: &Tera) -> Result<(), Box<dyn std::error::E
 /// v2: the shadow tables.
 /// v3: the per-principal SDKs.
 /// v4: only through a given binding.
-/// @version 4
+/// v5: the enum constants header.
+/// @version 5
+/// @req REQ-ING-TIV-017
 /// @req REQ-ING-SDK-004
 /// @req REQ-ING-TIV-009
 /// @req REQ-ING-TIV-012
@@ -129,6 +132,7 @@ fn write_outputs(
     let commit = &snapshot.ingot.commit;
     write_table_types(tera, opts.output)?;
     emit::write(tera, tables, commit, opts.output)?;
+    constants::write(tera, tables, commit, opts.output)?;
     dsh::write(
         tera,
         tables,

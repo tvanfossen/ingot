@@ -156,6 +156,13 @@ Outputs
    Keys, defaults, reserved IDs, principals, rights, caps, commands, well-known roles and
    digests of the selected variant.
 
+``dmt_constants.h``
+   The code of every value of every enum key as ``#define DMT_E_<KEY PATH>_<VALUE> <code>`` for the
+   selected variant (upper case, dots as underscores), so no consumer writes an enum code by hand.
+   It is per model, outside the table interface; a name that is not a C identifier, is longer than
+   63 characters, or is produced by two (key, value) pairs is refused. Constants are kept within a
+   major, as enum values are.
+
 ``contract.json``
    Every key, principal, right, command and shadow row, read back by ``--previous-contract``.
 

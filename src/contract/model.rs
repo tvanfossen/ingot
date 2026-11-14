@@ -88,7 +88,9 @@ struct Loaded {
 /// v7: the shadow wire mapping, resolved and checked for the variant.
 /// v8: every resolved enum is kept; rights resolved by principal_rights.
 /// v9: the contract-level rows' variants are checked too.
-/// @version 9
+/// v10: the enum constants are checked.
+/// @version 10
+/// @req REQ-ING-TIV-017
 /// @req REQ-ING-SHD-001
 /// @req REQ-ING-SIZ-001
 /// @req REQ-ING-PRS-001
@@ -137,6 +139,7 @@ pub fn build(contract_path: &Path, variant: Option<&str>) -> Result<(Tables, Err
         enums,
     };
     shadow::check(&tables, &mut errors);
+    super::constants::check(&tables, &mut errors);
     Ok((tables, errors))
 }
 
