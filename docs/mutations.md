@@ -1084,3 +1084,19 @@ Same procedure; the test command is `--no-fail-fast --test contract_refusals --t
 | BI09 | src/contract/shadow_size.rs | `EchoType::Bool => key.ty == KeyType::Bool && !f.integer(),` | `EchoType::Bool => key.ty == KeyType::Bool,` | a bool echo shares no 0/1 member | KILLED | every_refusal_has_a_triggering_model |
 | BI10 | templates/dsh_types.h | `DSH_FORM_BOOL_INTEGER = 4` | `DSH_FORM_BOOL_INTEGER = 5` | the appended form value | KILLED | a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header |
 | BI11 | templates/dsh_types.h | `#define DSH_IF_MINOR 2` | `#define DSH_IF_MINOR 1` | the interface minor | KILLED | a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header |
+
+## The rejected-settings list (REQ-ING-SHD-011)
+
+Same procedure; the test command is `--no-fail-fast --test contract_refusals --test shadow_tables`.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| RJ01 | src/contract/shadow.rs | `rejected: file.shadow_rejected.take(),` | `rejected: None,` | the declaration is read | KILLED | every_refusal_has_a_triggering_model the_rejected_settings_list_is_a_delta_row_at_its_declared_path the_rejected_settings_path_is_kept_in_a_minor_and_may_be_added |
+| RJ02 | src/contract/refuse_shadow.rs | `if s.rejected.is_some() && !desired {` | `if false {` | a list needs a desired path | KILLED | every_refusal_has_a_triggering_model |
+| RJ03 | src/contract/shadow.rs | `doc["rejected"] = json!(r);` | `let _ = r;` | contract.json and the keyspace carry it | KILLED | the_rejected_settings_list_is_a_delta_row_at_its_declared_path the_rejected_settings_path_is_kept_in_a_minor_and_may_be_added |
+| RJ04 | src/contract/previous_shadow.rs | `old.rejected.as_slice(),` | `new.rejected.as_slice(),` | frozen within a major | KILLED | the_rejected_settings_path_is_kept_in_a_minor_and_may_be_added |
+| RJ05 | src/contract/shadow_size.rs | `t.delta.add("shadow_rejected", &r.path, 0);` | `let _ = r;` | its path in the delta tree | KILLED | every_refusal_has_a_triggering_model |
+| RJ06 | src/contract/dsh/reported.rs | `let delta = placement(false, true, false);` | `let delta = placement(true, true, false);` | delta only | KILLED | the_rejected_settings_list_is_a_delta_row_at_its_declared_path |
+| RJ07 | src/contract/dsh/reported.rs | `rows.push((r.path.clone(), row));` | `let _ = row;` | the reporter row | KILLED | the_rejected_settings_list_is_a_delta_row_at_its_declared_path |
+| RJ08 | templates/dsh_types.h | `DSH_RK_REJECTED = 4` | `DSH_RK_REJECTED = 5` | the appended kind | KILLED | a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header |
+| RJ09 | templates/dsh_types.h | `#define DSH_IF_MINOR 3` | `#define DSH_IF_MINOR 2` | the interface minor | KILLED | a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header |
