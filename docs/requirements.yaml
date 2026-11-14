@@ -722,6 +722,24 @@ requirements:
       tables compile, and the full document is 4 bytes shorter with the forced delta unchanged.
       Full and both, or delta twice, at one path are refused; as on a bool SETTINGS key, as =
       "enum" on a bool key, as on an integer key, and a bool echo at a 0/1 delta path are refused.
+  REQ-ING-SHD-011:
+    name: Where the binder lists rejected settings
+    subsystem: Generated outputs (G2)
+    description: >-
+      contract.toml may declare `[shadow_rejected] path = "<dotted path>"`: the reported path where
+      the binder lists the desired members it rejected in the update it answers. It is a delta
+      row of kind DSH_RK_REJECTED (shadow table interface minor 3) with no key; the binder builds
+      the list from the rows it rejected. contract.json and the keyspace carry it as
+      shadow.rejected only when declared, so a model without it generates the same outputs. Its
+      path is a delta path like any other (a malformed path, or one another delta row takes, is
+      refused) and, once declared, it is kept unchanged within a major (it may be added in a
+      minor).
+    acceptance_criteria: >-
+      A declared path generates one delta reporter row of DSH_RK_REJECTED with no key or
+      constant, and the tables compile; a model without it has no such row and no
+      shadow.rejected. The path of a reported key or a malformed path is refused; against a
+      previous contract that declares it, dropping or moving it is refused and keeping it
+      generates; adding it in a minor generates.
   REQ-ING-CMD-001:
     name: Shadow commands enumerate every command
     subsystem: Generated outputs (G2)
