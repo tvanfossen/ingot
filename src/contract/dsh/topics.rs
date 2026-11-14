@@ -54,12 +54,31 @@ fn envelope(
     (fields, flags)
 }
 
+/// `.vars_first` and `.vars_count` of topic `t`, its vars appended to the pool in declaration
+/// order.
+///
+/// @version 1
+/// @req REQ-ING-TOP-004
+fn vars(t: &Topic, pools: &mut Pools) -> String {
+    let first = pools.vars.len();
+    for v in &t.vars {
+        pools.vars.push(format!(
+            "{{ .name = {}, .max_len = {}u }}",
+            text(Some(&v.name)),
+            v.max_len
+        ));
+    }
+    format!(".vars_first = {first}u, .vars_count = {}u", t.vars.len())
+}
+
 /// One `dtp_topics` row; `payload` is its `.payload_first` and `.payload_count`.
 ///
 /// v2: its payload slice.
-/// @version 2
+/// v3: its vars slice.
+/// @version 3
 /// @req REQ-ING-TOP-002
 /// @req REQ-ING-TOP-003
+/// @req REQ-ING-TOP-004
 fn row(tables: &Tables, t: &Topic, payload: &str, pools: &mut Pools) -> String {
     let (fields, mut flags) = envelope(tables, t.envelope.as_ref(), pools);
     if t.settings_in_every_body {
@@ -81,12 +100,13 @@ fn row(tables: &Tables, t: &Topic, payload: &str, pools: &mut Pools) -> String {
     format!(
         "{{ .id = {}, .pattern = {}, .connection = {}, .local_wrapper = {}, {fields}, \
          .subscribe_order = {}u, .direction = {direction}, .ack = {ack}, .flags = {flags}, \
-         {payload} }}",
+         {payload}, {} }}",
         text(Some(&t.id)),
         text(Some(&t.template)),
         text(Some(&t.connection)),
         text(t.local_wrapper.as_deref()),
         t.subscribe_order.unwrap_or(0),
+        vars(t, pools),
     )
 }
 

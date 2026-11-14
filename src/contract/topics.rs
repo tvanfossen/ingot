@@ -3,10 +3,11 @@
 use super::keys::Errors;
 use super::model::Tables;
 use super::schema::{Direction, Topic};
+use super::topic_vars;
 use std::collections::BTreeSet;
 
-/// The placeholders a template may use, each any number of times.
-const PLACEHOLDERS: [&str; 5] = ["stage", "duid", "model", "thing", "shadow_name"];
+/// The per-device placeholders every template may use, each any number of times.
+pub const PLACEHOLDERS: [&str; 5] = ["stage", "duid", "model", "thing", "shadow_name"];
 
 /// A topic attribute that must be unique, read from a topic.
 type TopicField = fn(&Topic) -> Option<String>;
@@ -16,38 +17,43 @@ const SHADOW_NAME: &str = "{shadow_name}";
 
 /// Every topic refusal.
 ///
-/// @version 1
+/// v2: a template may use its topic's vars; the var rules.
+/// @version 2
 /// @req REQ-ING-TOP-001
+/// @req REQ-ING-TOP-004
 pub fn check(tables: &Tables, errors: &mut Errors) {
     let topics = &tables.shadow.topics;
     unique(topics, errors);
     for t in topics {
-        if !template_ok(&t.template) {
+        if !template_ok(t) {
             errors.push(format!(
-                "topic {}: template {} uses a placeholder outside {{{}}}",
+                "topic {}: template {} uses a placeholder outside {{{}}} and the topic's vars",
                 t.id,
                 t.template,
                 PLACEHOLDERS.join("}, {")
             ));
         }
+        topic_vars::check(t, errors);
         placement(topics, t, errors);
         envelope(tables, t, errors);
     }
     shadow_names(topics, errors);
 }
 
-/// Whether every `{...}` of `template` is a known placeholder and every brace is paired.
+/// Whether every `{...}` of the topic's template is a per-device placeholder or a var of the
+/// topic, and every brace is paired.
 ///
-/// @version 1
+/// v2: the topic's vars.
+/// @version 2
 /// @req REQ-ING-TOP-001
-fn template_ok(template: &str) -> bool {
-    let mut pieces = template.split('{');
+/// @req REQ-ING-TOP-004
+fn template_ok(t: &Topic) -> bool {
+    let known = |name: &str| PLACEHOLDERS.contains(&name) || topic_vars::declared(t, name);
+    let mut pieces = t.template.split('{');
     let head = pieces.next().unwrap_or_default();
     !head.contains('}')
         && pieces.all(|p| {
-            p.matches('}').count() == 1
-                && p.split_once('}')
-                    .is_some_and(|(name, _)| PLACEHOLDERS.contains(&name))
+            p.matches('}').count() == 1 && p.split_once('}').is_some_and(|(name, _)| known(name))
         })
 }
 

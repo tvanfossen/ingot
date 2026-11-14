@@ -264,9 +264,26 @@ static int command_violations(void)
 }
 
 /**
- * @brief   Count violations in the topics: an ack names a pub topic, a source enum exists and
- *          holds its absent code, an envelope flag goes with an envelope field.
+ * @brief   Count the vars of topic `p` without a name or with a bound outside 1..DTP_VAR_LEN_MAX.
  * @version 1
+ * @return  the number of violations.
+ */
+static int var_violations(const dtp_topic_t *p)
+{
+    int bad = 0;
+    size_t k;
+    for (k = p->vars_first; k < (size_t)p->vars_first + p->vars_count; k++) {
+        bad += dtp_vars[k].name == NULL || dtp_vars[k].max_len == 0u
+               || dtp_vars[k].max_len > DTP_VAR_LEN_MAX;
+    }
+    return bad;
+}
+
+/**
+ * @brief   Count violations in the topics: an ack names a pub topic, a source enum exists and
+ *          holds its absent code, an envelope flag goes with an envelope field, the payload and
+ *          vars slices are in range and on pub topics, and every var has a name and a bound.
+ * @version 2
  * @return  the number of violations.
  */
 static int topic_violations(void)
@@ -281,6 +298,9 @@ static int topic_violations(void)
         bad += (p->flags & DTP_F_ID_REQUIRED) != 0u && p->id_field == NULL;
         bad += !slice_ok(p->payload_first, p->payload_count, DTP_NUM_PAYLOAD);
         bad += p->payload_count > 0u && p->direction != DTP_PUB;
+        bad += !slice_ok(p->vars_first, p->vars_count, DTP_NUM_VARS) || p->vars_count > DTP_VARS_MAX;
+        bad += p->vars_count > 0u && p->direction != DTP_PUB;
+        bad += slice_ok(p->vars_first, p->vars_count, DTP_NUM_VARS) && var_violations(p);
     }
     return bad;
 }

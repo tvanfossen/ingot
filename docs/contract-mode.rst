@@ -112,7 +112,11 @@ Key paths
    ``{shadow_name}``, ``direction`` (``pub`` or ``sub``), ``connection``, ``subscribe_order``,
    ``local_wrapper``, ``ack`` (the response topic), ``envelope`` (the request ``id`` field, required
    or with an absent value, and the ``source`` field with its enum and absent member),
-   ``settings_in_every_body`` and ``literal_shadow_name``.
+   ``settings_in_every_body`` and ``literal_shadow_name``. A pub topic may declare ``vars = [{
+   name, max_len }]``: placeholders its publisher fills per message, each ``{name}`` in the
+   template, at most 8 per topic and each up to 128 bytes (``dtp_vars``, shadow table interface
+   1.4). A template placeholder that is neither per-device nor declared is refused, and so is a
+   declared var the template does not use.
 
 ``[[topic_payload]]``
    One member of a pub topic's payload: ``topic``, ``path``, and one of ``key`` (any key with a

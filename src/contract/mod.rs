@@ -29,6 +29,7 @@ pub mod sdk;
 pub mod shadow;
 pub mod shadow_size;
 pub mod snapshot;
+pub mod topic_vars;
 pub mod topics;
 pub mod types;
 pub mod value;

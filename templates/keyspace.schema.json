@@ -127,6 +127,16 @@
         "settings_in_every_body": {
           "description": "Every body on this topic, whatever its verb, also runs the settings binder on its top-level fields before the verb.",
           "type": "boolean"
+        },
+        "vars": {
+          "description": "Placeholders of a pub topic that the publisher fills per message, each {name} in the template, with its longest value in bytes.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/trusted",
+            "type": "object",
+            "required": ["name", "max_len"],
+            "properties": { "name": { "type": "string" }, "max_len": { "type": "integer", "minimum": 1, "maximum": 128 } }
+          }
         }
       }
     }

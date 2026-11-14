@@ -329,6 +329,17 @@ pub struct Topic {
     /// The shadow name is a literal here although another topic uses `{shadow_name}` (kept).
     #[serde(default)]
     pub literal_shadow_name: bool,
+    /// Placeholders of a pub topic that the publisher fills per message, each `{name}`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub vars: Vec<TopicVar>,
+}
+
+/// One per-message placeholder of a pub topic: its name and its longest value in bytes.
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct TopicVar {
+    pub name: String,
+    pub max_len: u16,
 }
 
 /// A command envelope: the id and the source of a request.

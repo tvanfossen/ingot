@@ -65,7 +65,7 @@ impl Table {
 }
 
 /// The rows shared by several tables, filled while the tables are built: enums, constant value
-/// bytes, discrete sets, coupled writes, command steps and their arguments.
+/// bytes, discrete sets, coupled writes, command steps and their arguments, topic vars.
 #[derive(Default)]
 pub struct Pools {
     enums: EnumPool,
@@ -74,6 +74,7 @@ pub struct Pools {
     implies: Vec<String>,
     steps: Vec<String>,
     args: Vec<String>,
+    vars: Vec<String>,
 }
 
 impl Pools {
@@ -148,12 +149,14 @@ fn blob_rows(blob: &[u8]) -> Vec<String> {
 /// Every table of the variant, in the order the header declares them.
 ///
 /// v2: the topic payloads.
-/// @version 2
+/// v3: the topic vars (`dtp_vars`, appended).
+/// @version 3
 /// @req REQ-ING-DSH-001
 /// @req REQ-ING-DSH-002
 /// @req REQ-ING-DSH-003
 /// @req REQ-ING-TOP-002
 /// @req REQ-ING-TOP-003
+/// @req REQ-ING-TOP-004
 fn tables_of(tables: &Tables, hash: &str) -> Vec<Table> {
     let mut pools = Pools::default();
     let (payload, slices) = payload::rows(tables, hash, &mut pools);
@@ -189,18 +192,21 @@ fn tables_of(tables: &Tables, hash: &str) -> Vec<Table> {
         Table::new("dsh_command_t", "dsh_commands", commands, "{ { 0 } }"),
         Table::new("dtp_topic_t", "dtp_topics", topics, "{ 0 }"),
         Table::new("dsh_reported_t", "dtp_payload", payload, "{ 0 }"),
+        Table::new("dtp_var_t", "dtp_vars", pools.vars, "{ 0 }"),
     ]
 }
 
 /// The rendering context of the two files.
 ///
-/// @version 1
+/// v2: the interface version the tables are written against.
+/// @version 2
 /// @req REQ-ING-DSH-001
 /// @req REQ-ING-DSH-005
 pub fn context(tables: &Tables, commit: &str, hash: &str) -> Context {
     let t = trees(tables);
     let v = &tables.version;
     let mut ctx = Context::new();
+    ctx.insert("interface", crate::codegen::tables::TYPES_HEADERS[1].1);
     ctx.insert("name", &tables.name);
     ctx.insert(
         "version",

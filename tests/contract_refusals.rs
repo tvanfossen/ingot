@@ -17,6 +17,12 @@ type Case = (
 );
 
 /// Edits of the generic model that each trigger one refusal.
+/// The pub telemetry topic's template and direction, the text the topic-var cases replace.
+const TELEMETRY: &str = "template = \"{stage}/{duid}/telemetry\"\ndirection = \"pub\"";
+
+/// The telemetry topic with nine vars, one over the bound.
+const NINE_VARS: &str = "template = \"{a}{b}{c}{d}{e}{f}{g}{h}{i}\"\ndirection = \"pub\"\nvars = [{ name = \"a\", max_len = 1 }, { name = \"b\", max_len = 1 }, { name = \"c\", max_len = 1 }, { name = \"d\", max_len = 1 }, { name = \"e\", max_len = 1 }, { name = \"f\", max_len = 1 }, { name = \"g\", max_len = 1 }, { name = \"h\", max_len = 1 }, { name = \"i\", max_len = 1 }]";
+
 const CASES: &[Case] = &[
     ("v1_0", "ns/core.toml", "key_index = 0\ntype = \"bool\"", "type = \"bool\"", "missing field `key_index`"),
     ("v1_0", "ns/drive.toml", "unit = \"mm/s\"", "units = \"mm/s\"", "unknown field"),
@@ -228,6 +234,15 @@ const CASES: &[Case] = &[
     ("v1_0", "contract.toml", "template = \"{stage}/{duid}/telemetry\"", "template = \"{stage}/{dui}/telemetry\"", "topic telemetry: template {stage}/{dui}/telemetry uses a placeholder outside {stage}, {duid}, {model}, {thing}, {shadow_name}"),
     ("v1_0", "contract.toml", "template = \"{stage}/{duid}/telemetry\"", "template = \"{stage}/duid}/telemetry\"", "topic telemetry: template {stage}/duid}/telemetry uses a placeholder outside"),
     ("v1_0", "contract.toml", "template = \"{stage}/{duid}/telemetry\"", "template = \"st}age/{duid}/telemetry\"", "topic telemetry: template st}age/{duid}/telemetry uses a placeholder outside"),
+    ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry/{session}\"\ndirection = \"pub\"\nvars = [{ name = \"job\", max_len = 8 }]", "topic telemetry: template {stage}/{duid}/telemetry/{session} uses a placeholder outside {stage}, {duid}, {model}, {thing}, {shadow_name} and the topic's vars"),
+    ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry/{duid}\"\ndirection = \"pub\"\nvars = [{ name = \"duid\", max_len = 8 }]", "topic telemetry: var duid must be an identifier other than a built-in placeholder"),
+    ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry/{a-b}\"\ndirection = \"pub\"\nvars = [{ name = \"a-b\", max_len = 8 }]", "topic telemetry: var a-b must be an identifier other than a built-in placeholder"),
+    ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry/{job}\"\ndirection = \"pub\"\nvars = [{ name = \"job\", max_len = 8 }, { name = \"job\", max_len = 4 }]", "topic telemetry: var job is declared twice"),
+    ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry/{job}\"\ndirection = \"pub\"\nvars = [{ name = \"job\", max_len = 0 }]", "topic telemetry: var job needs max_len 1..=128"),
+    ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry/{job}\"\ndirection = \"pub\"\nvars = [{ name = \"job\", max_len = 129 }]", "topic telemetry: var job needs max_len 1..=128"),
+    ("v1_0", "contract.toml", TELEMETRY, "template = \"{stage}/{duid}/telemetry\"\ndirection = \"pub\"\nvars = [{ name = \"job\", max_len = 8 }]", "topic telemetry: var job is not used by its template"),
+    ("v1_0", "contract.toml", TELEMETRY, NINE_VARS, "topic telemetry: more than 8 vars"),
+    ("v1_0", "contract.toml", "template = \"{stage}/{duid}/cmd/req\"\ndirection = \"sub\"", "template = \"{stage}/{duid}/cmd/req/{job}\"\ndirection = \"sub\"\nvars = [{ name = \"job\", max_len = 8 }]", "topic command_topic: vars are for pub topics"),
     ("v1_0", "contract.toml", "id = \"telemetry\"", "id = \"command_resp\"", "topics: id command_resp is used twice"),
     ("v1_0", "contract.toml", "template = \"{stage}/{duid}/telemetry\"", "template = \"{stage}/{duid}/cmd/resp\"", "topics: template {stage}/{duid}/cmd/resp is used twice"),
     ("v1_0", "contract.toml", "subscribe_order = 3", "subscribe_order = 2", "topics: subscribe_order 2 is used twice"),

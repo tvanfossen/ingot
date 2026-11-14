@@ -776,6 +776,56 @@ fn rows_without_a_command_answer_stay_internal_or_write_state() {
 }
 
 #[test]
+fn a_pub_topic_declares_the_vars_its_publisher_fills() {
+    let dir = unique_dir("dtp_vars");
+    let telemetry = "template = \"{stage}/{duid}/telemetry\"\ndirection = \"pub\"";
+    let with_vars = "template = \"{stage}/{duid}/telemetry/{session}/{event}/{session}\"\ndirection = \"pub\"\nvars = [{ name = \"session\", max_len = 16 }, { name = \"event\", max_len = 24 }]";
+    let gen = generated(
+        &dir,
+        "vars",
+        "sku_a",
+        &[("contract.toml", telemetry, with_vars)],
+    );
+    assert_eq!(
+        table(&gen, "dtp_vars"),
+        vec![
+            "{ .name = \"session\", .max_len = 16u }",
+            "{ .name = \"event\", .max_len = 24u }"
+        ]
+    );
+    let topics = table(&gen, "dtp_topics");
+    let t = row(&topics, "\"telemetry\"");
+    assert!(t.contains(".vars_first = 0u, .vars_count = 2u"), "{t}");
+    let other = row(&topics, "\"contract_resp\"");
+    assert!(
+        other.contains(".vars_first = 2u, .vars_count = 0u"),
+        "{other}"
+    );
+    let h = fs::read_to_string(gen.join("dsh_tables.h")).unwrap();
+    assert!(
+        h.contains("#define DTP_NUM_VARS 2u") && h.contains("shadow table\n * interface 1.4."),
+        "{h}"
+    );
+    let json = &contract_json(&gen)["shadow"]["topics"];
+    let declared = json
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["id"] == "telemetry")
+        .unwrap();
+    assert_eq!(declared["vars"][1]["name"], "event");
+    compile_and_walk(&gen);
+    let plain = generated(&dir, "plain", "sku_a", &[]);
+    assert!(fs::read_to_string(plain.join("dsh_tables.h"))
+        .unwrap()
+        .contains("#define DTP_NUM_VARS 0u"));
+    assert!(contract_json(&plain)["shadow"]["topics"][0]
+        .get("vars")
+        .is_none());
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn topics_carry_envelopes_acks_and_the_contract_request() {
     let dir = unique_dir("dsh_topics");
     let gen = generated(&dir, "plain", "sku_a", &[]);
@@ -873,9 +923,12 @@ fn a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header() {
     assert!(ok, "{stderr}");
     let fixed = fs::read_to_string(types.join("dsh_types.h")).unwrap();
     assert_eq!(fixed, fs::read_to_string(gen.join("dsh_types.h")).unwrap());
-    assert!(fixed.contains("#define DSH_IF_MAJOR 1") && fixed.contains("#define DSH_IF_MINOR 3"));
+    assert!(fixed.contains("#define DSH_IF_MAJOR 1") && fixed.contains("#define DSH_IF_MINOR 4"));
     assert!(fixed.contains("DSH_FORM_BOOL_INTEGER = 4"));
     assert!(fixed.contains("DSH_RK_REJECTED = 4"));
+    assert!(
+        fixed.contains("#define DTP_VARS_MAX 8u") && fixed.contains("#define DTP_VAR_LEN_MAX 128u")
+    );
     let _ = fs::remove_dir_all(&dir);
 }
 
