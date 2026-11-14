@@ -1,5 +1,7 @@
-//! Per-message placeholders of pub topics: the names a publisher fills at publish time, each
-//! with its longest value, declared per topic and bounded in count and length.
+//! Per-message placeholders of topics, declared per topic and bounded in count and length: on a
+//! pub topic the publisher fills them at publish time; on a sub topic each is one whole topic
+//! level, which the consumer subscribes to as a single-level wildcard and extracts from a
+//! received topic.
 
 use super::keys::Errors;
 use super::schema::{Direction, Topic, TopicVar};
@@ -42,15 +44,35 @@ fn var_rule(t: &Topic, v: &TopicVar) -> Vec<String> {
     why
 }
 
-/// Every var refusal of topic `t`: vars on a sub topic, too many, a name declared twice, and
-/// each var's own rules.
+/// Whether `{name}` is exactly one whole level of the template, once.
 ///
 /// @version 1
+/// @req REQ-ING-TOP-006
+fn one_whole_level(template: &str, name: &str) -> bool {
+    let placeholder = format!("{{{name}}}");
+    let levels = template.split('/').filter(|l| *l == placeholder).count();
+    levels == 1 && template.matches(&placeholder).count() == 1
+}
+
+/// Every var refusal of topic `t`: on a sub topic a var that is not one whole level used once,
+/// too many vars, a name declared twice, and each var's own rules.
+///
+/// v2: vars on sub topics, each one whole level.
+/// @version 2
 /// @req REQ-ING-TOP-004
+/// @req REQ-ING-TOP-006
 pub fn check(t: &Topic, errors: &mut Errors) {
     let mut why = Vec::new();
-    if !t.vars.is_empty() && t.direction == Direction::Sub {
-        why.push("vars are for pub topics".to_string());
+    let sub = t.direction == Direction::Sub;
+    for v in t
+        .vars
+        .iter()
+        .filter(|v| sub && !one_whole_level(&t.template, &v.name))
+    {
+        why.push(format!(
+            "var {} must be one whole topic level, used once, on a sub topic",
+            v.name
+        ));
     }
     if t.vars.len() > VARS_MAX {
         why.push(format!("more than {VARS_MAX} vars"));

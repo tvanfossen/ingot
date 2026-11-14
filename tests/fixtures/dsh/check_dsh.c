@@ -281,9 +281,10 @@ static int var_violations(const dtp_topic_t *p)
 
 /**
  * @brief   Count violations in the topics: an ack names a pub topic, a source enum exists and
- *          holds its absent code, an envelope flag goes with an envelope field, the payload and
- *          vars slices are in range and on pub topics, and every var has a name and a bound.
- * @version 2
+ *          holds its absent code, an envelope flag goes with an envelope field, the payload
+ *          slice is in range and on a pub topic, the vars slice is in range, and every var has a
+ *          name and a bound.
+ * @version 3
  * @return  the number of violations.
  */
 static int topic_violations(void)
@@ -299,7 +300,6 @@ static int topic_violations(void)
         bad += !slice_ok(p->payload_first, p->payload_count, DTP_NUM_PAYLOAD);
         bad += p->payload_count > 0u && p->direction != DTP_PUB;
         bad += !slice_ok(p->vars_first, p->vars_count, DTP_NUM_VARS) || p->vars_count > DTP_VARS_MAX;
-        bad += p->vars_count > 0u && p->direction != DTP_PUB;
         bad += slice_ok(p->vars_first, p->vars_count, DTP_NUM_VARS) && var_violations(p);
     }
     return bad;

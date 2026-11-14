@@ -112,11 +112,13 @@ Key paths
    ``{shadow_name}``, ``direction`` (``pub`` or ``sub``), ``connection``, ``subscribe_order``,
    ``local_wrapper``, ``ack`` (the response topic), ``envelope`` (the request ``id`` field, required
    or with an absent value, and the ``source`` field with its enum and absent member),
-   ``settings_in_every_body`` and ``literal_shadow_name``. A pub topic may declare ``vars = [{
-   name, max_len }]``: placeholders its publisher fills per message, each ``{name}`` in the
-   template, at most 8 per topic and each up to 128 bytes (``dtp_vars``, shadow table interface
-   1.4). A template placeholder that is neither per-device nor declared is refused, and so is a
-   declared var the template does not use. ``variants`` limits a topic to those variants: a
+   ``settings_in_every_body`` and ``literal_shadow_name``. A topic may declare ``vars = [{ name,
+   max_len }]``: per-message placeholders, each ``{name}`` in the template, at most 8 per topic
+   and each up to 128 bytes (``dtp_vars``, shadow table interface 1.4). A pub topic's publisher
+   fills them; on a sub topic (interface 1.6) each var is one whole topic level, used once, which
+   the consumer subscribes to as a single-level wildcard and extracts from a received topic. A
+   template placeholder that is neither per-device nor declared is refused, and so is a declared
+   var the template does not use. ``variants`` limits a topic to those variants: a
    variant not listed has no row, and a topic is compared on a previous contract's variant (a
    minor may add variants, not drop or change the topic there).
 

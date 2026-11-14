@@ -865,6 +865,25 @@ fn a_topic_exists_only_on_its_variants() {
 }
 
 #[test]
+fn a_sub_topic_declares_the_vars_its_consumer_extracts() {
+    let dir = unique_dir("dtp_sub_vars");
+    let cmd = "template = \"{stage}/{duid}/cmd/req\"\ndirection = \"sub\"";
+    let per_job = "template = \"{stage}/{duid}/cmd/{job}/req\"\ndirection = \"sub\"\nvars = [{ name = \"job\", max_len = 64 }]";
+    let gen = generated(&dir, "sub", "sku_a", &[("contract.toml", cmd, per_job)]);
+    assert_eq!(
+        table(&gen, "dtp_vars"),
+        vec!["{ .name = \"job\", .max_len = 64u }"]
+    );
+    let t = row(&table(&gen, "dtp_topics"), "\"command_topic\"");
+    assert!(
+        t.contains(".direction = DTP_SUB") && t.contains(".vars_count = 1u"),
+        "{t}"
+    );
+    compile_and_walk(&gen);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn a_model_without_vars_has_none_and_names_its_interface() {
     let dir = unique_dir("dtp_no_vars");
     let plain = generated(&dir, "plain", "sku_a", &[]);
@@ -981,7 +1000,7 @@ fn a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header() {
     assert!(ok, "{stderr}");
     let fixed = fs::read_to_string(types.join("dsh_types.h")).unwrap();
     assert_eq!(fixed, fs::read_to_string(gen.join("dsh_types.h")).unwrap());
-    assert!(fixed.contains("#define DSH_IF_MAJOR 1") && fixed.contains("#define DSH_IF_MINOR 5"));
+    assert!(fixed.contains("#define DSH_IF_MAJOR 1") && fixed.contains("#define DSH_IF_MINOR 6"));
     assert!(fixed.contains("DSH_FORM_BOOL_INTEGER = 4"));
     assert!(fixed.contains("DSH_RK_REJECTED = 4"));
     assert!(
