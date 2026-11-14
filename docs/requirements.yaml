@@ -813,6 +813,19 @@ requirements:
     acceptance_criteria: >-
       The generic model's nested selector (net.factoryReset) generates; a malformed selector
       field, body object, body selector field and argument field are each refused.
+  REQ-ING-CMD-006:
+    name: A stable id for internal rows
+    subsystem: Generated outputs (G2)
+    description: >-
+      An internal shadow_commands row may declare `internal_id` (1..=65535), the model's stable
+      id of the action the library performs, so the library dispatches on the id rather than
+      the row's wire name. It is emitted as dsh_command_t.internal_id (0 on every other row;
+      shadow table interface minor 5) and carried in contract.json and the keyspace only where
+      declared. internal_id on a row that is not internal, or 0, is refused.
+    acceptance_criteria: >-
+      An internal row with internal_id 7 generates .internal_id = 7u and another row 0u, the
+      tables compile and walk, and contract.json carries the id on that row only; internal_id on
+      a command row and internal_id 0 are refused.
   REQ-ING-TOP-001:
     name: MQTT topic declarations and envelopes
     subsystem: Generated outputs (G2)
@@ -858,7 +871,7 @@ requirements:
       template does not use. contract.json and the keyspace carry vars only where declared.
     acceptance_criteria: >-
       A pub topic with two vars (one used twice) generates two dtp_vars rows in declaration
-      order and its slice, other topics an empty slice; the header names interface 1.4 and the
+      order and its slice, other topics an empty slice; the header names the interface version it is written against and the
       tables compile and walk; a model without vars has DTP_NUM_VARS 0 and no vars in
       contract.json. Each refusal above has a triggering model.
   REQ-ING-SIZ-001:
