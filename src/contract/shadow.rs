@@ -117,18 +117,12 @@ pub fn rows(
 /// stand for the command rows).
 ///
 /// v2: topics.
-/// v3: the rejected-settings list.
-/// @version 3
+/// @version 2
 /// @req REQ-ING-SHD-001
 /// @req REQ-ING-TOP-001
-/// @req REQ-ING-SHD-011
 pub fn declared(tables: &Tables) -> bool {
     let s = &tables.shadow;
-    let rows = s.apply_groups.len()
-        + s.echo.len()
-        + s.constants.len()
-        + s.topics.len()
-        + usize::from(s.rejected.is_some());
+    let rows = s.apply_groups.len() + s.echo.len() + s.constants.len() + s.topics.len();
     tables.keys.iter().any(|k| !k.wire.shadow.is_empty()) || rows > 0
 }
 

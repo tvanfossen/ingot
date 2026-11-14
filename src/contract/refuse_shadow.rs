@@ -384,10 +384,13 @@ fn telem_names(tables: &Tables, errors: &mut Errors) {
 }
 
 /// S1 and S5 of the rows: apply group ids unique; an echo string has a max_size and only it;
-/// an echo's command key is a SETTINGS key; a constant has a scalar value or an image.
+/// an echo's command key is a SETTINGS key; a constant has a scalar value or an image; a
+/// rejected-settings list needs a desired path to reject.
 ///
-/// @version 1
+/// v2: the rejected-settings list.
+/// @version 2
 /// @req REQ-ING-SHD-002
+/// @req REQ-ING-SHD-011
 fn rows(tables: &Tables, errors: &mut Errors) {
     let s = &tables.shadow;
     let mut ids = BTreeSet::new();
@@ -396,6 +399,10 @@ fn rows(tables: &Tables, errors: &mut Errors) {
     }
     echo_rows(tables, errors);
     constant_rows(tables, errors);
+    let desired = tables.keys.iter().any(|k| shadowed(k, Role::Settings));
+    if s.rejected.is_some() && !desired {
+        errors.push("shadow_rejected: the model has no desired path to reject".into());
+    }
 }
 
 /// An echo string has a max_size above 0 and only a string has one; a command key is a
