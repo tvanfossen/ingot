@@ -1181,3 +1181,18 @@ Same procedure; the test command is `--no-fail-fast --test contract_refusals --t
 | PH07 | src/contract/previous_shadow.rs | `&old.placeholders,` | `&new.placeholders,` | frozen within a major | KILLED | a_placeholder_is_kept_in_a_minor_and_may_be_added |
 | PH08 | src/contract/dsh/mod.rs | `.map(topics::var_row)` | `.filter(\|_\| false).map(topics::var_row)` | the rows emitted | KILLED | a_declared_placeholder_is_emitted_for_the_consumer_to_configure |
 | PH09 | templates/dsh_types.h | `#define DSH_IF_MINOR 7` | `#define DSH_IF_MINOR 6` | the interface minor | KILLED | a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header a_model_without_vars_has_none_and_names_its_interface |
+
+## Enum value constants (REQ-ING-TIV-017)
+
+Same procedure; the test command is `--no-fail-fast --test enum_constants --test contract_refusals`.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| EC01 | src/contract/constants.rs | `format!("DMT_E_{}_{}", key.replace('.', "_"), value).to_uppercase()` | `format!("DMT_E_{}_{}", key, value).to_uppercase()` | dots as underscores | KILLED | a_key_s_constants_are_in_code_order a_placeholder_is_kept_in_a_minor_and_may_be_added a_range_without_a_step_steps_by_one a_snapshot_from_before_wire_strings_is_still_checked a_topic_is_frozen_per_variant a_well_known_role_may_not_move_in_a_minor an_unset_sentinel_default_lies_outside_the_range every_enum_key_value_is_a_named_constant_of_its_variant every_multi_edit_refusal_has_a_triggering_model every_refusal_has_a_triggering_model previous_contract_refusals ranges_and_sets_may_only_widen_in_a_minor release_review_lists_only_sensitive_grants_of_new_principals scale_and_sentinel_are_kept_in_a_minor the_rejected_settings_path_is_frozen_per_variant the_rejected_settings_path_is_kept_in_a_minor_and_may_be_added |
+| EC02 | src/contract/constants.rs | `mine.sort_by_key(\|c\| c.value);` | `let _ = &mine;` | values in code order (names otherwise) | KILLED | a_key_s_constants_are_in_code_order |
+| EC03 | src/contract/constants.rs | `if !c_identifier(&c.name) {` | `if false {` | a non-identifier refused | KILLED | every_refusal_has_a_triggering_model |
+| EC04 | src/contract/constants.rs | `} else if c.name.len() > NAME_MAX {` | `} else if false {` | the length bound | KILLED | every_refusal_has_a_triggering_model |
+| EC05 | src/contract/constants.rs | `Some(other) => refuse(format!("is also {other}'s")),` | `Some(_) => {}` | a collision refused | KILLED | every_multi_edit_refusal_has_a_triggering_model |
+| EC06 | src/contract/model.rs | `super::constants::check(&tables, &mut errors);` | `let _ = &tables;` | the checks run | KILLED | every_multi_edit_refusal_has_a_triggering_model every_refusal_has_a_triggering_model |
+| EC07 | src/contract/mod.rs | `constants::write(tera, tables, commit, opts.output)?;` | `let _ = tables;` | the header is written | KILLED | a_key_s_constants_are_in_code_order every_enum_key_value_is_a_named_constant_of_its_variant |
+| EC08 | src/contract/constants.rs | `value: m.value,` | `value: m.value + 1,` | each value's code | KILLED | a_key_s_constants_are_in_code_order every_enum_key_value_is_a_named_constant_of_its_variant |
