@@ -1013,6 +1013,22 @@ requirements:
     acceptance_criteria: >-
       The header's hash equals the head file's and the cvHash constant's; the sizes equal the
       keyspace's; a buffer one byte short warns and an exact one does not.
+  REQ-ING-DSH-006:
+    name: Shadow consumer bounds
+    subsystem: Generated outputs (G2)
+    description: >-
+      dsh_tables.h states the variant's bounds a shadow consumer sizes its buffers with (shadow
+      table interface minor 8): DSH_REJECTED_MAX_ITEMS, the members one rejected-settings list can
+      hold (one per dsh_desired and dsh_echo row; 0 when the variant has no DSH_RK_REJECTED row);
+      DSH_DESIRED_PATH_MAX_BYTES, the longest dsh_desired or dsh_echo path with its terminator (0
+      with none); DSH_ERROR_IDS_PUBLISHED, the error ids the full error table publishes (every
+      group's bits 0..publish_max_bit that are not reserved); DSH_ERROR_ID_MAX, the largest wire
+      id an error payload can carry (wire_base plus the highest published or declared bit of any
+      group; 0 with none).
+    acceptance_criteria: >-
+      The generic model's bounds equal the values derived from its rows by hand and by a C walk of
+      the generated tables, per variant; adding a rejected-settings path, a longer desired path, a
+      reserved bit or a lower publish_max_bit changes the matching bound.
   REQ-ING-TOP-002:
     name: Topic table
     subsystem: Generated outputs (G2)
