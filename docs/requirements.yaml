@@ -900,6 +900,24 @@ requirements:
       A sub topic with a var as a whole level generates its dtp_vars row and slice and the
       tables compile and walk; a var inside a level, and a var used twice, on a sub topic are
       refused.
+  REQ-ING-TOP-007:
+    name: Declared topic placeholders
+    subsystem: Generated outputs (G2)
+    description: >-
+      contract.toml may declare `[[placeholders]] name, max_len`: named values the consumer is
+      configured with (a build or device value), usable as `{name}` in any topic template. They
+      are emitted as dtp_placeholders (dtp_var_t rows; shadow table interface minor 7,
+      DTP_PLACEHOLDERS_MAX 8) and carried in contract.json and the keyspace only when declared.
+      Refused: more than 8, a name that is not an identifier or is a per-device placeholder, a
+      name declared twice, max_len outside 1..=128, a placeholder no topic uses, and a topic var
+      with a placeholder's name. They are kept unchanged within a major (one may be added in a
+      minor).
+    acceptance_criteria: >-
+      Two placeholders used by one template generate two dtp_placeholders rows in declaration
+      order and contract.json lists them, the tables compiling; a model without them has
+      DTP_NUM_PLACEHOLDERS 0 and none in contract.json. Each refusal has a triggering model;
+      against a previous contract that declares one, dropping or changing it is refused, keeping
+      it generates, and adding one in a minor generates.
   REQ-ING-SIZ-001:
     name: Worst-case shadow document size
     subsystem: Generated outputs (G2)
