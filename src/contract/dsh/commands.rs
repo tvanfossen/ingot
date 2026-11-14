@@ -159,8 +159,10 @@ fn steps(tables: &Tables, r: &ShadowCommand, pools: &mut Pools) -> String {
 
 /// One `dsh_commands` row; its steps and arguments are appended to the pools.
 ///
-/// @version 1
+/// v2: an internal row's id (0: none).
+/// @version 2
 /// @req REQ-ING-DSH-003
+/// @req REQ-ING-CMD-006
 fn row(tables: &Tables, r: &ShadowCommand, pools: &mut Pools) -> String {
     let topic = tables.shadow.topics.iter().position(|t| t.id == r.topic);
     let protocol = match r.protocol {
@@ -168,13 +170,15 @@ fn row(tables: &Tables, r: &ShadowCommand, pools: &mut Pools) -> String {
         Protocol::CommandArray => "DSH_PROTO_COMMAND_ARRAY",
     };
     format!(
-        "{{ .selector = {}, {}, .internal = {}, {}, .topic = {}u, .protocol = {protocol}, {} }}",
+        "{{ .selector = {}, {}, .internal = {}, {}, .topic = {}u, .protocol = {protocol}, {}, \
+         .internal_id = {}u }}",
         selector(&r.selector),
         body(r),
         text(r.internal.as_deref()),
         steps(tables, r, pools),
         topic.unwrap_or_default(),
         action(r),
+        r.internal_id.unwrap_or(0),
     )
 }
 

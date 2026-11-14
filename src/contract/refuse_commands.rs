@@ -14,9 +14,11 @@ use super::value::{encode_default, int_range};
 ///
 /// v2: the arguments of every step, and the further commands.
 /// v3: the arguments are checked against their step's command alone.
-/// @version 3
+/// v4: an internal row's id.
+/// @version 4
 /// @req REQ-ING-CMD-001
 /// @req REQ-ING-CMD-004
+/// @req REQ-ING-CMD-006
 pub fn check(tables: &Tables, errors: &mut Errors) {
     let rows = &tables.shadow.commands;
     for r in rows {
@@ -24,6 +26,7 @@ pub fn check(tables: &Tables, errors: &mut Errors) {
         topic_rules(tables, r, &mut refuse);
         selector_rules(tables, r, &mut refuse);
         body_rules(tables, r, &mut refuse);
+        internal_id_rule(r, &mut refuse);
         also_rules(tables, r, &mut refuse);
         for (command, args) in r.steps() {
             for a in args {
@@ -189,6 +192,18 @@ fn body_rules(tables: &Tables, r: &ShadowCommand, refuse: &mut impl FnMut(String
         (_, Some(c)) if known(c) => {}
         (_, Some(c)) => refuse(format!("command {c} is not a command of this variant")),
         (_, None) => commandless_rules(r, refuse),
+    }
+}
+
+/// An internal row's id is 1..=65535 and only an internal row has one.
+///
+/// @version 1
+/// @req REQ-ING-CMD-006
+fn internal_id_rule(r: &ShadowCommand, refuse: &mut impl FnMut(String)) {
+    match (r.internal_id, &r.internal) {
+        (Some(_), None) => refuse("internal_id is for internal rows".into()),
+        (Some(0), Some(_)) => refuse("internal_id is 1..=65535".into()),
+        _ => {}
     }
 }
 

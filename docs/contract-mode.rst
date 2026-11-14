@@ -127,8 +127,10 @@ Key paths
    How a request reaches the store: ``topic``, ``selector`` (``field`` equal to a ``wire`` string or
    flag, an array ``element``, or an ``object``), ``body`` (``fields``, ``settings`` or ``{ object,
    selector }``), ``protocol`` (``single`` or ``command_array``), and then either a ``command`` with
-   ``args`` and further commands in ``also``, an ``answer`` code, an ``internal`` reason, or args
-   that write STATE keys only. An argument takes a request ``field`` (optionally an ``element`` and
+   ``args`` and further commands in ``also``, an ``answer`` code, an ``internal`` reason (with an
+   optional ``internal_id``, 1 to 65535: the model's stable id of the action, which the library
+   dispatches on instead of the wire name; ``dsh_command_t.internal_id``, shadow table interface
+   1.5), or args that write STATE keys only. An argument takes a request ``field`` (optionally an ``element`` and
    an ``encoding``: ``base64`` into a string, binary or struct key, ``decimal_text`` into an integer
    key) or a constant ``value``, with ``required`` and its ``ec``, an ``absent`` value, or
    ``omit_when_absent``. ``variants`` with ``grounded_in`` limits a row.

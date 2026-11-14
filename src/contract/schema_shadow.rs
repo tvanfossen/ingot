@@ -527,6 +527,9 @@ pub struct ShadowCommand {
     /// Why the library handles the verb itself.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub internal: Option<String>,
+    /// The model's stable id of an internal row's action, which the library dispatches on.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub internal_id: Option<u16>,
     /// Further commands the row submits after `command`, in order, each with its arguments.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub also: Vec<Step>,

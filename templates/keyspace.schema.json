@@ -93,6 +93,7 @@
       "required": ["topic", "selector"],
       "properties": {
         "topic": { "type": "string" },
+        "internal_id": { "description": "An internal row's stable action id.", "type": "integer", "minimum": 1, "maximum": 65535 },
         "variants": { "$ref": "#/$defs/variants" },
         "selector": {
           "type": "object",

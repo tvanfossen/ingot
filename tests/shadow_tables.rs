@@ -739,6 +739,28 @@ fn argument_forms_resolve_names_elements_and_encodings() {
 }
 
 #[test]
+fn an_internal_row_carries_its_declared_id() {
+    let dir = unique_dir("dsh_internal_id");
+    let rows = format!("{GO_ROW}\n\n[[shadow_commands]]\ntopic = \"command_topic\"\nselector = {{ field = \"state\", wire = \"getlog\" }}\ninternal = \"the library uploads its own log\"\ninternal_id = 7");
+    let gen = generated(&dir, "id", "sku_a", &[("ns/drive.toml", GO_ROW, &rows)]);
+    let all = table(&gen, "dsh_commands");
+    let getlog = row(&all, "\"getlog\"");
+    assert!(getlog.contains(".internal_id = 7u"), "{getlog}");
+    let go = row(&all, ".wire = \"go\"");
+    assert!(go.contains(".internal_id = 0u"), "{go}");
+    let json = &contract_json(&gen)["shadow"]["commands"];
+    let declared = json
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["internal_id"] == 7);
+    assert!(declared.is_some(), "{json}");
+    assert!(json[0].get("internal_id").is_none());
+    compile_and_walk(&gen);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn rows_without_a_command_answer_stay_internal_or_write_state() {
     let dir = unique_dir("dsh_commandless");
     let rows = format!("{GO_ROW}\n\n[[shadow_commands]]\ntopic = \"command_topic\"\nselector = {{ field = \"ping\", wire = false }}\nanswer = 3\n\n[[shadow_commands]]\ntopic = \"command_topic\"\nselector = {{ field = \"state\", wire = \"getlog\" }}\ninternal = \"the library uploads its own log\"\n\n[[shadow_commands]]\ntopic = \"command_topic\"\nselector = {{ field = \"state\", wire = \"mobile\" }}\nargs = [ {{ field = \"label\", key = \"drive.state.label\", omit_when_absent = true }} ]");
@@ -802,10 +824,7 @@ fn a_pub_topic_declares_the_vars_its_publisher_fills() {
         "{other}"
     );
     let h = fs::read_to_string(gen.join("dsh_tables.h")).unwrap();
-    assert!(
-        h.contains("#define DTP_NUM_VARS 2u") && h.contains("shadow table\n * interface 1.4."),
-        "{h}"
-    );
+    assert!(h.contains("#define DTP_NUM_VARS 2u"), "{h}");
     let json = &contract_json(&gen)["shadow"]["topics"];
     let declared = json
         .as_array()
@@ -815,10 +834,22 @@ fn a_pub_topic_declares_the_vars_its_publisher_fills() {
         .unwrap();
     assert_eq!(declared["vars"][1]["name"], "event");
     compile_and_walk(&gen);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_model_without_vars_has_none_and_names_its_interface() {
+    let dir = unique_dir("dtp_no_vars");
     let plain = generated(&dir, "plain", "sku_a", &[]);
-    assert!(fs::read_to_string(plain.join("dsh_tables.h"))
-        .unwrap()
-        .contains("#define DTP_NUM_VARS 0u"));
+    let h = fs::read_to_string(plain.join("dsh_tables.h")).unwrap();
+    let types = fs::read_to_string(plain.join("dsh_types.h")).unwrap();
+    let minor = types.split("#define DSH_IF_MINOR ").nth(1).unwrap();
+    let minor = minor.split_whitespace().next().unwrap();
+    assert!(h.contains("#define DTP_NUM_VARS 0u"), "{h}");
+    assert!(
+        h.contains(&format!("shadow table\n * interface 1.{minor}.")),
+        "{h}"
+    );
     assert!(contract_json(&plain)["shadow"]["topics"][0]
         .get("vars")
         .is_none());
@@ -923,7 +954,7 @@ fn a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header() {
     assert!(ok, "{stderr}");
     let fixed = fs::read_to_string(types.join("dsh_types.h")).unwrap();
     assert_eq!(fixed, fs::read_to_string(gen.join("dsh_types.h")).unwrap());
-    assert!(fixed.contains("#define DSH_IF_MAJOR 1") && fixed.contains("#define DSH_IF_MINOR 4"));
+    assert!(fixed.contains("#define DSH_IF_MAJOR 1") && fixed.contains("#define DSH_IF_MINOR 5"));
     assert!(fixed.contains("DSH_FORM_BOOL_INTEGER = 4"));
     assert!(fixed.contains("DSH_RK_REJECTED = 4"));
     assert!(
