@@ -1131,3 +1131,16 @@ Same procedure; the test command is `--no-fail-fast --test contract_refusals --t
 | TV12 | src/contract/schema_shadow.rs | `#[serde(default, skip_serializing_if = "Vec::is_empty")]\n    pub vars: Vec<TopicVar>,` | `#[serde(default)]\n    pub vars: Vec<TopicVar>,` | contract.json carries vars only where declared | KILLED | a_pub_topic_declares_the_vars_its_publisher_fills |
 | TV13 | templates/dsh_types.h | `#define DSH_IF_MINOR 4` | `#define DSH_IF_MINOR 3` | the interface minor | KILLED | a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header |
 | TV14 | templates/dsh_tables.h | `interface {{ interface \| replace(from="DSH ", to="") }}.` | `interface 1.1.` | the header names its interface | KILLED | a_pub_topic_declares_the_vars_its_publisher_fills |
+
+## A stable id for internal rows (REQ-ING-CMD-006)
+
+Same procedure; the test command is `--no-fail-fast --test contract_refusals --test shadow_tables`. TV14 is re-run: its guarding assertion moved to `a_model_without_vars_has_none_and_names_its_interface`.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| II01 | src/contract/refuse_commands.rs | `(Some(_), None) => refuse("internal_id is for internal rows".into()),` | `(Some(_), None) => {}` | only internal rows | KILLED | every_refusal_has_a_triggering_model |
+| II02 | src/contract/refuse_commands.rs | `(Some(0), Some(_)) => refuse("internal_id is 1..=65535".into()),` | `(Some(0), Some(_)) => {}` | 0 is no id | KILLED | every_refusal_has_a_triggering_model |
+| II03 | src/contract/dsh/commands.rs | `r.internal_id.unwrap_or(0),` | `0,` | the id emitted | KILLED | an_internal_row_carries_its_declared_id |
+| II04 | src/contract/schema_shadow.rs | `#[serde(skip_serializing_if = "Option::is_none")]\n    pub internal_id: Option<u16>,` | `pub internal_id: Option<u16>,` | carried only where declared | KILLED | an_internal_row_carries_its_declared_id |
+| II05 | templates/dsh_types.h | `#define DSH_IF_MINOR 5` | `#define DSH_IF_MINOR 4` | the interface minor | KILLED | a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header a_model_without_vars_has_none_and_names_its_interface |
+| TV14 | templates/dsh_tables.h | `interface {{ interface \| replace(from="DSH ", to="") }}.` | `interface 1.1.` | the header names its interface | KILLED | a_model_without_vars_has_none_and_names_its_interface |
