@@ -69,8 +69,9 @@ static unsigned rights(size_t p, uint32_t id)
 }
 
 /**
- * @brief   Check one principal row and its name.
- * @version 1
+ * @brief   Check one principal row and its declared name.
+ *          v2: every principal has a name (sub-consumers, UART and in-process ones too).
+ * @version 2
  */
 static void principal(size_t p, uint32_t uid, uint16_t token, uint8_t kind, uint8_t flags,
                       uint32_t hb, uint32_t window, uint32_t latency, const char *name)
@@ -79,8 +80,7 @@ static void principal(size_t p, uint32_t uid, uint16_t token, uint8_t kind, uint
     EXPECT(q->uid == uid && q->token == token && q->kind == kind && q->flags == flags);
     EXPECT(q->heartbeat_key == hb && q->heartbeat_window_ms == window);
     EXPECT(q->latency_budget_ms == latency && q->queue_bound == 16u && q->reserved0 == 0u);
-    EXPECT(name == NULL ? dmt_principal_names[p] == NULL
-                        : (dmt_principal_names[p] != NULL && strcmp(dmt_principal_names[p], name) == 0));
+    EXPECT(dmt_principal_names[p] != NULL && strcmp(dmt_principal_names[p], name) == 0);
 }
 
 /**
@@ -102,7 +102,8 @@ static void command(size_t c, const uint32_t keys[3], uint32_t payload, uint32_t
  *          v2: the enum key drive.settings.mode (KF_ENUM) and the contract patch.
  *          v3: the keys the shadow mapping of 1.x uses (fan, its twins, tones, docked), the
  *              drive command and its argument keys.
- * @version 3
+ *          v4: a sub-consumer's, the in-process and the UART principal's names.
+ * @version 4
  */
 static void common(void)
 {
@@ -147,7 +148,9 @@ static void common(void)
     value(0x00400098u, NULL, 0u, 0u);
     principal(0u, 2001u, 0u, DMT_PK_UNIX, 0x01u, 0x01020018u, 2000u, 50u, "integrator");
     principal(1u, 2002u, 0u, DMT_PK_UNIX, 0x04u, 0x01020098u, 5000u, 100u, "app");
-    principal(2u, 2002u, 1u, DMT_PK_UNIX, 0x00u, 0u, 0u, 100u, NULL);
+    principal(2u, 2002u, 1u, DMT_PK_UNIX, 0x00u, 0u, 0u, 100u, "app.cloud");
+    principal(DMT_NUM_PRINCIPALS - 2u, 10u, 0u, DMT_PK_INPROC, 0x00u, 0u, 0u, 50u, "inproc");
+    principal(DMT_NUM_PRINCIPALS - 1u, 1u, 0u, DMT_PK_UART, 0x00u, 0u, 0u, 20u, "mcu");
     EXPECT(dmt_principals[0].cap_inflight_fd == 4u && dmt_principals[0].cap_inflight_bytes == 1048576u);
     EXPECT(dmt_principals[0].cap_open_fds == 16u && dmt_principals[0].cap_trace_share_pct == 25u);
     EXPECT(dmt_principals[0].resync_k == 3u && dmt_principals[0].resync_t_ms == 60000u);

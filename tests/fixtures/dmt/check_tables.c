@@ -45,7 +45,8 @@ static int owner_wrong(const dmt_command_t *c)
 
 /**
  * @brief   Count violations of the table invariants.
- * @version 1
+ *          v2: every principal is named (not only UNIX token-0 ones).
+ * @version 2
  * @return  0 when the tables are consistent.
  */
 static int violations(void)
@@ -79,8 +80,7 @@ static int violations(void)
         bad += owner_wrong(&dmt_commands[i]);
     }
     for (i = 0u; i < DMT_NUM_PRINCIPALS; i++) {
-        bad += (dmt_principal_names[i] != NULL)
-            != (dmt_principals[i].kind == DMT_PK_UNIX && dmt_principals[i].token == 0u);
+        bad += dmt_principal_names[i] == NULL || dmt_principal_names[i][0] == '\0';
         bad += dmt_principals[i].heartbeat_key != DMT_ID_NONE
             && !has_key(dmt_principals[i].heartbeat_key);
     }

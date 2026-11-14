@@ -62,6 +62,7 @@ A principal has a name, ``uid``, ``token`` (0 for the uid itself), ``kind`` (``u
 ``inproc``, ``uart``), flags, heartbeat, budgets and caps, ``introduced_in`` and ``grants``
 (a namespace, class or key with ``r``, ``w`` or ``rw``; the last grant on a key wins). The rights
 table, per-principal handshake digests (KSET v1, one per contract minor) and queue bounds follow.
+``dmt_principal_names`` holds every principal's declared name, in table order, never ``NULL``.
 
 Error groups
 ------------

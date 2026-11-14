@@ -87,15 +87,16 @@ fn principal_rows(tables: &Tables) -> Vec<String> {
         .collect()
 }
 
-/// `dmt_principal_names`: the user name of UNIX token-0 principals, `NULL` otherwise.
+/// `dmt_principal_names`: every principal's declared name, in table order.
 ///
-/// @version 1
+/// v2: every principal (sub-consumers, UART and in-process ones too), never `NULL`.
+/// @version 2
 /// @req REQ-ING-TIV-006
 fn principal_names(tables: &Tables) -> Vec<String> {
     tables
         .principals
         .iter()
-        .map(|p| c_string((p.kind == Kind::Unix && p.token == 0).then_some(p.name.as_str())))
+        .map(|p| c_string(Some(p.name.as_str())))
         .collect()
 }
 
