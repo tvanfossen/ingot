@@ -76,3 +76,22 @@ fn every_enum_key_value_is_a_named_constant_of_its_variant() {
     compiles(&b);
     let _ = fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn a_key_s_constants_are_in_code_order() {
+    let dir = unique_dir("enum_constants_order");
+    generate_ok("v1_1", &dir, &["--variant", "sku_a"]);
+    let mode: Vec<String> = defines(&dir)
+        .into_iter()
+        .filter(|d| d.contains("DMT_E_DRIVE_SETTINGS_MODE_"))
+        .collect();
+    assert_eq!(
+        mode,
+        vec![
+            "#define DMT_E_DRIVE_SETTINGS_MODE_OFF 0",
+            "#define DMT_E_DRIVE_SETTINGS_MODE_ECO 1",
+            "#define DMT_E_DRIVE_SETTINGS_MODE_SPORT 2"
+        ]
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
