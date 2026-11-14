@@ -525,6 +525,20 @@ requirements:
     acceptance_criteria: >-
       A variant's add, rename and remove appear in contract.json; tables and digests are
       unchanged by enum maps; a conflicting map or a changed wire string in a minor is refused.
+  REQ-ING-TIV-017:
+    name: Enum value constants
+    subsystem: Table interface
+    description: >-
+      Contract mode writes dmt_constants.h: for every key with an enum, every value of the enum
+      as the variant resolves it, as `#define DMT_E_<KEY PATH>_<VALUE> <code>` (upper case, each
+      dot an underscore), in key ID order and each key's values in code order. The header is per
+      model and outside the table interface (dmt_types.h is unchanged). A constant that is not a
+      C identifier, is longer than 63 characters, or is named by two (key, value) pairs is
+      refused. Constants are kept within a major because an enum value keeps its name and code.
+    acceptance_criteria: >-
+      The 1.1 model's sku_a header defines the mode, fan and fan_applied values with their codes
+      and sku_b's its own (saver, turbo, no sport), each once, and both compile as C11 and C++; a
+      long name, a name with a dash, and two pairs naming one constant are refused.
   REQ-ING-RNG-001:
     name: Units, ranges, discrete sets, sentinels and scale
     subsystem: Generated outputs (G2)
