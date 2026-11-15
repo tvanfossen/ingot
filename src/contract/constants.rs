@@ -115,8 +115,10 @@ pub fn check(tables: &Tables, errors: &mut Errors) {
 
 /// Write `dmt_constants.h` into `output_dir`.
 ///
-/// @version 1
+/// v2: and the struct value headers.
+/// @version 2
 /// @req REQ-ING-TIV-017
+/// @req REQ-ING-HDR-002
 pub fn write(
     tera: &Tera,
     tables: &Tables,
@@ -134,6 +136,7 @@ pub fn write(
     );
     ctx.insert("variant", &tables.variant);
     ctx.insert("constants", &enum_constants(tables));
+    ctx.insert("headers", &super::header::views(tables));
     render_template(tera, "dmt_constants.h", &ctx, output_dir)?;
     Ok(())
 }

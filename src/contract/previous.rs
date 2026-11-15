@@ -72,12 +72,14 @@ fn removed_ids_reserved(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     }
 }
 
-/// Every previous key is still there with every attribute a minor may not change, its limits
-/// and its shadow mapping.
+/// Every previous key is still there with every attribute a minor may not change, its limits,
+/// its shadow mapping and its struct value header.
 ///
-/// @version 1
+/// v2: the struct value header.
+/// @version 2
 /// @req REQ-ING-TIV-012
 /// @req REQ-ING-SHD-006
+/// @req REQ-ING-HDR-003
 fn keys_kept(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     let cur_keys: BTreeMap<&str, &KeyJson> =
         cur.keys.iter().map(|k| (k.path.as_str(), k)).collect();
@@ -86,6 +88,7 @@ fn keys_kept(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
             Some(new) => {
                 key_unchanged(old, new, errors);
                 limits_kept(old, new, errors);
+                header_kept(old, new, errors);
                 previous_shadow::key_mapping_kept(old, new, errors);
             }
             None => errors.push(format!(
@@ -206,6 +209,20 @@ fn key_unchanged(old: &KeyJson, new: &KeyJson, errors: &mut Errors) {
         errors.push(format!(
             "{}: ID, type, introduced_in, persistence, secret, survives-reset, interval, alias, error bit, \
              command, enum values or a smaller max_size changed in a minor",
+            old.path
+        ));
+    }
+}
+
+/// An existing key keeps its struct value header exactly (none stays none): the header is part
+/// of the value's layout, so changing it is a major, as a type change is.
+///
+/// @version 1
+/// @req REQ-ING-HDR-003
+fn header_kept(old: &KeyJson, new: &KeyJson, errors: &mut Errors) {
+    if old.header != new.header {
+        errors.push(format!(
+            "{}: its header was added, removed or changed in a minor (a major, as a type change is)",
             old.path
         ));
     }

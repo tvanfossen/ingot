@@ -1,6 +1,7 @@
 //! Resolve declared keys and command types into the rows of `dmt_keys`.
 
 use super::enums::ResolvedEnum;
+use super::header::{self, HeaderField};
 use super::ranges::{self, Range, Units};
 use super::schema::{
     ClassDef, CommandDef, ErrorRef, KeyDef, KeyType, NamespaceFile, Payload, Persist, Role,
@@ -62,6 +63,8 @@ pub struct Key {
     pub error: Option<ErrorRef>,
     /// The shadow wire attributes (G2 1.4).
     pub wire: KeyWire,
+    /// The fixed header a struct value starts with, when declared.
+    pub header: Option<Vec<HeaderField>>,
 }
 
 impl Key {
@@ -154,8 +157,10 @@ impl ClassCtx<'_> {
     /// v3: no enum name.
     /// v4: no error group.
     /// v5: no shadow wire attributes.
-    /// @version 5
+    /// v6: no header.
+    /// @version 6
     /// @req REQ-ING-TIV-003
+    /// @req REQ-ING-HDR-001
     fn base(&self, name: &str, index: u16, ty: KeyType, introduced: Version) -> Key {
         Key {
             id: self.id(index, ty),
@@ -188,6 +193,7 @@ impl ClassCtx<'_> {
             scale: 1.0,
             error: None,
             wire: KeyWire::default(),
+            header: None,
         }
     }
 }
@@ -216,10 +222,12 @@ fn check_index(ctx: &ClassCtx, name: &str, index: u16, errors: &mut Errors) {
 /// v2: units, ranges, allowed sets, sentinels and scale (G2 1.3).
 /// v3: the enum name, for the keyspace.
 /// v4: the shadow wire attributes (G2 1.4).
-/// @version 4
+/// v5: the struct value header.
+/// @version 5
 /// @req REQ-ING-TIV-003
 /// @req REQ-ING-RNG-001
 /// @req REQ-ING-SHD-001
+/// @req REQ-ING-HDR-001
 pub fn declared_key(ctx: &ClassCtx, def: &KeyDef, errors: &mut Errors) -> Key {
     check_index(ctx, &def.id, def.key_index, errors);
     let mut key = ctx.base(
@@ -241,7 +249,7 @@ pub fn declared_key(ctx: &ClassCtx, def: &KeyDef, errors: &mut Errors) -> Key {
         .enum_ref
         .as_ref()
         .map(|e| format!("{}::{e}", ctx.ns.meta.id));
-    size_key(&mut key, def.max_size, errors);
+    layout_key(&mut key, def, errors);
     rate_key(
         &mut key,
         def.write_rate.as_deref(),
@@ -427,6 +435,16 @@ fn size_key(key: &mut Key, max_size: Option<u32>, errors: &mut Errors) {
         (Some(_), Some(_)) => errors.push(format!("{}: max_size on a scalar key", key.path)),
         (Some(_), None) => {}
     }
+}
+
+/// Apply a declared key's `max_size`, then the struct value header laid out within it.
+///
+/// @version 1
+/// @req REQ-ING-TIV-010
+/// @req REQ-ING-HDR-001
+fn layout_key(key: &mut Key, def: &KeyDef, errors: &mut Errors) {
+    size_key(key, def.max_size, errors);
+    key.header = header::resolve(key, def.header.as_deref(), errors);
 }
 
 /// Apply a declared write rate and its burst.

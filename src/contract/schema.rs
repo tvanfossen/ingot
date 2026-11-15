@@ -265,8 +265,8 @@ pub enum Persist {
     Durable,
 }
 
-/// Value type of a key.
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+/// Value type of a key (and of a struct value header's field, in contract.json).
+#[derive(Debug, Deserialize, serde::Serialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum KeyType {
     Bool,
@@ -368,6 +368,17 @@ pub struct KeyDef {
     pub read_only: bool,
     #[serde(default)]
     pub thread_safe: bool,
+    /// The fixed header a struct value starts with, field by field in wire order.
+    pub header: Option<Vec<HeaderFieldDef>>,
+}
+
+/// `{ name, type }`: one field of a struct key's header.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HeaderFieldDef {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub ty: KeyType,
 }
 
 /// Payload kind of a command key.

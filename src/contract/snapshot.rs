@@ -5,6 +5,7 @@ use super::bounds::queue_bound;
 use super::digest::digests;
 use super::enums::ResolvedEnum;
 use super::error_groups::ErrorGroup;
+use super::header::HeaderJson;
 use super::model::hex;
 use super::model::Tables;
 use super::ranges::Range;
@@ -118,6 +119,9 @@ pub struct KeyJson {
     pub wk: Option<String>,
     pub doc: Option<String>,
     pub unit: Option<String>,
+    /// The struct value header's fields and byte count; absent without a header.
+    #[serde(flatten)]
+    pub header: HeaderJson,
     /// Range, allowed set, sentinel default, scale and error bit; absent in older snapshots.
     #[serde(flatten)]
     pub limits: Limits,
@@ -351,12 +355,15 @@ fn commands_json(tables: &Tables) -> Vec<CommandJson> {
 /// v4: persistence names from Persist::name.
 /// v5: range, allowed set, sentinel and scale.
 /// v6: the error group and bit.
-/// @version 6
+/// v7: the struct value header; the enum maps from enum_maps.
+/// @version 7
+/// @req REQ-ING-HDR-001
 /// @req REQ-ING-ERR-001
 /// @req REQ-ING-TIV-009
 /// @req REQ-ING-TIV-016
 /// @req REQ-ING-RNG-001
 fn key_json(k: &super::keys::Key) -> KeyJson {
+    let (enum_values, enum_wire) = enum_maps(k);
     KeyJson {
         path: k.path.clone(),
         id: k.id,
@@ -371,15 +378,28 @@ fn key_json(k: &super::keys::Key) -> KeyJson {
         survives_reset: k.survives_reset,
         mfg: k.mfg,
         alias_of: k.alias_of.clone(),
-        enum_values: k.enum_values.as_ref().map(enum_numbers),
-        enum_wire: k.enum_values.as_ref().map(enum_wires),
+        enum_values,
+        enum_wire,
         command: k.command.as_ref().map(|(path, _)| path.clone()),
         wk: k.wk.map(|w| WK_RULES[w].name.to_string()),
         doc: k.doc.clone(),
         unit: k.unit.clone(),
+        header: HeaderJson::of(k),
         limits: Limits::of(k),
     }
 }
+
+/// Name to number and number to wire string of key `k`'s resolved enum; both `None` without one.
+///
+/// @version 1
+/// @req REQ-ING-TIV-016
+fn enum_maps(k: &super::keys::Key) -> EnumMaps {
+    let e = k.enum_values.as_ref();
+    (e.map(enum_numbers), e.map(enum_wires))
+}
+
+/// A key's enum in contract.json: name to number, and number to wire string.
+type EnumMaps = (Option<BTreeMap<String, i64>>, Option<BTreeMap<i64, String>>);
 
 /// Number to accept aliases of the values of a resolved enum that have any; `None` when none do.
 ///

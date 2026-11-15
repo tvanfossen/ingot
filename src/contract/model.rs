@@ -94,7 +94,9 @@ struct Loaded {
 /// v9: the contract-level rows' variants are checked too.
 /// v10: the enum constants are checked.
 /// v11: the internal row constants are checked.
-/// @version 11
+/// v12: the struct value header names are checked, every check through check_resolved.
+/// @version 12
+/// @req REQ-ING-HDR-002
 /// @req REQ-ING-TIV-017
 /// @req REQ-ING-DSH-008
 /// @req REQ-ING-SHD-001
@@ -144,10 +146,23 @@ pub fn build(contract_path: &Path, variant: Option<&str>) -> Result<(Tables, Err
         shadow: loaded.shadow,
         enums,
     };
-    shadow::check(&tables, &mut errors);
-    super::constants::check(&tables, &mut errors);
-    super::internal_ids::check(&tables, &mut errors);
+    check_resolved(&tables, &mut errors);
     Ok((tables, errors))
+}
+
+/// The checks of the resolved tables: the shadow mapping and every generated name (enum
+/// constants, internal row constants, struct value headers).
+///
+/// @version 1
+/// @req REQ-ING-SHD-001
+/// @req REQ-ING-TIV-017
+/// @req REQ-ING-DSH-008
+/// @req REQ-ING-HDR-002
+fn check_resolved(tables: &Tables, errors: &mut Errors) {
+    shadow::check(tables, errors);
+    super::constants::check(tables, errors);
+    super::internal_ids::check(tables, errors);
+    super::header::check(tables, errors);
 }
 
 /// The principals, their grants checked against every declared key path, and their resolved

@@ -69,7 +69,10 @@ Contract Mode
 
 Contract mode writes ``dmt_types.h``, ``dmt_tables.h``, ``dmt_tables.c``,
 ``dmt_constants.h`` (the enum value constants of every enum key, and of every command that names
-its result codes with ``outcome = "<enum>"``) and ``contract.json`` for the selected ``--variant``, or nothing at all if the model
+its result codes with ``outcome = "<enum>"``, and for every struct key with a ``header`` its
+``DMT_<KEY>_HEADER_BYTES``, ``_<FIELD>_OFFSET`` and ``_PAYLOAD_MAX`` constants, its
+``dmt_<key>_header_t`` and its inline byte-shift ``dmt_<key>_header_encode`` /
+``dmt_<key>_header_decode``) and ``contract.json`` for the selected ``--variant``, or nothing at all if the model
 breaks any rule; every refusal is logged. It always uses the built-in templates.
 A model that maps keys to the shadow also gets ``dsh_types.h`` (the fixed shadow
 table interface) and ``dsh_tables.h`` / ``dsh_tables.c``: the binder, reporter,
@@ -84,8 +87,12 @@ trailing ``.tera`` removed (``x_PRINCIPAL.c.tera`` and ``x_PRINCIPAL.c`` both re
 one output name, or an empty one, are refused. The context carries the principal's
 identity (``principal``, ``p``, ``kind``, ``uid``, ``token``, ``keyset_ids``, ``keyset_types``,
 ``digest``), the contract (``name``, ``major``, ``minor``, ``patch``, ``variant``,
-``model_hash``), the typed ``accessors`` and command ``submits`` its rights give, and helper
-flags. The binding names the consumer's store runtime; ingot names none.
+``model_hash``), the typed ``accessors`` and command ``submits`` its rights give, helper
+flags, and ``value_headers``: the struct value headers of the keys it may read or write, each with
+``path``, ``prefix`` (``DMT_<KEY>``), ``ctype``, ``encode``, ``decode``, ``bytes``,
+``payload_max`` and ``fields`` (``name``, ``offset_name``, ``ctype``, ``offset``, ``size``,
+``kind``), named as in ``dmt_constants.h``. The binding names the consumer's store runtime; ingot
+names none.
 ``examples/contract/`` holds a generic model at contract 1.0, 1.1 and 2.0.
 
 Key Filtering

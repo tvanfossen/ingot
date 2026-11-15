@@ -11,6 +11,7 @@ pub mod dsh;
 pub mod emit;
 pub mod enums;
 pub mod error_groups;
+pub mod header;
 pub mod internal_ids;
 pub mod keys;
 pub mod keyspace;

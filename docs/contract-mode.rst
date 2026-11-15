@@ -60,6 +60,26 @@ Numeric keys may carry a ``unit`` (a token of the vocabulary), an inclusive ``mi
 ``step``, or a discrete ``allowed`` set, a ``scale``, and an ``unset`` sentinel default outside the
 range.
 
+A ``struct`` key may declare the fixed ``header`` its value starts with: an ordered list of
+fields, each ``{ name, type }`` with a C identifier unique within the key and a type of ``bool``,
+``uint8``, ``int8``, ``uint16``, ``int16``, ``uint32`` or ``int32``. The value is the fields in
+declaration order, each little-endian and packed with no padding (a ``bool`` is one byte, 0 or
+1), then the payload: the rest of the value, possibly empty. The store stays layout-blind: a
+header changes no store table and no KSET digest, only ``contract.json`` and ``dmt_constants.h``
+(and the SDK binding context):
+
+.. code-block:: toml
+
+   [[classes.keys]]
+   id = "map_data"
+   key_index = 0
+   type = "struct"
+   max_size = 65536
+   introduced_in = "1.0"
+   header = [{ name = "session_id", type = "uint32" },   # offset 0
+             { name = "map_id", type = "int32" },        # offset 4
+             { name = "global", type = "bool" }]         # offset 8; 9 header bytes
+
 Enums
 -----
 
@@ -180,9 +200,24 @@ Outputs
    not a C identifier, is longer than 63 characters, or is produced by two (key or command, value)
    pairs is refused. Constants are kept within a major, as enum values and outcomes are.
 
+   For every key of the variant with a ``header`` it also holds (``<KEY>`` the key path in upper
+   case, ``<key>`` in lower case, dots as underscores): ``DMT_<KEY>_HEADER_BYTES``,
+   ``DMT_<KEY>_<FIELD>_OFFSET`` per field and ``DMT_<KEY>_PAYLOAD_MAX`` (``max_size`` minus the
+   header bytes); ``dmt_<key>_header_t``, a plain struct of the fields' native C types (not the
+   wire image); and ``static inline void dmt_<key>_header_encode(const dmt_<key>_header_t *h,
+   uint8_t *out)``, which writes the header's bytes, and ``static inline int
+   dmt_<key>_header_decode(const uint8_t *in, uint32_t len, dmt_<key>_header_t *h)``, which
+   returns 0, or -1 with ``h`` untouched when ``len`` is below the header bytes or a bool byte is
+   neither 0 nor 1. Both work by explicit byte shifts, never a packed struct, so neither depends
+   on the host's byte order or alignment. A writer encodes the header and appends the payload in
+   one buffer; a reader decodes it and takes the payload at ``value + DMT_<KEY>_HEADER_BYTES``.
+   A header name that is longer than 63 characters, or that another header or enum constant
+   also produces, is refused. Without a header the file is as before.
+
 ``contract.json``
    Every key, principal, right, command (with its ``outcome`` names and codes, when it has any)
-   and shadow row, read back by ``--previous-contract``.
+   and shadow row, read back by ``--previous-contract``. A key with a header carries ``header``
+   (``[{name, type, offset, size}]``) and ``header_bytes``; a key without one has neither.
 
 ``keyspace.json``, ``keyspace.<variant>.json`` (with ``.json.gz`` and ``.head.json``), ``keyspace.schema.json``
    The declaration for tooling: all variants with per-variant overrides, the resolved variant,
@@ -233,8 +268,9 @@ Versions
 
 Within a major a contract only grows: keys, principals and rights are added at a new minor,
 existing keys keep their ID, persistence, limits (ranges and sets may widen), enum values and
-well-known roles, a command keeps its outcomes (it may gain outcomes, or name them for the first
-time), error bits stay, and the shadow mapping only grows: a mapped key keeps its path
+well-known roles and struct value header (a header added, removed, reordered, renamed or
+retyped is a major, as a type change is), a command keeps its outcomes (it may gain outcomes, or
+name them for the first time), error bits stay, and the shadow mapping only grows: a mapped key keeps its path
 entries and wire attributes, its paths and accept aliases may be added to, and every echo,
 constant, topic, command and payload row stays as it was. A major reserves the IDs of removed keys.
 ``--previous-contract`` checks all of this against the previous release's ``contract.json``.
@@ -250,6 +286,10 @@ Every rule above has a refusal, grouped as follows:
   unit; a range or set on a non-numeric or enum key; a key ``enum`` or command ``outcome`` naming
   no enum of its namespace; an enum or outcome constant that is not a C identifier, longer than
   63 characters, or named twice.
+* **Struct value headers:** a header on a key that is not a struct, an empty header, a field type
+  other than bool and the 8-, 16- and 32-bit integers, a field name that is not a C identifier or
+  is repeated, a header of ``max_size`` bytes or more, and a generated name longer than 63
+  characters or produced twice.
 * **Variants:** an undeclared ``--variant`` or variant named anywhere; an enum variant that
   removes an unknown name or makes a code, name or string ambiguous.
 * **Rights and principals:** grants on unknown keys or scopes, a secret's reader that is not a

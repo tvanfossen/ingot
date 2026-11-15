@@ -5,6 +5,7 @@
 //! runtime.
 
 use super::digest::{digests, subset};
+use super::header::{view, HeaderView};
 use super::keys::{CmdPart, Key};
 use super::model::Tables;
 use super::rights::{READ, WRITE};
@@ -65,9 +66,11 @@ fn id(v: u32) -> String {
 /// The scalar C type, its unsigned twin and its codec, or `None` for a buffer or struct type.
 ///
 /// v2: the redundant bool codec, keyset sort or UNIX guard removed.
-/// @version 2
+/// v3: shared with the struct value header fields.
+/// @version 3
 /// @req REQ-ING-SDK-002
-fn scalar(ty: KeyType) -> Option<(&'static str, &'static str, &'static str)> {
+/// @req REQ-ING-HDR-002
+pub(super) fn scalar(ty: KeyType) -> Option<(&'static str, &'static str, &'static str)> {
     match ty {
         KeyType::Bool => Some(("bool", "uint8_t", "int")),
         KeyType::Uint8 => Some(("uint8_t", "uint8_t", "int")),
@@ -189,18 +192,15 @@ fn insert_identity(ctx: &mut Context, tables: &Tables, p: usize) {
 /// The rendering context of principal `p`'s SDK.
 ///
 /// v2: the redundant bool codec, keyset sort or UNIX guard removed.
-/// @version 2
+/// v3: the struct value headers of the keys it has a right on; accessors from `accessors`.
+/// @version 3
 /// @req REQ-ING-SDK-001
 /// @req REQ-ING-SDK-002
 /// @req REQ-ING-SDK-003
+/// @req REQ-ING-HDR-002
 fn context(tables: &Tables, p: usize, commit: &str) -> Context {
     let pr = &tables.principals[p];
-    let accessors: Vec<Accessor> = tables
-        .keys
-        .iter()
-        .zip(&tables.rights[p])
-        .filter_map(|(k, bits)| accessor(k, *bits))
-        .collect();
+    let accessors = accessors(tables, p);
     let submits = submits(tables, p);
     let mut ctx = Context::new();
     insert_header(&mut ctx, tables, &pr.name, commit);
@@ -212,7 +212,35 @@ fn context(tables: &Tables, p: usize, commit: &str) -> Context {
     ctx.insert("need_header", &(structs || !submits.is_empty()));
     ctx.insert("accessors", &accessors);
     ctx.insert("submits", &submits);
+    ctx.insert("value_headers", &value_headers(tables, p));
     ctx
+}
+
+/// The accessors of principal `p`, in key ID order.
+///
+/// @version 1
+/// @req REQ-ING-SDK-002
+fn accessors(tables: &Tables, p: usize) -> Vec<Accessor> {
+    tables
+        .keys
+        .iter()
+        .zip(&tables.rights[p])
+        .filter_map(|(k, bits)| accessor(k, *bits))
+        .collect()
+}
+
+/// The struct value headers of the keys principal `p` may read or write.
+///
+/// @version 1
+/// @req REQ-ING-HDR-002
+fn value_headers(tables: &Tables, p: usize) -> Vec<HeaderView> {
+    tables
+        .keys
+        .iter()
+        .zip(&tables.rights[p])
+        .filter(|(_, bits)| **bits != 0)
+        .filter_map(|(k, _)| view(k))
+        .collect()
 }
 
 /// Which scalar codec helpers the SDK's accessors use (an unused one would not compile
