@@ -1150,3 +1150,52 @@ requirements:
       The neutral test binding renders and drives the store with and without the suffix; a
       suffixed and a plain template render side by side; `.tera` alone and a name collision are
       refused.
+  # -- struct value headers ---------------------------------------------------------------------
+  REQ-ING-HDR-001:
+    name: Struct value header declaration
+    subsystem: Generated outputs (G2)
+    description: >-
+      A struct key may declare `header = [{ name, type }, ...]`: an ordered list of fields, each a
+      C identifier unique within the key, of type bool, uint8, int8, uint16, int16, uint32 or
+      int32. The value is the header fields in declaration order, each little-endian, packed with
+      no padding (bool one byte, 0 or 1), then the payload (the rest of the value, possibly empty).
+      Ingot resolves each field's offset and size and the header's byte count, and contract.json
+      carries them on the key as `header` ([{name, type, offset, size}]) and `header_bytes`. A
+      header on a key that is not a struct, an empty header, a field of another type, a name that
+      is not a C identifier or is repeated, and a header of max_size bytes or more are refused.
+      The store tables and KSET digests do not depend on a header (the store stays layout-blind),
+      and a key without a header changes no output.
+    acceptance_criteria: >-
+      A struct key with a uint32, an int32 and a bool field has offsets 0, 4 and 8 and 9 header
+      bytes in contract.json, and the store tables and digests equal those without the header; a
+      key without one has no header entry; each refusal is logged and nothing is generated.
+  REQ-ING-HDR-002:
+    name: Struct value header code
+    subsystem: Generated outputs (G2)
+    description: >-
+      For every key of the variant with a header, dmt_constants.h defines
+      DMT_<KEY PATH>_HEADER_BYTES, DMT_<KEY PATH>_<FIELD>_OFFSET and DMT_<KEY PATH>_PAYLOAD_MAX
+      (max_size minus the header bytes), a struct dmt_<key path>_header_t of the fields' native C
+      types, and static inline dmt_<key path>_header_encode (the wire image into a buffer of the
+      header's bytes) and dmt_<key path>_header_decode (0, or -1 with the struct untouched when
+      the length is below the header's bytes or a bool byte is neither 0 nor 1), both by explicit
+      byte shifts (no packed struct, no host byte order or alignment). Names are in upper case
+      (constants) or lower case (type and functions), each dot an underscore; a name that is
+      longer than 63 characters or is produced twice in dmt_constants.h is refused. The SDK
+      binding context lists, per principal, the headers of the keys it has a right on, with the
+      same names. Without a header dmt_constants.h is unchanged.
+    acceptance_criteria: >-
+      The generated header compiles as strict C11 and C++, encodes a test vector to the expected
+      little-endian bytes, decodes them back, and refuses a short value and a bool byte of 2; a
+      key limited to one variant has its header code on that variant only; the binding renders a
+      principal's headers; a long name and a collision are refused.
+  REQ-ING-HDR-003:
+    name: Struct value header compatibility
+    subsystem: Generated outputs (G2)
+    description: >-
+      A released key's header is part of its contract: against --previous-contract, adding,
+      removing, reordering, renaming or retyping a header field of an existing key is refused in a
+      minor, as a type change is; a major may change it. The header enters no KSET digest.
+    acceptance_criteria: >-
+      Against a previous contract of the same major, a key that gains a header, loses its header,
+      or has a field retyped is refused; the same changes at a new major are accepted.
