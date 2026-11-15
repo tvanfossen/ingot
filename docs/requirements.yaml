@@ -967,12 +967,14 @@ requirements:
       (in the shadow section, and so in the keyspace) and each named enum's codes as
       var_enums.<namespace>::<enum>; against --previous-contract in a minor a var may name an
       enum for the first time, a named enum stays named, and every previous (name, code) pair of
-      it is kept. The store and shadow tables and the digests do not depend on it, and a model
-      whose vars name no enum generates unchanged.
+      it is kept. The store tables, the KSET digests and the shadow tables do not depend on it,
+      apart from DSH_CONTRACT_HASH (the hash of the keyspace body, which carries the reference),
+      and a model whose vars name no enum generates unchanged.
     acceptance_criteria: >-
       A var naming an enum that a variant changes defines that variant's values once although
       two vars name it, compiling as C11 and C++, and contract.json carries the reference and
-      the codes; the tables are those of the model without it. Each refusal has a triggering
+      the codes; the tables are those of the model without it apart from the model and contract
+      hashes. Each refusal has a triggering
       model. Against a previous contract a first naming in a minor generates, and renaming the
       enum, dropping it or changing one of its codes is refused.
   REQ-ING-SIZ-001:
