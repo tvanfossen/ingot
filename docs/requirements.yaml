@@ -1150,6 +1150,24 @@ requirements:
       The neutral test binding renders and drives the store with and without the suffix; a
       suffixed and a plain template render side by side; `.tera` alone and a name collision are
       refused.
+  REQ-ING-SDK-006:
+    name: Struct key event views
+    subsystem: Generated outputs (G2)
+    description: >-
+      A struct value reaches a reader only as a delivered event, so per principal the SDK context
+      lists, in key ID order, a view for each struct key it may read (read-only or read-write,
+      command keys included): its name (namespace_class_key), path and key ID. The binding renders
+      from it an event view that names the key, so no consumer writes a key ID by hand: it
+      succeeds when the event is that key and carries a buffer, giving the whole value (a declared
+      header included; decoding it stays the consumer's), and returns the runtime's type mismatch
+      otherwise. A principal without a struct key it may read has no view, and every other part
+      of the context is unchanged.
+    acceptance_criteria: >-
+      Through the test binding, a read-only reader, a read-write writer and a principal reading
+      two struct keys each get one view per struct key, compiled as strict C11; a view of the
+      event's key gives its bytes, another key's event or an event without a buffer is a type
+      mismatch; a struct key on one variant has a view on that variant only; a principal without a
+      struct read right has none.
   # -- struct value headers ---------------------------------------------------------------------
   REQ-ING-HDR-001:
     name: Struct value header declaration
