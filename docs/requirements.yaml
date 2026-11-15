@@ -951,6 +951,30 @@ requirements:
       DTP_NUM_PLACEHOLDERS 0 and none in contract.json. Each refusal has a triggering model;
       against a previous contract that declares one, dropping or changing it is refused, keeping
       it generates, and adding one in a minor generates.
+  REQ-ING-TOP-008:
+    name: Topic var enums
+    subsystem: Generated outputs (G2)
+    description: >-
+      A topic var may name a model enum, `{ name, max_len, enum = "<namespace>::<enum>" }` (the
+      form an envelope source names an enum with), when the var carries that enum's code as its
+      decimal text. dmt_constants.h then defines every value of each enum named by a var of the
+      variant's topics once, named after the enum, as `#define DMT_E_<NAMESPACE>_<ENUM>_<VALUE>
+      <code>`, after the key and command constants, enums in name order and values in code order,
+      under the same refusals as key constants (not a C identifier, longer than 63 characters,
+      or named twice). Refused: an enum that is not defined, a negative code, a code whose decimal
+      text is longer than the var's max_len (each as the variant resolves the enum), and an enum
+      on a declared placeholder. contract.json carries the reference as topics[].vars[].enum
+      (in the shadow section, and so in the keyspace) and each named enum's codes as
+      var_enums.<namespace>::<enum>; against --previous-contract in a minor a var may name an
+      enum for the first time, a named enum stays named, and every previous (name, code) pair of
+      it is kept. The store and shadow tables and the digests do not depend on it, and a model
+      whose vars name no enum generates unchanged.
+    acceptance_criteria: >-
+      A var naming an enum that a variant changes defines that variant's values once although
+      two vars name it, compiling as C11 and C++, and contract.json carries the reference and
+      the codes; the tables are those of the model without it. Each refusal has a triggering
+      model. Against a previous contract a first naming in a minor generates, and renaming the
+      enum, dropping it or changing one of its codes is refused.
   REQ-ING-SIZ-001:
     name: Worst-case shadow document size
     subsystem: Generated outputs (G2)
