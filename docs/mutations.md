@@ -1371,3 +1371,22 @@ directory can run a stale mutant as the baseline; every sweep here used a new on
 | HD38 | templates/dmt_constants.h | `{%- if headers %}\n\n#include` | `{%- if true %}\n\n#include` | no header, no includes | KILLED | without_a_header_dmt_constants_h_has_no_header_code |
 | HD26 | src/contract/header.rs | `header_bytes: k.header.as_deref().map(header_bytes),` | `header_bytes: None,` | contract.json carries header_bytes | KILLED | contract_json_lays_the_header_out_packed_in_order |
 | HD39 | src/contract/header.rs | `format!("{}_PAYLOAD_MAX", h.prefix),\n` | `(deleted)` | the payload-maximum name is checked | KILLED | a_header_name_that_is_not_an_identifier_or_an_enum_constant_s_is_refused |
+
+## Struct key event views (REQ-ING-SDK-006)
+
+Same procedure, on a fresh copy with a fresh target directory; the test command is `--no-fail-fast
+--bins --test contract_sdk`. SV05 removes the views from the context, which is the feature
+absent: every view test fails. SV07 and SV08 mutate the test binding and the recording store and
+are killed by the C drive (tests/fixtures/sdk/check_sdk.c). SV02 is killed only by the write-only
+struct right of the variant check, which was added for it.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| SV01 | src/contract/sdk.rs | `.filter(\|(k, bits)\| k.ty == KeyType::Struct && **bits & READ != 0)` | `.filter(\|(k, bits)\| **bits & READ != 0)` | only struct keys get a view | KILLED | a_struct_key_of_one_variant_has_a_view_on_that_variant_only each_struct_key_a_principal_reads_gets_one_event_view |
+| SV02 | src/contract/sdk.rs | `.filter(\|(k, bits)\| k.ty == KeyType::Struct && **bits & READ != 0)` | `.filter(\|(k, bits)\| k.ty == KeyType::Struct && **bits != 0)` | a view needs the read right (a write-only struct right gives none) | KILLED | a_struct_key_of_one_variant_has_a_view_on_that_variant_only |
+| SV03 | src/contract/sdk.rs | `.zip(&tables.rights[p])\n        .filter(\|(k, bits)\| k.ty` | `.zip(&tables.rights[0])\n        .filter(\|(k, bits)\| k.ty` | views follow the principal's own rights | KILLED | a_struct_key_of_one_variant_has_a_view_on_that_variant_only each_struct_key_a_principal_reads_gets_one_event_view the_generic_sdks_drive_the_runtime |
+| SV04 | src/contract/sdk.rs | `name: ident(&k.path),\n            path: k.path.clone(),\n            key: id(k.id),` | `name: ident(&k.path),\n            path: k.path.clone(),\n            key: id(k.id ^ 1),` | a view carries its key's ID | KILLED | a_struct_key_of_one_variant_has_a_view_on_that_variant_only the_generic_sdks_drive_the_runtime |
+| SV05 | src/contract/sdk.rs | `ctx.insert("views", &views(tables, p));` | `ctx.insert("views", &Vec::<View>::new());` | the context lists the views | KILLED | a_struct_key_of_one_variant_has_a_view_on_that_variant_only each_struct_key_a_principal_reads_gets_one_event_view the_generic_sdks_drive_the_runtime |
+| SV06 | src/contract/sdk.rs | `name: ident(&k.path),\n            path: k.path.clone(),` | `name: ident(&k.path),\n            path: ident(&k.path),` | a view carries its dotted path | KILLED | a_struct_key_of_one_variant_has_a_view_on_that_variant_only |
+| SV07 | tests/fixtures/sdk_binding/sdk_PRINCIPAL.c | `return ev->key != {{ v.key }} ? STORE_E_TYPE : store_buf_view(ev, data, len);` | `return store_buf_view(ev, data, len);` | the C check refuses another key's event | KILLED | the_generic_sdks_drive_the_runtime |
+| SV08 | tests/fixtures/sdk/store_fake.c | `if (ev->buf.opaque[0] != 1u) {` | `if (ev->buf.opaque[0] == 7u) {` | the C check refuses an event without a buffer | KILLED | the_generic_sdks_drive_the_runtime |
