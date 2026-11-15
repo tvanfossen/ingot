@@ -77,9 +77,11 @@ pub fn enum_constants(tables: &Tables) -> Vec<EnumConstant> {
 
 /// Whether `name` is a C identifier.
 ///
-/// @version 1
+/// v2: shared with the internal row constants.
+/// @version 2
 /// @req REQ-ING-TIV-017
-fn c_identifier(name: &str) -> bool {
+/// @req REQ-ING-DSH-008
+pub(super) fn c_identifier(name: &str) -> bool {
     let mut chars = name.chars();
     chars
         .next()

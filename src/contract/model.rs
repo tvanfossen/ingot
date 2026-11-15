@@ -93,8 +93,10 @@ struct Loaded {
 /// v8: every resolved enum is kept; rights resolved by principal_rights.
 /// v9: the contract-level rows' variants are checked too.
 /// v10: the enum constants are checked.
-/// @version 10
+/// v11: the internal row constants are checked.
+/// @version 11
 /// @req REQ-ING-TIV-017
+/// @req REQ-ING-DSH-008
 /// @req REQ-ING-SHD-001
 /// @req REQ-ING-SIZ-001
 /// @req REQ-ING-PRS-001
@@ -144,6 +146,7 @@ pub fn build(contract_path: &Path, variant: Option<&str>) -> Result<(Tables, Err
     };
     shadow::check(&tables, &mut errors);
     super::constants::check(&tables, &mut errors);
+    super::internal_ids::check(&tables, &mut errors);
     Ok((tables, errors))
 }
 

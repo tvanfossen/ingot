@@ -203,11 +203,42 @@ pub fn compile(cc: &str, args: &[&str]) {
     );
 }
 
-/// @brief Build check_dsh.c against the shadow tables in `gen` as strict C11 and run it; and
-/// include the header from C++.
-/// v2: shared by the test crates (was compile_and_walk in the shadow table tests).
-/// @version 2
-pub fn walk_dsh_tables(gen: &Path) {
+/// @brief The `DSH_INTERNAL_*` defines of dsh_tables.h in `gen`, as (name, value) in order.
+/// @version 1
+pub fn internal_defines(gen: &Path) -> Vec<(String, String)> {
+    let h = fs::read_to_string(gen.join("dsh_tables.h")).unwrap();
+    h.lines()
+        .filter(|l| l.starts_with("#define DSH_INTERNAL_"))
+        .map(|l| {
+            let mut words = l.split_whitespace().skip(1);
+            let name = words.next().unwrap().to_string();
+            (name, words.next().unwrap().to_string())
+        })
+        .collect()
+}
+
+/// @brief Write `dsh_internal_list.h` into `gen` for check_dsh.c: `DSH_INTERNAL_LIST`, one
+/// `X(name)` per `DSH_INTERNAL_*` define of dsh_tables.h, so the walk can check each constant
+/// it names against the command rows.
+/// @version 1
+fn write_internal_list(gen: &Path) {
+    let items: String = internal_defines(gen)
+        .iter()
+        .map(|(name, _)| format!(" X({name})"))
+        .collect();
+    fs::write(
+        gen.join("dsh_internal_list.h"),
+        format!("#define DSH_INTERNAL_LIST{items}\n"),
+    )
+    .unwrap();
+}
+
+/// @brief Build check_dsh.c against the shadow tables in `gen` as strict C11 and run it;
+/// whether the walk finds the tables consistent. The internal row constants of dsh_tables.h are
+/// listed for it (`write_internal_list`).
+/// @version 1
+pub fn dsh_walk_passes(gen: &Path) -> bool {
+    write_internal_list(gen);
     let check = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/dsh/check_dsh.c");
     let exe = gen.join("check_dsh");
     let include = format!("-I{}", gen.display());
@@ -227,7 +258,17 @@ pub fn walk_dsh_tables(gen: &Path) {
         exe.to_str().unwrap(),
     ];
     compile("cc", &[&strict[..], &files[..]].concat());
-    assert!(Command::new(&exe).status().unwrap().success(), "check_dsh");
+    Command::new(&exe).status().unwrap().success()
+}
+
+/// @brief Walk the shadow tables in `gen` in C (`dsh_walk_passes`), asserting they are
+/// consistent; and include the header from C++.
+/// v2: shared by the test crates (was compile_and_walk in the shadow table tests).
+/// v3: the walk is `dsh_walk_passes`.
+/// @version 3
+pub fn walk_dsh_tables(gen: &Path) {
+    assert!(dsh_walk_passes(gen), "check_dsh");
+    let include = format!("-I{}", gen.display());
     let cpp = gen.join("tu.cpp");
     fs::write(
         &cpp,

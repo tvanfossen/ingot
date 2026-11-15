@@ -221,10 +221,12 @@ fn tables_of(tables: &Tables, hash: &str) -> Vec<Table> {
 ///
 /// v2: the interface version the tables are written against.
 /// v3: the consumer bounds (interface minor 8).
-/// @version 3
+/// v4: the internal row constants (interface minor 10).
+/// @version 4
 /// @req REQ-ING-DSH-001
 /// @req REQ-ING-DSH-005
 /// @req REQ-ING-DSH-006
+/// @req REQ-ING-DSH-008
 pub fn context(tables: &Tables, commit: &str, hash: &str) -> Context {
     let t = trees(tables);
     let v = &tables.version;
@@ -242,6 +244,7 @@ pub fn context(tables: &Tables, commit: &str, hash: &str) -> Context {
     ctx.insert("full_max_bytes", &t.reported.bytes());
     ctx.insert("delta_forced_bytes", &t.forced.bytes());
     ctx.insert("bounds", &bounds::of(tables));
+    ctx.insert("internal", &super::internal_ids::constants(tables));
     ctx.insert("tables", &tables_of(tables, hash));
     ctx
 }

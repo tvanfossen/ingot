@@ -157,7 +157,7 @@ Key paths
    ``args`` and further commands in ``also``, an ``answer`` code, an ``internal`` reason (with an
    optional ``internal_id``, 1 to 65535: the model's stable id of the action, which the library
    dispatches on instead of the wire name; ``dsh_command_t.internal_id``, shadow table interface
-   1.5), or args that write STATE keys only. An argument takes a request ``field`` (optionally an ``element`` and
+   1.5, and named in ``dsh_tables.h`` from interface 1.10), or args that write STATE keys only. An argument takes a request ``field`` (optionally an ``element`` and
    an ``encoding``: ``base64`` into a string, binary or struct key, ``decimal_text`` into an integer
    key) or a constant ``value``, with ``required`` and its ``ec``, an ``absent`` value, or
    ``omit_when_absent``. ``variants`` with ``grounded_in`` limits a row.
@@ -208,7 +208,17 @@ Outputs
    (an unknown string its ``inbound_unknown`` rule maps is not counted); an enum integer row and
    an echo row count by their type (an ``int`` echo as int32). A desired value the binder
    refuses can be any text the sender wrote, so a consumer listing refused values leaves out one
-   longer than ``DSH_DESIRED_VALUE_MAX_BYTES - 1``.
+   longer than ``DSH_DESIRED_VALUE_MAX_BYTES - 1``. Interface 1.10 adds
+   ``#define DSH_INTERNAL_<VERB> <internal_id>u`` for every internal ``shadow_commands`` row of the
+   variant that declares an ``internal_id``, so the library dispatches on a name and never repeats
+   the number. ``<VERB>`` is the text that selects the row, from its innermost selector (the body
+   object's selector for an object body): the ``wire`` string, else the ``element``, else the
+   ``field``, in upper case with dots as underscores (``state=getlog`` gives
+   ``DSH_INTERNAL_GETLOG``, ``cmd[stopPolling]`` ``DSH_INTERNAL_STOPPOLLING``, ``net.reset=true``
+   ``DSH_INTERNAL_NET_RESET``). Rows that share a name and an id give one constant, in row order;
+   a row on some variants gives its constant on those variants only. A name that is not a C
+   identifier or is longer than 63 characters, or one name for two ids on a shared variant, is
+   refused. A variant without such a row states none.
 
 ``sdk/<principal>/`` (with ``--sdk-binding <DIR>``)
    Each file of the binding directory rendered once per principal, named after the file without a

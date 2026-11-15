@@ -71,9 +71,11 @@ pub fn selector_text(s: &Selector) -> String {
 
 /// `shadow_commands <topic> <selector>[ <object>.<selector>]`.
 ///
-/// @version 1
+/// v2: shared with the internal row constants.
+/// @version 2
 /// @req REQ-ING-CMD-001
-fn label(r: &ShadowCommand) -> String {
+/// @req REQ-ING-DSH-008
+pub(super) fn label(r: &ShadowCommand) -> String {
     let inner = match &r.body {
         Body::Object(o) => format!(" {}.{}", o.object, selector_text(&o.selector)),
         Body::Kind(_) => String::new(),

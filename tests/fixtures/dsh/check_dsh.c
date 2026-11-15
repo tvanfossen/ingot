@@ -2,6 +2,7 @@
  * command router and error reporter would: every table the header declares must be defined,
  * sorted where the interface says so, and every index and value reference must be in range.
  * Built by tests/shadow_tables.rs. */
+#include <ctype.h>
 #include <float.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -9,6 +10,7 @@
 #include <string.h>
 
 #include "dsh_tables.h"
+#include "dsh_internal_list.h"   /* written by the test: X(name) per DSH_INTERNAL_* define */
 
 _Static_assert(DSH_IF_MAJOR == 1, "shadow table interface major");
 
@@ -17,6 +19,18 @@ _Static_assert(DSH_IF_MAJOR == 1, "shadow table interface major");
 static const size_t n_desired = DSH_NUM_DESIRED;
 static const size_t n_echo = DSH_NUM_ECHO;
 static const size_t n_commands = DSH_NUM_COMMANDS;
+
+/* The internal row constants dsh_tables.h states (minor 10), by name and value, then a NULL
+ * terminator. */
+typedef struct {
+    const char *name;
+    long        value;
+} internal_constant_t;
+#define X(n) { #n, (long)(n) },
+static const internal_constant_t internal_constants[] = { DSH_INTERNAL_LIST { NULL, 0 } };
+#undef X
+static const size_t n_internal =
+    sizeof internal_constants / sizeof internal_constants[0] - 1u;
 
 /**
  * @brief   Whether a value reference lies inside dsh_value_blob.
@@ -450,10 +464,86 @@ static int value_bound_violations(void)
 }
 
 /**
+ * @brief   The constant name of command row `r` into `out`: DSH_INTERNAL_ and the text that
+ *          selects the row (wire or element, else field, of the body object's selector for an
+ *          object body), upper case, each dot an underscore.
+ * @version 1
+ */
+static void internal_name(const dsh_command_t *r, char *out, size_t size)
+{
+    static const char prefix[] = "DSH_INTERNAL_";
+    const dsh_selector_t *s = r->body == DSH_BODY_OBJECT ? &r->body_selector : &r->selector;
+    const char *verb = s->kind == DSH_SEL_TEXT || s->kind == DSH_SEL_ELEMENT ? s->wire : s->field;
+    size_t i;
+    (void)snprintf(out, size, "%s%s", prefix, verb);
+    for (i = sizeof prefix - 1u; out[i] != '\0'; i++) {
+        out[i] = out[i] == '.' ? '_' : (char)toupper((unsigned char)out[i]);
+    }
+}
+
+/**
+ * @brief   The internal row constant named `name`, or NULL.
+ * @version 1
+ * @return  the constant.
+ */
+static const internal_constant_t *internal_constant(const char *name)
+{
+    size_t i;
+    const internal_constant_t *found = NULL;
+    for (i = 0u; i < n_internal && found == NULL; i++) {
+        found = strcmp(internal_constants[i].name, name) == 0 ? &internal_constants[i] : NULL;
+    }
+    return found;
+}
+
+/**
+ * @brief   The number of command rows with an internal_id whose constant name is `name`.
+ * @version 1
+ * @return  the row count.
+ */
+static size_t internal_rows(const char *name)
+{
+    char mine[128];
+    size_t c, n = 0u;
+    for (c = 0u; c < n_commands; c++) {
+        internal_name(&dsh_commands[c], mine, sizeof mine);
+        n += dsh_commands[c].internal_id != 0u && strcmp(mine, name) == 0;
+    }
+    return n;
+}
+
+/**
+ * @brief   Count internal row constants (minor 10) that differ from a walk of the command rows:
+ *          each row with an internal_id is an internal row and has its constant at that id, and
+ *          each constant names at least one such row.
+ * @version 1
+ * @return  the number of violations.
+ */
+static int internal_violations(void)
+{
+    char name[128];
+    int bad = 0;
+    size_t c, i;
+    for (c = 0u; c < n_commands; c++) {
+        const dsh_command_t *r = &dsh_commands[c];
+        const internal_constant_t *k;
+        internal_name(r, name, sizeof name);
+        k = internal_constant(name);
+        bad += r->internal_id != 0u &&
+               (r->action != DSH_DO_INTERNAL || k == NULL || k->value != (long)r->internal_id);
+    }
+    for (i = 0u; i < n_internal; i++) {
+        bad += internal_rows(internal_constants[i].name) == 0u;
+    }
+    return bad;
+}
+
+/**
  * @brief   Walk every table.
  *          v2: the consumer bounds (minor 8).
  *          v3: the desired value bound (minor 9).
- * @version 3
+ *          v4: the internal row constants (minor 10).
+ * @version 4
  * @return  0 when the tables are consistent.
  */
 int main(void)
@@ -461,6 +551,7 @@ int main(void)
     int bad = enum_violations() + binder_violations() + reporter_violations();
     bad += error_violations() + command_violations() + topic_violations();
     bad += binder_bound_violations() + error_bound_violations() + value_bound_violations();
+    bad += internal_violations();
     bad += dsh_if_major_1 != 1u;
     return bad != 0;
 }
