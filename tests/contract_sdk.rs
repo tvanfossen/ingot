@@ -1,8 +1,8 @@
 //! The per-principal SDKs through a binding: every principal's SDK, rendered with the neutral
 //! test binding (tests/fixtures/sdk_binding), compiled against its test store, the generic
 //! model's SDKs driven against a recording store
-//! (tests/fixtures/sdk/check_sdk.c), the handshake identity against contract.json, and the
-//! accessors each principal's rights give.
+//! (tests/fixtures/sdk/check_sdk.c), the handshake identity against contract.json, the
+//! accessors each principal's rights give, and the event views of the struct keys it reads.
 
 mod common;
 
@@ -253,7 +253,7 @@ fn a_read_only_struct_and_a_write_only_key_have_no_getter() {
     generate_bound(&gen);
     let integrator = text(&gen, "integrator", "h");
     assert!(
-        !integrator.contains("drive.map.map_data"),
+        !integrator.contains("get_drive_map_map_data") && !integrator.contains("_set_drive_map"),
         "a struct it only reads"
     );
     let inproc = text(&gen, "inproc", "h");
@@ -301,5 +301,93 @@ fn a_binding_file_renders_once_per_principal_under_its_name() {
     assert!(ok, "{stderr}");
     let text = fs::read_to_string(out.join("sdk/app_cloud/app_cloud.txt")).unwrap();
     assert_eq!(text, "app.cloud unix 2002 1\n");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn each_struct_key_a_principal_reads_gets_one_event_view() {
+    let dir = unique_dir("sdk_views");
+    let gen = dir.join("gen");
+    generate_bound(&gen);
+    let views = |p: &str| -> Vec<String> {
+        text(&gen, p, "h")
+            .lines()
+            .filter_map(|l| l.split(&format!("sdk_{p}_view_")).nth(1))
+            .map(|l| l.split('(').next().unwrap().to_string())
+            .collect()
+    };
+    assert_eq!(views("integrator"), ["drive_map_map_data"], "a reader");
+    assert_eq!(
+        views("app_map"),
+        ["drive_map_map_data", "drive_command_map_edit"],
+        "a writer that reads a struct command too, in key ID order"
+    );
+    assert_eq!(
+        views("app_cloud"),
+        ["drive_command_map_edit"],
+        "a submitter"
+    );
+    for p in ["app", "app_net", "app_ota", "tool", "mcu", "inproc"] {
+        assert!(views(p).is_empty(), "{p}: no struct it may read");
+    }
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// The line the generic model's command class starts with, before which a key is added.
+const COMMAND_CLASS: &str = "[[classes]]\nid = \"command\"\n";
+
+/// @brief Generate the 1.1 model with a struct key drive.map.extra on sku_b only into
+/// `dir/<variant>`, through a binding listing each principal's views; returns the output.
+/// @version 1
+fn with_variant_struct(dir: &Path, variant: &str) -> PathBuf {
+    let key = format!(
+        "[[classes.keys]]\nid = \"extra\"\nkey_index = 1\ntype = \"struct\"\nmax_size = 64\n\
+         introduced_in = \"1.0\"\nvariants = [\"sku_b\"]\n\n{COMMAND_CLASS}"
+    );
+    let model_dir = dir.join("model");
+    if !model_dir.exists() {
+        edited_copy(
+            "v1_1",
+            &model_dir,
+            &[("ns/drive.toml", COMMAND_CLASS, &key)],
+        );
+    }
+    let binding = dir.join("binding");
+    fs::create_dir_all(&binding).unwrap();
+    let body = "{% for v in views %}{{ v.name }} {{ v.path }} {{ v.key }};{% endfor %}";
+    fs::write(binding.join("PRINCIPAL.txt"), body).unwrap();
+    let out = dir.join(variant);
+    let args = [
+        "--variant",
+        variant,
+        "--sdk-binding",
+        binding.to_str().unwrap(),
+    ];
+    let (ok, stderr) = generate(&model_dir.join("contract.toml"), &out, &args);
+    assert!(ok, "{variant}: {stderr}");
+    out
+}
+
+#[test]
+fn a_struct_key_of_one_variant_has_a_view_on_that_variant_only() {
+    let dir = unique_dir("sdk_view_variant");
+    let id =
+        |gen: &Path, path: &str| format!("{:#010X}U", key_json(gen, path)["id"].as_u64().unwrap());
+    let read =
+        |gen: &Path, p: &str| fs::read_to_string(gen.join(format!("sdk/{p}/{p}.txt"))).unwrap();
+    let on_b = with_variant_struct(&dir, "sku_b");
+    let want = format!(
+        "drive_map_map_data drive.map.map_data {};drive_map_extra drive.map.extra {};\n",
+        id(&on_b, "drive.map.map_data"),
+        id(&on_b, "drive.map.extra")
+    );
+    assert_eq!(read(&on_b, "integrator"), want, "sku_b");
+    let on_a = with_variant_struct(&dir, "sku_a");
+    let want = format!(
+        "drive_map_map_data drive.map.map_data {};\n",
+        id(&on_a, "drive.map.map_data")
+    );
+    assert_eq!(read(&on_a, "integrator"), want, "sku_a has no such key");
+    assert_eq!(read(&on_a, "tool"), "\n", "no struct right, no view");
     let _ = fs::remove_dir_all(&dir);
 }

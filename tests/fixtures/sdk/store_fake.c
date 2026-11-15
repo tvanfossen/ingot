@@ -119,6 +119,18 @@ store_status_t store_buf_data(const store_buf_t *buf, void **data, uint32_t *len
     return buf->opaque[0] == 1u ? STORE_OK : STORE_E_TYPE;
 }
 
+/** @brief Fake event view: the struct bytes when the event carries a buffer, else STORE_E_TYPE. @version 1 */
+store_status_t store_buf_view(const store_event_t *ev, const void **data, uint32_t *len)
+{
+    note("view");
+    if (ev->buf.opaque[0] != 1u) {
+        return STORE_E_TYPE;
+    }
+    *data = store_fake.struct_bytes;
+    *len = store_fake.struct_len;
+    return STORE_OK;
+}
+
 /** @brief Fake struct publish. @version 1 */
 store_status_t store_struct_publish(store_client_t *c, store_buf_t *buf, uint64_t *commit_seq)
 {

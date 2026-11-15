@@ -249,3 +249,10 @@ store_status_t sdk_{{ p }}_submit_{{ s.name }}(store_client_t *c, const store_cm
 {%- endif %}
 }
 {%- endfor %}
+{%- for v in views %}
+
+store_status_t sdk_{{ p }}_view_{{ v.name }}(const store_event_t *ev, const void **data, uint32_t *len)
+{
+    return ev->key != {{ v.key }} ? STORE_E_TYPE : store_buf_view(ev, data, len);
+}
+{%- endfor %}

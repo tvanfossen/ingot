@@ -258,7 +258,10 @@ Outputs
 ``sdk/<principal>/`` (with ``--sdk-binding <DIR>``)
    Each file of the binding directory rendered once per principal, named after the file without a
    trailing ``.tera``; see the CLI reference for the naming rule and the context. Ingot names no
-   store runtime.
+   store runtime. Besides the accessors and submit helpers, the context lists an event view for
+   each struct key the principal may read: a struct value has no getter and reaches a reader only
+   as a delivered event, and the view tells the reader which key an event carries and gives its
+   whole value (a declared header included), so no consumer writes a key ID by hand.
 
 ``release-review.txt`` (with ``--previous-contract``)
    New principals' sensitive grants, for the release review.

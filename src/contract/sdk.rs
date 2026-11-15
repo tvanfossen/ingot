@@ -1,6 +1,6 @@
 //! Per-principal SDKs (G2 3.1) rendered through a consumer-supplied runtime binding: ingot
-//! resolves, per principal, the typed accessors its rights give, the command submit helpers, its
-//! identity (kind, uid, token, KSET digest and keyset) and the contract facts; the binding's
+//! resolves, per principal, the typed accessors its rights give, the command submit helpers, the
+//! event views of the struct keys it reads, its identity (kind, uid, token, KSET digest and keyset) and the contract facts; the binding's
 //! templates turn them into code against the consumer's own store runtime. Ingot names no
 //! runtime.
 
@@ -35,6 +35,16 @@ struct Accessor {
     size: u32,
     get: bool,
     set: bool,
+}
+
+/// One event view of an SDK: a struct key the principal may read, whose value reaches it only
+/// as a delivered event.
+#[derive(Serialize)]
+struct View {
+    /// `namespace_class_key`, the function-name part.
+    name: String,
+    path: String,
+    key: String,
 }
 
 /// One command submit helper of an SDK.
@@ -193,10 +203,12 @@ fn insert_identity(ctx: &mut Context, tables: &Tables, p: usize) {
 ///
 /// v2: the redundant bool codec, keyset sort or UNIX guard removed.
 /// v3: the struct value headers of the keys it has a right on; accessors from `accessors`.
-/// @version 3
+/// v4: the struct key facts (headers and event views) from `insert_struct_keys`.
+/// @version 4
 /// @req REQ-ING-SDK-001
 /// @req REQ-ING-SDK-002
 /// @req REQ-ING-SDK-003
+/// @req REQ-ING-SDK-006
 /// @req REQ-ING-HDR-002
 fn context(tables: &Tables, p: usize, commit: &str) -> Context {
     let pr = &tables.principals[p];
@@ -212,8 +224,38 @@ fn context(tables: &Tables, p: usize, commit: &str) -> Context {
     ctx.insert("need_header", &(structs || !submits.is_empty()));
     ctx.insert("accessors", &accessors);
     ctx.insert("submits", &submits);
-    ctx.insert("value_headers", &value_headers(tables, p));
+    insert_struct_keys(&mut ctx, tables, p);
     ctx
+}
+
+/// Principal `p`'s struct key facts: the value headers of the keys it has a right on and the
+/// event views of the struct keys it may read.
+///
+/// @version 1
+/// @req REQ-ING-SDK-006
+/// @req REQ-ING-HDR-002
+fn insert_struct_keys(ctx: &mut Context, tables: &Tables, p: usize) {
+    ctx.insert("value_headers", &value_headers(tables, p));
+    ctx.insert("views", &views(tables, p));
+}
+
+/// The event views of principal `p`: every struct key it may read, command keys included, in
+/// key ID order.
+///
+/// @version 1
+/// @req REQ-ING-SDK-006
+fn views(tables: &Tables, p: usize) -> Vec<View> {
+    tables
+        .keys
+        .iter()
+        .zip(&tables.rights[p])
+        .filter(|(k, bits)| k.ty == KeyType::Struct && **bits & READ != 0)
+        .map(|(k, _)| View {
+            name: ident(&k.path),
+            path: k.path.clone(),
+            key: id(k.id),
+        })
+        .collect()
 }
 
 /// The accessors of principal `p`, in key ID order.

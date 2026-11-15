@@ -1,5 +1,6 @@
 /* Drives the generated SDKs of the generic 1.1 model (sku_a) against the recording runtime:
- * wire encodings, length checks, buffers, struct writes, command submits, init and identity.
+ * wire encodings, length checks, buffers, struct writes, command submits, struct event views,
+ * init and identity.
  * Built by tests/contract_sdk.rs. */
 #include <string.h>
 
@@ -118,6 +119,61 @@ static int command_failures(void)
     return bad;
 }
 
+/* A generated event view. */
+typedef store_status_t (*view_fn)(const store_event_t *ev, const void **data, uint32_t *len);
+
+/**
+ * @brief   Whether `view` of `ev` gives the recorded struct bytes.
+ * @version 1
+ */
+static int viewed(view_fn view, const store_event_t *ev)
+{
+    const void *data = NULL;
+    uint32_t len = 0u;
+    store_status_t st = view(ev, &data, &len);
+    return st == STORE_OK && data == store_fake.struct_bytes && len == store_fake.struct_len;
+}
+
+/**
+ * @brief   Whether `view` of `ev` is STORE_E_TYPE.
+ * @version 1
+ */
+static int mismatched(view_fn view, const store_event_t *ev)
+{
+    const void *data = NULL;
+    uint32_t len = 0u;
+    return view(ev, &data, &len) == STORE_E_TYPE;
+}
+
+/**
+ * @brief   Count event view failures: the event's own struct key gives its bytes, another key's
+ *          event (before the runtime is asked) or an event without a buffer is STORE_E_TYPE.
+ * @version 1
+ */
+static int view_failures(void)
+{
+    int bad = 0;
+    store_event_t ev;
+
+    memset(&ev, 0, sizeof ev);
+    store_fake.struct_len = 3u;
+    ev.buf.opaque[0] = 1u;
+    ev.key = 0x00C40050u;                           /* drive.map.map_data */
+    store_fake.log[0] = '\0';
+    bad += !viewed(sdk_integrator_view_drive_map_map_data, &ev);
+    bad += !viewed(sdk_app_map_view_drive_map_map_data, &ev);
+    bad += !mismatched(sdk_app_map_view_drive_command_map_edit, &ev);
+    bad += !logged("view view ");
+    ev.key = 0x00C60050u;                           /* drive.command.map_edit */
+    bad += !viewed(sdk_app_map_view_drive_command_map_edit, &ev);
+    bad += !viewed(sdk_app_cloud_view_drive_command_map_edit, &ev);
+    bad += !mismatched(sdk_integrator_view_drive_map_map_data, &ev);
+    ev.buf.opaque[0] = 0u;                          /* no buffer */
+    bad += !mismatched(sdk_app_map_view_drive_command_map_edit, &ev);
+    bad += !logged("view view view ");
+    return bad;
+}
+
 /**
  * @brief   Count init and identity failures.
  * @version 1
@@ -143,10 +199,11 @@ static int identity_failures(void)
 
 /**
  * @brief   Run every check.
- * @version 1
+ * @version 2
  */
 int main(void)
 {
-    int bad = scalar_failures() + buffer_failures() + command_failures() + identity_failures();
+    int bad = scalar_failures() + buffer_failures() + command_failures() + view_failures() +
+              identity_failures();
     return bad != 0;
 }

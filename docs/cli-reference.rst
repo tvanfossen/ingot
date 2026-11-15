@@ -91,8 +91,15 @@ identity (``principal``, ``p``, ``kind``, ``uid``, ``token``, ``keyset_ids``, ``
 flags, and ``value_headers``: the struct value headers of the keys it may read or write, each with
 ``path``, ``prefix`` (``DMT_<KEY>``), ``ctype``, ``encode``, ``decode``, ``bytes``,
 ``payload_max`` and ``fields`` (``name``, ``offset_name``, ``ctype``, ``offset``, ``size``,
-``kind``), named as in ``dmt_constants.h``. The binding names the consumer's store runtime; ingot
-names none.
+``kind``), named as in ``dmt_constants.h``; and ``views``: one per struct key it may read
+(read-only or read-write, command keys included), in key ID order, each with ``name``
+(``namespace_class_key``), ``path`` and ``key`` (the key ID as ``0x%08XU``). A struct value
+reaches a reader only as a delivered event and has no getter, so the binding renders each view as
+a function of an event, for example ``<p>_view_<name>(ev, &data, &len)``, that gives the event's
+whole value (a declared header included; decoding it stays the consumer's) when the event is that
+key and carries a buffer, and the runtime's type mismatch otherwise: the consumer tells which key
+an event carries without writing a key ID. A principal without such a key has an empty
+``views``. The binding names the consumer's store runtime; ingot names none.
 ``examples/contract/`` holds a generic model at contract 1.0, 1.1 and 2.0.
 
 Key Filtering

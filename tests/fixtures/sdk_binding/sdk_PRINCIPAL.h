@@ -56,6 +56,11 @@ store_status_t sdk_{{ p }}_set_{{ a.name }}(store_client_t *c, const void *v, ui
 store_status_t sdk_{{ p }}_submit_{{ s.name }}(store_client_t *c, const store_cmd_origin_t *origin, store_cmd_id_t id,
     const void *payload, uint32_t len, uint64_t *commit_seq);
 {% endfor %}
+{%- for v in views %}
+/* Struct key {{ v.path }} on a delivered event `ev`: its whole value, header included, when `ev`
+ * is that key and carries a buffer, else STORE_E_TYPE. */
+store_status_t sdk_{{ p }}_view_{{ v.name }}(const store_event_t *ev, const void **data, uint32_t *len);
+{% endfor %}
 #ifdef __cplusplus
 }
 #endif

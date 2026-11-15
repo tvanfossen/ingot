@@ -44,6 +44,13 @@ typedef struct {
 
 typedef struct { uint64_t opaque[2]; } store_buf_t;
 
+/* One delivered event; a struct key's value arrives in `buf`. */
+typedef struct {
+    uint64_t commit_seq;
+    store_buf_t buf;
+    uint32_t key;
+} store_event_t;
+
 typedef struct { uint32_t epoch; uint32_t cmd_seq; } store_cmd_id_t;
 
 typedef struct {
@@ -61,6 +68,7 @@ store_status_t store_struct_alloc(store_client_t *c, uint32_t key, uint32_t size
 store_status_t store_struct_publish(store_client_t *c, store_buf_t *buf, uint64_t *commit_seq);
 store_status_t store_struct_submit(store_client_t *c, store_buf_t *buf, const store_cmd_origin_t *origin, uint64_t *commit_seq);
 store_status_t store_buf_data(const store_buf_t *buf, void **data, uint32_t *len);
+store_status_t store_buf_view(const store_event_t *ev, const void **data, uint32_t *len);
 void store_buf_release(store_client_t *c, store_buf_t *buf);
 store_status_t store_cmd_submit(store_client_t *c, uint32_t cmd_key, const store_cmd_origin_t *origin, const void *val, uint32_t len, uint64_t *commit_seq);
 
