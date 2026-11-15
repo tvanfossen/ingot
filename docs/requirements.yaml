@@ -1046,6 +1046,24 @@ requirements:
       The generic model's bounds equal the values derived from its rows by hand and by a C walk of
       the generated tables, per variant; adding a rejected-settings path, a longer desired path, a
       reserved bit or a lower publish_max_bit changes the matching bound.
+  REQ-ING-DSH-007:
+    name: Shadow desired value bound
+    subsystem: Generated outputs (G2)
+    description: >-
+      dsh_tables.h states DSH_DESIRED_VALUE_MAX_BYTES (shadow table interface minor 9): 1 plus the
+      longest JSON text of a value any dsh_desired or dsh_echo row of the variant accepts, 0 with
+      no row. Each value is counted at the longest text the shadow document size bound uses for
+      its type: a bool 5; an integer type the decimal text of its longer extreme; a float32 47
+      (printf %f of -FLT_MAX); a JSON string accepted as n bytes after unescaping 2 + 6n (every
+      byte as \u00XX). A string row accepts n up to max_size; an enum wire-string row accepts its
+      inbound strings (wire strings and accept aliases), an unknown string its inbound_unknown
+      rule maps not counted; an enum integer row is its key type. An echo row counts by its echo
+      type: bool, int as int32, float, string of its max_size.
+    acceptance_criteria: >-
+      The generic model's bound equals the value derived from its rows by hand and by a C walk of
+      the generated tables, per variant; a longer accept alias on one variant raises that
+      variant's bound only; a string echo counts six bytes per byte; a variant without desired or
+      echo rows states 0.
   REQ-ING-TOP-002:
     name: Topic table
     subsystem: Generated outputs (G2)
