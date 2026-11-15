@@ -1064,6 +1064,24 @@ requirements:
       the generated tables, per variant; a longer accept alias on one variant raises that
       variant's bound only; a string echo counts six bytes per byte; a variant without desired or
       echo rows states 0.
+  REQ-ING-DSH-008:
+    name: Named internal row ids
+    subsystem: Generated outputs (G2)
+    description: >-
+      dsh_tables.h states DSH_INTERNAL_<VERB> <internal_id>u (shadow table interface minor 10)
+      for every shadow_commands row of the variant that declares an internal_id, so the library
+      dispatches on a name rather than repeating the number. <VERB> is the text that selects the
+      row, taken from its innermost selector (the body object's selector for an object body,
+      else the row's selector): the wire string, else the element, else the field; upper case,
+      each dot an underscore. Rows that share a name and an id give one constant; a name that is
+      not a C identifier or is longer than 63 characters, or one name for two ids on a shared
+      variant, is refused. A variant without such a row states none, and no other output changes.
+    acceptance_criteria: >-
+      An internal row with internal_id 7 selected by state=getlog states DSH_INTERNAL_GETLOG 7u
+      and a C walk recomputes every constant from dsh_commands; a row on one variant gives its
+      constant on that variant only, and one verb with different ids on disjoint variants gives
+      each variant its own; a verb that is not a C identifier, a name over 63 characters and one
+      name for two ids on one variant are each refused.
   REQ-ING-TOP-002:
     name: Topic table
     subsystem: Generated outputs (G2)
