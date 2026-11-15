@@ -6,7 +6,7 @@
 use super::keys::Errors;
 use super::payload;
 use super::refuse_commands::selector_text;
-use super::schema::{PathForm, Rejected, ShadowCommand, Topic};
+use super::schema::{PathForm, Rejected, ShadowCommand, Topic, TopicVar};
 use super::snapshot::{KeyJson, Mapping, Snapshot};
 use super::wire::KeyWire;
 
@@ -97,18 +97,50 @@ fn command_name(r: &ShadowCommand) -> String {
     format!("shadow_commands {} {}", r.topic, selector_text(&r.selector))
 }
 
-/// The topics of `rows` without their variants: a topic is compared on the snapshot's variant,
-/// so a minor may add variants to it.
+/// The topics of `rows` without their variants and their vars' enums: a topic is compared on
+/// the snapshot's variant, so a minor may add variants to it, and a var's enum is compared by
+/// `var_enums_kept`, so a minor may name one for the first time.
 ///
-/// @version 1
+/// v2: without the vars' enums.
+/// @version 2
 /// @req REQ-ING-TOP-005
+/// @req REQ-ING-TOP-008
 fn topics_on_variant(rows: &[Topic]) -> Vec<Topic> {
+    let plain = |v: &TopicVar| TopicVar {
+        enum_ref: None,
+        ..v.clone()
+    };
     rows.iter()
         .map(|t| Topic {
             variants: None,
+            vars: t.vars.iter().map(plain).collect(),
             ..t.clone()
         })
         .collect()
+}
+
+/// Every var of `old` that named an enum still names it in `new` (a topic or var that is gone
+/// is refused with its topic row).
+///
+/// @version 1
+/// @req REQ-ING-TOP-008
+fn var_enums_kept(old: &[Topic], new: &[Topic], errors: &mut Errors) {
+    for t in old {
+        let now = new.iter().find(|n| n.id == t.id).map(|n| &n.vars);
+        for v in t.vars.iter().filter(|v| v.enum_ref.is_some()) {
+            let kept = now
+                .into_iter()
+                .flatten()
+                .find(|n| n.name == v.name)
+                .is_none_or(|n| n.enum_ref == v.enum_ref);
+            if !kept {
+                errors.push(format!(
+                    "topic {}: var {} changed or dropped its enum in a minor (a major)",
+                    t.id, v.name
+                ));
+            }
+        }
+    }
 }
 
 /// The contract-level rows of `prev` are all still in `cur` unchanged; the rejected-settings
@@ -120,12 +152,14 @@ fn topics_on_variant(rows: &[Topic]) -> Vec<Topic> {
 /// v4: the list compared by path, so a minor may add variants.
 /// v5: topics compared without their variants.
 /// v6: the declared placeholders.
-/// @version 6
+/// v7: the vars' enums, by `var_enums_kept`.
+/// @version 7
 /// @req REQ-ING-SHD-006
 /// @req REQ-ING-TOP-003
 /// @req REQ-ING-SHD-011
 /// @req REQ-ING-TOP-005
 /// @req REQ-ING-TOP-007
+/// @req REQ-ING-TOP-008
 pub fn rows_unchanged(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     let (old, new) = match (prev.shadow_rows(), cur.shadow_rows()) {
         (Ok(o), Ok(n)) => (o, n),
@@ -149,6 +183,7 @@ pub fn rows_unchanged(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
         |t| format!("topic {}", t.id),
         errors,
     );
+    var_enums_kept(&old.topics, &new.topics, errors);
     rows_kept(&old.commands, &new.commands, command_name, errors);
     rows_kept(&old.payload, &new.payload, payload::name, errors);
     let path = |s: &Option<Rejected>| s.iter().map(|r| r.path.clone()).collect::<Vec<_>>();

@@ -155,7 +155,12 @@ Key paths
    fills them; on a sub topic (interface 1.6) each var is one whole topic level, used once, which
    the consumer subscribes to as a single-level wildcard and extracts from a received topic. A
    template placeholder that is neither per-device nor declared is refused, and so is a declared
-   var the template does not use. ``variants`` limits a topic to those variants: a
+   var the template does not use. A var whose value is a code of a model enum names it, ``vars =
+   [{ name, max_len, enum = "<namespace>::<enum>" }]`` (the form an envelope ``source`` names an
+   enum with): the var carries the code as decimal text, and ``dmt_constants.h`` defines the
+   enum's codes. It changes no table. Refused: an enum that is not defined, a negative code, and
+   a code whose decimal text is longer than ``max_len``, each as the variant resolves the enum
+   (a variant that adds a longer code is refused there). ``variants`` limits a topic to those variants: a
    variant not listed has no row, and a topic is compared on a previous contract's variant (a
    minor may add variants, not drop or change the topic there).
 
@@ -163,7 +168,8 @@ Key paths
    ``name`` and ``max_len``: a named value the consumer is configured with (a build or device
    value), usable as ``{name}`` in any topic template; at most 8, each up to 128 bytes, each used
    by some topic, and no topic var may take its name (``dtp_placeholders``, shadow table interface
-   1.7). They are kept unchanged within a major.
+   1.7); a placeholder may not name an ``enum`` (only a topic var carries a code). They are kept
+   unchanged within a major.
 
 ``[[topic_payload]]``
    One member of a pub topic's payload: ``topic``, ``path``, and one of ``key`` (any key with a
@@ -200,6 +206,15 @@ Outputs
    not a C identifier, is longer than 63 characters, or is produced by two (key or command, value)
    pairs is refused. Constants are kept within a major, as enum values and outcomes are.
 
+   After those, every enum a topic var of the variant names (``enum = "<namespace>::<enum>"``) is
+   defined once, named after the enum rather than the var (several vars may name one enum):
+   ``#define DMT_E_<NAMESPACE>_<ENUM>_<VALUE> <code>``, enums in reference order and values in
+   code order, as the variant resolves the enum. The same name checks apply (an enum constant
+   that is also a key's is refused), and the file's header comment says so only when some var
+   names an enum. For example ``vars = [{ name = "event", max_len = 1, enum = "map::event" }]``
+   with ``[enums.event.values] update = 1`` in namespace ``map`` gives
+   ``#define DMT_E_MAP_EVENT_UPDATE 1``.
+
    For every key of the variant with a ``header`` it also holds (``<KEY>`` the key path in upper
    case, ``<key>`` in lower case, dots as underscores): ``DMT_<KEY>_HEADER_BYTES``,
    ``DMT_<KEY>_<FIELD>_OFFSET`` per field and ``DMT_<KEY>_PAYLOAD_MAX`` (``max_size`` minus the
@@ -217,7 +232,10 @@ Outputs
 ``contract.json``
    Every key, principal, right, command (with its ``outcome`` names and codes, when it has any)
    and shadow row, read back by ``--previous-contract``. A key with a header carries ``header``
-   (``[{name, type, offset, size}]``) and ``header_bytes``; a key without one has neither.
+   (``[{name, type, offset, size}]``) and ``header_bytes``; a key without one has neither. A topic
+   var that names an enum carries it as ``shadow.topics[].vars[].enum`` (and so does the
+   keyspace, whose body hash ``DSH_CONTRACT_HASH`` then moves), and ``var_enums`` maps each such
+   ``<namespace>::<enum>`` to its names and codes; without one, neither appears.
 
 ``keyspace.json``, ``keyspace.<variant>.json`` (with ``.json.gz`` and ``.head.json``), ``keyspace.schema.json``
    The declaration for tooling: all variants with per-variant overrides, the resolved variant,
@@ -275,7 +293,8 @@ well-known roles and struct value header (a header added, removed, reordered, re
 retyped is a major, as a type change is), a command keeps its outcomes (it may gain outcomes, or
 name them for the first time), error bits stay, and the shadow mapping only grows: a mapped key keeps its path
 entries and wire attributes, its paths and accept aliases may be added to, and every echo,
-constant, topic, command and payload row stays as it was. A major reserves the IDs of removed keys.
+constant, topic, command and payload row stays as it was. A topic var may name an enum for the
+first time in a minor; one it named stays named, with every name and code of that enum kept. A major reserves the IDs of removed keys.
 ``--previous-contract`` checks all of this against the previous release's ``contract.json``.
 
 Refusals
@@ -287,8 +306,10 @@ Every rule above has a refusal, grouped as follows:
   key index out of range, a type that cannot hold its default or size.
 * **Values:** a default outside its type, enum, range or set; an unknown unit; a scale without a
   unit; a range or set on a non-numeric or enum key; a key ``enum`` or command ``outcome`` naming
-  no enum of its namespace; an enum or outcome constant that is not a C identifier, longer than
-  63 characters, or named twice.
+  no enum of its namespace; a topic var ``enum`` naming no ``<namespace>::<enum>``, with a
+  negative code or a code longer than its ``max_len``, and an ``enum`` on a placeholder; an
+  enum, outcome or topic var enum constant that is not a C identifier, longer than 63
+  characters, or named twice.
 * **Struct value headers:** a header on a key that is not a struct, an empty header, a field type
   other than bool and the 8-, 16- and 32-bit integers, a field name that is not a C identifier or
   is repeated, a header of ``max_size`` bytes or more, and a generated name longer than 63

@@ -19,10 +19,12 @@ const SHADOW_NAME: &str = "{shadow_name}";
 ///
 /// v2: a template may use its topic's vars; the var rules.
 /// v3: the declared placeholders.
-/// @version 3
+/// v4: the var rules see the tables (a var's enum).
+/// @version 4
 /// @req REQ-ING-TOP-001
 /// @req REQ-ING-TOP-004
 /// @req REQ-ING-TOP-007
+/// @req REQ-ING-TOP-008
 pub fn check(tables: &Tables, errors: &mut Errors) {
     let topics = &tables.shadow.topics;
     let placeholders = &tables.shadow.placeholders;
@@ -36,7 +38,7 @@ pub fn check(tables: &Tables, errors: &mut Errors) {
                 PLACEHOLDERS.join("}, {")
             ));
         }
-        topic_vars::check(t, placeholders, errors);
+        topic_vars::check(t, tables, errors);
         placement(topics, t, errors);
         envelope(tables, t, errors);
     }

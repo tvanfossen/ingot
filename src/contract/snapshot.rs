@@ -40,6 +40,9 @@ pub struct Snapshot {
     /// principal -> key path -> "r" | "w" | "rw" (absent: none)
     pub rights: BTreeMap<String, BTreeMap<String, String>>,
     pub commands: Vec<CommandJson>,
+    /// Name to code of each enum a topic var names, by `namespace::enum`; absent when none does.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub var_enums: BTreeMap<String, BTreeMap<String, i64>>,
     /// The shadow wire mapping's rows and sizes (G2 1.4); absent when the model maps nothing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shadow: Option<serde_json::Value>,
@@ -284,7 +287,9 @@ fn access_name(bits: u8) -> Option<String> {
 /// v3: the unit vocabulary; principals from principals_json.
 /// v4: the error groups.
 /// v5: the shadow wire mapping.
-/// @version 5
+/// v6: the codes of the enums topic vars name.
+/// @version 6
+/// @req REQ-ING-TOP-008
 /// @req REQ-ING-SHD-002
 /// @req REQ-ING-ERR-001
 /// @req REQ-ING-TIV-015
@@ -308,8 +313,20 @@ pub fn snapshot(tables: &Tables, commit: &str) -> Snapshot {
         principals: principals_json(tables),
         rights: rights_json(tables),
         commands: commands_json(tables),
+        var_enums: var_enums_json(tables),
         shadow: super::shadow::json(tables),
     }
+}
+
+/// Name to code of each enum a topic var of `tables` names, by `namespace::enum`.
+///
+/// @version 1
+/// @req REQ-ING-TOP-008
+fn var_enums_json(tables: &Tables) -> BTreeMap<String, BTreeMap<String, i64>> {
+    super::constants::var_enums(tables)
+        .into_iter()
+        .map(|(r, e)| (r.to_string(), enum_numbers(e)))
+        .collect()
 }
 
 /// Contract name and version of the snapshot.

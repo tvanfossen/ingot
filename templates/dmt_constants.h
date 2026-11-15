@@ -4,6 +4,12 @@
  * value of every enum key, DMT_E_<KEY PATH>_<VALUE>, and of every command's outcome enum (the
  * result's outcome codes), DMT_E_<COMMAND PATH>_<VALUE>. Kept within a major (an enum value and
  * an outcome keep their name and code).
+{%- if var_enums %}
+ *
+ * Topic var enums: the code of every value of every enum a topic var carries as decimal text,
+ * DMT_E_<NAMESPACE>_<ENUM>_<VALUE>, once per enum, after the constants above. Kept within a
+ * major.
+{%- endif %}
 {%- if headers %}
  *
  * Struct value headers: a struct key that declares a header starts its value with it, every

@@ -1,16 +1,18 @@
 //! Topic placeholders beyond the per-device ones, bounded in count and length:
 //! - per-message vars, declared per topic: on a pub topic the publisher fills them at publish
 //!   time; on a sub topic each is one whole topic level, which the consumer subscribes to as a
-//!   single-level wildcard and extracts from a received topic;
+//!   single-level wildcard and extracts from a received topic; a var may name the model enum
+//!   whose code it carries as decimal text;
 //! - declared placeholders, contract-level: named values the consumer is configured with (a
 //!   build or device value), usable in any template.
 
+use super::enums::ResolvedEnum;
 use super::keys::Errors;
 use super::model::Tables;
 use super::schema::{Direction, Topic, TopicVar};
 use super::shadow_size::valid_path;
 use super::topics::PLACEHOLDERS;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// The most vars one topic declares (`DTP_VARS_MAX`), and the most declared placeholders
 /// (`DTP_PLACEHOLDERS_MAX`).
@@ -111,32 +113,83 @@ fn var_rule(t: &Topic, v: &TopicVar, placeholders: &[TopicVar]) -> Vec<String> {
     why
 }
 
-/// Every var refusal of topic `t` (`placeholders`: the declared ones).
+/// Why a code of the enum `e` names is refused for var `v`: a negative code, or one whose
+/// decimal text is longer than the var's max_len.
+///
+/// @version 1
+/// @req REQ-ING-TOP-008
+fn code_rule(v: &TopicVar, e: &str, member: &str, code: i64) -> Option<String> {
+    let name = &v.name;
+    if code < 0 {
+        Some(format!(
+            "var {name}: enum {e} value {member} has negative code {code}"
+        ))
+    } else if code.to_string().len() > usize::from(v.max_len) {
+        Some(format!(
+            "var {name}: enum {e} value {member} code {code} is longer than max_len {}",
+            v.max_len
+        ))
+    } else {
+        None
+    }
+}
+
+/// Why the enum var `v` names is refused, as the variant resolves it (`enums`: every enum by
+/// `namespace::enum`): an undefined enum, and each code `code_rule` refuses.
+///
+/// @version 1
+/// @req REQ-ING-TOP-008
+fn enum_rule(v: &TopicVar, enums: &BTreeMap<String, ResolvedEnum>) -> Vec<String> {
+    let Some(e) = &v.enum_ref else {
+        return Vec::new();
+    };
+    match enums.get(e) {
+        None => vec![format!("var {}: undefined enum '{e}'", v.name)],
+        Some(members) => members
+            .iter()
+            .filter_map(|(member, m)| code_rule(v, e, member, m.value))
+            .collect(),
+    }
+}
+
+/// Every var refusal of topic `t` in `tables` (its declared placeholders and enums).
 ///
 /// v2: vars on sub topics, each one whole level.
 /// v3: the list rules shared with declared placeholders; a placeholder's name refused.
-/// @version 3
+/// v4: the enum a var names; the placeholders and enums taken from `tables`.
+/// @version 4
 /// @req REQ-ING-TOP-004
 /// @req REQ-ING-TOP-006
 /// @req REQ-ING-TOP-007
-pub fn check(t: &Topic, placeholders: &[TopicVar], errors: &mut Errors) {
+/// @req REQ-ING-TOP-008
+pub fn check(t: &Topic, tables: &Tables, errors: &mut Errors) {
     let mut why = list_rules("var", &t.vars);
     for v in &t.vars {
-        why.extend(var_rule(t, v, placeholders));
+        why.extend(var_rule(t, v, &tables.shadow.placeholders));
+        why.extend(enum_rule(v, &tables.enums));
     }
     errors.extend(why.into_iter().map(|w| format!("topic {}: {w}", t.id)));
 }
 
-/// Every refusal of the declared placeholders: the list rules, and one no topic uses.
+/// Every refusal of the declared placeholders: the list rules, one no topic uses, and one that
+/// names an enum (only a topic var carries an enum's code).
 ///
-/// @version 1
+/// v2: a placeholder naming an enum.
+/// @version 2
 /// @req REQ-ING-TOP-007
+/// @req REQ-ING-TOP-008
 pub fn check_placeholders(tables: &Tables, errors: &mut Errors) {
     let s = &tables.shadow;
     errors.extend(list_rules("placeholder", &s.placeholders));
     for p in &s.placeholders {
         if !s.topics.iter().any(|t| uses(&t.template, &p.name)) {
             errors.push(format!("placeholder {} is used by no topic", p.name));
+        }
+        if p.enum_ref.is_some() {
+            errors.push(format!(
+                "placeholder {} names an enum: only a topic var may",
+                p.name
+            ));
         }
     }
 }

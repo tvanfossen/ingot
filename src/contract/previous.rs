@@ -107,13 +107,16 @@ fn keys_kept(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
 /// v4: the error groups.
 /// v5: the shadow wire mapping (P1); the per-key checks moved to `keys_kept`.
 /// v6: command outcomes.
-/// @version 6
+/// v7: the codes of the enums topic vars name.
+/// @version 7
 /// @req REQ-ING-TIV-012
 /// @req REQ-ING-SHD-006
 /// @req REQ-ING-TIV-018
+/// @req REQ-ING-TOP-008
 fn minor_additive(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     keys_kept(prev, cur, errors);
     outcomes_kept(prev, cur, errors);
+    var_enum_codes_kept(prev, cur, errors);
     let old_paths: BTreeSet<&str> = prev.keys.iter().map(|k| k.path.as_str()).collect();
     new_keys_at_this_version(prev, cur, &old_paths, errors);
     principals_unchanged(prev, cur, errors);
@@ -319,6 +322,22 @@ fn outcomes_kept(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
             errors.push(format!(
                 "{}: its outcomes were removed or changed in a minor",
                 old.path
+            ));
+        }
+    }
+}
+
+/// Every previous enum a topic var named keeps each (name, code) pair while a var still names
+/// it (a dropped reference is refused with its var).
+///
+/// @version 1
+/// @req REQ-ING-TOP-008
+fn var_enum_codes_kept(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
+    for (name, old) in &prev.var_enums {
+        let new = cur.var_enums.get(name);
+        if new.is_some_and(|n| !members_kept(Some(old), Some(n))) {
+            errors.push(format!(
+                "enum {name}: a value a topic var carries was removed or changed its code in a minor"
             ));
         }
     }

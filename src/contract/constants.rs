@@ -1,7 +1,7 @@
-//! `dmt_constants.h`: the code of every value of every enum key and of every command's outcome
-//! enum as a named C constant, `DMT_E_<KEY OR COMMAND PATH>_<VALUE>`, for the variant the tables
-//! resolve, so a consumer never writes an enum code by hand. The header is per model and outside
-//! the table interface.
+//! `dmt_constants.h`: the code of every value of every enum key, of every command's outcome enum
+//! and of every enum a topic var names as a named C constant, `DMT_E_<KEY OR COMMAND PATH>_<VALUE>`
+//! or `DMT_E_<NAMESPACE>_<ENUM>_<VALUE>`, for the variant the tables resolve, so a consumer never
+//! writes an enum code by hand. The header is per model and outside the table interface.
 
 use super::enums::ResolvedEnum;
 use super::keys::Errors;
@@ -15,7 +15,7 @@ use tera::{Context, Tera};
 /// The longest constant name: C99's significant initial characters of an identifier.
 pub const NAME_MAX: usize = 63;
 
-/// One enum constant: its name, its code and the key it is of.
+/// One enum constant: its name, its code and the key, command or enum it is of.
 #[derive(Serialize)]
 pub struct EnumConstant {
     pub name: String,
@@ -23,21 +23,40 @@ pub struct EnumConstant {
     pub key: String,
 }
 
-/// `DMT_E_<KEY PATH>_<VALUE>` in upper case, each dot an underscore.
+/// `DMT_E_<PATH>_<VALUE>` in upper case, each dot and each `::` an underscore (`path`: a key or
+/// command path, or a `namespace::enum` reference).
 ///
-/// @version 1
+/// v2: a `namespace::enum` reference.
+/// @version 2
 /// @req REQ-ING-TIV-017
-fn name_of(key: &str, value: &str) -> String {
-    format!("DMT_E_{}_{}", key.replace('.', "_"), value).to_uppercase()
+/// @req REQ-ING-TOP-008
+fn name_of(path: &str, value: &str) -> String {
+    let path = path.replace("::", "_").replace('.', "_");
+    format!("DMT_E_{path}_{value}").to_uppercase()
 }
 
-/// Every enum a constant is generated for, with the ID it is placed at and the path it is
-/// named after: each enum key's enum, and each command's outcome enum at its command key.
+/// Every enum a var of the tables' topics names, as the variant resolves it, by its
+/// `namespace::enum` reference (an undefined one is left out: the topic check refuses it).
 ///
 /// @version 1
+/// @req REQ-ING-TOP-008
+pub fn var_enums(tables: &Tables) -> BTreeMap<&str, &ResolvedEnum> {
+    let vars = tables.shadow.topics.iter().flat_map(|t| &t.vars);
+    vars.filter_map(|v| v.enum_ref.as_deref())
+        .filter_map(|r| tables.enums.get(r).map(|e| (r, e)))
+        .collect()
+}
+
+/// Every enum a constant is generated for, with the path it is named after: each enum key's
+/// enum and each command's outcome enum at its command key, in key ID order, then each enum a
+/// topic var names, in reference order.
+///
+/// v2: the enums topic vars name, after the keyed ones.
+/// @version 2
 /// @req REQ-ING-TIV-017
 /// @req REQ-ING-TIV-018
-fn sources(tables: &Tables) -> Vec<(u32, &str, &ResolvedEnum)> {
+/// @req REQ-ING-TOP-008
+fn sources(tables: &Tables) -> Vec<(&str, &ResolvedEnum)> {
     let keys = tables
         .keys
         .iter()
@@ -46,21 +65,24 @@ fn sources(tables: &Tables) -> Vec<(u32, &str, &ResolvedEnum)> {
         .commands
         .iter()
         .filter_map(|c| c.outcome.as_ref().map(|e| (c.keys[0], c.path.as_str(), e)));
-    let mut all: Vec<_> = keys.chain(commands).collect();
-    all.sort_by_key(|(id, _, _)| *id);
-    all
+    let mut keyed: Vec<_> = keys.chain(commands).collect();
+    keyed.sort_by_key(|(id, _, _)| *id);
+    let keyed = keyed.into_iter().map(|(_, path, e)| (path, e));
+    keyed.chain(var_enums(tables)).collect()
 }
 
-/// The constants of every enum key and command outcome, in key ID order and each one's values
-/// in code order.
+/// The constants of every enum key and command outcome, in key ID order, then of every enum a
+/// topic var names, each one's values in code order.
 ///
 /// v2: command outcomes, at their command key's ID.
-/// @version 2
+/// v3: the enums topic vars name.
+/// @version 3
 /// @req REQ-ING-TIV-017
 /// @req REQ-ING-TIV-018
+/// @req REQ-ING-TOP-008
 pub fn enum_constants(tables: &Tables) -> Vec<EnumConstant> {
     let mut all = Vec::new();
-    for (_, path, values) in sources(tables) {
+    for (path, values) in sources(tables) {
         let mut mine: Vec<EnumConstant> = values
             .iter()
             .map(|(name, m)| EnumConstant {
@@ -116,9 +138,11 @@ pub fn check(tables: &Tables, errors: &mut Errors) {
 /// Write `dmt_constants.h` into `output_dir`.
 ///
 /// v2: and the struct value headers.
-/// @version 2
+/// v3: whether a topic var names an enum.
+/// @version 3
 /// @req REQ-ING-TIV-017
 /// @req REQ-ING-HDR-002
+/// @req REQ-ING-TOP-008
 pub fn write(
     tera: &Tera,
     tables: &Tables,
@@ -137,6 +161,7 @@ pub fn write(
     ctx.insert("variant", &tables.variant);
     ctx.insert("constants", &enum_constants(tables));
     ctx.insert("headers", &super::header::views(tables));
+    ctx.insert("var_enums", &!var_enums(tables).is_empty());
     render_template(tera, "dmt_constants.h", &ctx, output_dir)?;
     Ok(())
 }

@@ -337,12 +337,16 @@ pub struct Topic {
     pub variants: Option<Vec<String>>,
 }
 
-/// One per-message placeholder of a pub topic: its name and its longest value in bytes.
+/// One per-message placeholder of a pub topic: its name, its longest value in bytes and the
+/// enum whose code it carries, when it names one.
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct TopicVar {
     pub name: String,
     pub max_len: u16,
+    /// `namespace::enum`: the var carries a code of that enum as decimal text (a topic var only).
+    #[serde(rename = "enum", default, skip_serializing_if = "Option::is_none")]
+    pub enum_ref: Option<String>,
 }
 
 /// A command envelope: the id and the source of a request.

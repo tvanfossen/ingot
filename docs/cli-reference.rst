@@ -69,7 +69,8 @@ Contract Mode
 
 Contract mode writes ``dmt_types.h``, ``dmt_tables.h``, ``dmt_tables.c``,
 ``dmt_constants.h`` (the enum value constants of every enum key, and of every command that names
-its result codes with ``outcome = "<enum>"``, and for every struct key with a ``header`` its
+its result codes with ``outcome = "<enum>"``, once per enum that a topic var names with
+``enum = "<namespace>::<enum>"`` as ``DMT_E_<NAMESPACE>_<ENUM>_<VALUE>``, and for every struct key with a ``header`` its
 ``DMT_<KEY>_HEADER_BYTES``, ``_<FIELD>_OFFSET`` and ``_PAYLOAD_MAX`` constants, its
 ``dmt_<key>_header_t`` and its inline byte-shift ``dmt_<key>_header_encode`` /
 ``dmt_<key>_header_decode``) and ``contract.json`` for the selected ``--variant``, or nothing at all if the model
