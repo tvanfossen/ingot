@@ -1390,3 +1390,32 @@ struct right of the variant check, which was added for it.
 | SV06 | src/contract/sdk.rs | `name: ident(&k.path),\n            path: k.path.clone(),` | `name: ident(&k.path),\n            path: ident(&k.path),` | a view carries its dotted path | KILLED | a_struct_key_of_one_variant_has_a_view_on_that_variant_only |
 | SV07 | tests/fixtures/sdk_binding/sdk_PRINCIPAL.c | `return ev->key != {{ v.key }} ? STORE_E_TYPE : store_buf_view(ev, data, len);` | `return store_buf_view(ev, data, len);` | the C check refuses another key's event | KILLED | the_generic_sdks_drive_the_runtime |
 | SV08 | tests/fixtures/sdk/store_fake.c | `if (ev->buf.opaque[0] != 1u) {` | `if (ev->buf.opaque[0] == 7u) {` | the C check refuses an event without a buffer | KILLED | the_generic_sdks_drive_the_runtime |
+
+## Topic var enums (REQ-ING-TOP-008)
+
+Same procedure, on a fresh copy with a fresh target directory; the test command is `--test
+topic_var_enums`. TV08 (a code exactly max_len long refused) fails every generation that names an
+enum, because the generic model's codes are one digit at max_len 1. TV14 is killed only by the
+first naming in a minor, which is what it guards. A mutation that sends an enum no longer named
+to the code check as well (`is_some_and` to `is_none_or` in `var_enum_codes_kept`) only adds a
+second message to a run the var check already refuses, so it was not swept.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| TV01 | src/contract/constants.rs | `let path = path.replace("::", "_").replace('.', "_");` | `let path = path.replace('.', "_");` | a namespace::enum reference names a C identifier | KILLED | a_minor_may_name_an_enum_for_the_first_time_and_keep_it a_minor_may_not_drop_rename_or_renumber_a_var_s_enum a_var_s_enum_is_defined_once_as_its_variant_resolves_it contract_json_carries_the_reference_and_the_codes the_constant_name_checks_apply_to_a_var_s_enum the_tables_do_not_depend_on_a_var_s_enum |
+| TV02 | src/contract/constants.rs | `keyed.chain(var_enums(tables)).collect()` | `keyed.collect()` | the enums vars name get constants | KILLED | a_var_s_enum_is_defined_once_as_its_variant_resolves_it the_constant_name_checks_apply_to_a_var_s_enum |
+| TV03 | src/contract/constants.rs | `keyed.chain(var_enums(tables)).collect()` | `var_enums(tables).into_iter().chain(keyed).collect()` | var enum constants follow the keyed ones | KILLED | a_var_s_enum_is_defined_once_as_its_variant_resolves_it the_constant_name_checks_apply_to_a_var_s_enum |
+| TV04 | src/contract/constants.rs | `vars.filter_map(\|v\| v.enum_ref.as_deref())\n        .filter_map(\|r\| tables.enums.get(r).map(\|e\| (r, e)))` | `vars.filter_map(\|v\| v.enum_ref.as_deref())\n        .filter_map(\|r\| tables.enums.get(r).map(\|e\| (r, e)))\n        .take(0)` | var_enums finds the referenced enums | KILLED | a_minor_may_not_drop_rename_or_renumber_a_var_s_enum a_var_s_enum_is_defined_once_as_its_variant_resolves_it contract_json_carries_the_reference_and_the_codes the_constant_name_checks_apply_to_a_var_s_enum |
+| TV05 | src/contract/constants.rs | `ctx.insert("var_enums", &!var_enums(tables).is_empty());` | `ctx.insert("var_enums", &false);` | the header comment states the var enums only when present | KILLED | contract_json_carries_the_reference_and_the_codes |
+| TV06 | src/contract/topic_vars.rs | `if code < 0 {` | `if code < -1 {` | a negative code is refused as negative | KILLED | a_negative_or_too_long_code_is_refused |
+| TV07 | src/contract/topic_vars.rs | `} else if code.to_string().len() > usize::from(v.max_len) {` | `} else if code.to_string().len() > usize::from(v.max_len) + 1 {` | a code longer than max_len is refused | KILLED | a_code_only_one_variant_has_is_refused_on_that_variant a_negative_or_too_long_code_is_refused |
+| TV08 | src/contract/topic_vars.rs | `} else if code.to_string().len() > usize::from(v.max_len) {` | `} else if code.to_string().len() >= usize::from(v.max_len) {` | a code exactly max_len long is accepted | KILLED | a_code_only_one_variant_has_is_refused_on_that_variant a_minor_may_name_an_enum_for_the_first_time_and_keep_it a_minor_may_not_drop_rename_or_renumber_a_var_s_enum a_var_s_enum_is_defined_once_as_its_variant_resolves_it contract_json_carries_the_reference_and_the_codes the_tables_do_not_depend_on_a_var_s_enum |
+| TV09 | src/contract/topic_vars.rs | `None => vec![format!("var {}: undefined enum '{e}'", v.name)],` | `None => Vec::new(),` | an undefined enum is refused | KILLED | an_undefined_enum_is_refused |
+| TV10 | src/contract/topic_vars.rs | `why.extend(enum_rule(v, &tables.enums));\n` | `(deleted)` | the topic check runs the enum rule | KILLED | a_code_only_one_variant_has_is_refused_on_that_variant a_negative_or_too_long_code_is_refused an_undefined_enum_is_refused |
+| TV11 | src/contract/topic_vars.rs | `if p.enum_ref.is_some() {` | `if p.enum_ref.is_some() && p.max_len == 0 {` | a placeholder naming an enum is refused | KILLED | a_placeholder_naming_an_enum_is_refused |
+| TV12 | src/contract/snapshot.rs | `var_enums: var_enums_json(tables),` | `var_enums: BTreeMap::new(),` | contract.json carries the codes | KILLED | a_minor_may_not_drop_rename_or_renumber_a_var_s_enum contract_json_carries_the_reference_and_the_codes |
+| TV13 | src/contract/schema_shadow.rs | `#[serde(rename = "enum", default, skip_serializing_if = "Option::is_none")]` | `#[serde(rename = "enum", default)]` | a var without an enum serializes as before | KILLED | without_a_var_enum_nothing_names_one |
+| TV14 | src/contract/previous_shadow.rs | `vars: t.vars.iter().map(plain).collect(),\n` | `(deleted)` | a minor may name an enum for the first time | KILLED | a_minor_may_name_an_enum_for_the_first_time_and_keep_it |
+| TV15 | src/contract/previous_shadow.rs | `.is_none_or(\|n\| n.enum_ref == v.enum_ref);` | `.is_none_or(\|n\| n.enum_ref.is_some());` | a named enum is not renamed in a minor | KILLED | a_minor_may_not_drop_rename_or_renumber_a_var_s_enum |
+| TV16 | src/contract/previous_shadow.rs | `var_enums_kept(&old.topics, &new.topics, errors);\n` | `(deleted)` | a named enum is not dropped in a minor | KILLED | a_minor_may_not_drop_rename_or_renumber_a_var_s_enum |
+| TV17 | src/contract/previous.rs | `var_enum_codes_kept(prev, cur, errors);\n` | `(deleted)` | a var enum's codes are kept in a minor | KILLED | a_minor_may_not_drop_rename_or_renumber_a_var_s_enum |
