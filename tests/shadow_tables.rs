@@ -1227,3 +1227,57 @@ fn a_topic_payload_is_built_from_keys_and_constants() {
     compile_and_walk(&gen);
     let _ = fs::remove_dir_all(&dir);
 }
+
+/// @brief Remove the text of `file` from `start` up to (not including) the next `end`, or to the
+/// end of the file; the removed text must occur once.
+/// @version 1
+fn cut(file: &Path, start: &str, end: Option<&str>) {
+    let text = fs::read_to_string(file).unwrap();
+    let from = text.find(start).unwrap_or_else(|| panic!("{start}"));
+    let len = end.map_or(text.len() - from, |e| {
+        text[from..].find(e).unwrap_or_else(|| panic!("{e}"))
+    });
+    edit(file, &text[from..from + len], "");
+}
+
+/// @brief A copy of the 1.1 model under `case` without desired, echo, coupled-write or command
+/// rows: no echo paths, no settings key at a desired path, no shadow commands.
+/// @version 1
+fn bare_binder_copy(case: &Path) {
+    edited_copy("v1_1", case, &[]);
+    let drive = case.join("ns/drive.toml");
+    let echo = ("[[shadow_echo]]", Some("[[shadow_constant]]"));
+    cut(&case.join("contract.toml"), echo.0, echo.1);
+    cut(
+        &drive,
+        "shadow = \"settings.speedLimit\"\napply_group",
+        Some("\n\n"),
+    );
+    cut(&drive, "shadow = \"settings.fanSpeed\"", Some("\n\n"));
+    cut(
+        &drive,
+        "# -- shadow wire mapping (G2 1.4): how requests",
+        None,
+    );
+    cut(&case.join("ns/core.toml"), "[[shadow_commands]]", None);
+}
+
+#[test]
+fn a_variant_without_binder_or_command_rows_still_builds_strictly() {
+    let dir = unique_dir("dsh_bare");
+    let case = dir.join("bare");
+    bare_binder_copy(&case);
+    let gen = case.join("sku_a");
+    let (ok, stderr) = generate(&case.join("contract.toml"), &gen, &[]);
+    assert!(ok, "{stderr}");
+    for count in [
+        "DSH_NUM_DESIRED",
+        "DSH_NUM_ECHO",
+        "DSH_NUM_IMPLIES",
+        "DSH_NUM_COMMANDS",
+    ] {
+        assert_eq!(define(&gen, count), "0u", "{count}");
+    }
+    compile_and_walk(&gen);
+    let _ = fs::remove_dir_all(&dir);
+}

@@ -161,7 +161,9 @@ fn group_names(tables: &Tables) -> Vec<String> {
 /// v2: the topic payloads.
 /// v3: the topic vars (`dtp_vars`, appended).
 /// v4: the declared placeholders (`dtp_placeholders`, appended); group names in `group_names`.
-/// @version 4
+/// v5: the zero row of a table whose first field is a struct is designated, so a variant without
+/// coupled writes or commands builds with -Wextra -Werror.
+/// @version 5
 /// @req REQ-ING-DSH-001
 /// @req REQ-ING-DSH-002
 /// @req REQ-ING-DSH-003
@@ -194,7 +196,12 @@ fn tables_of(tables: &Tables, hash: &str) -> Vec<Table> {
         Table::new("dsh_inbound_t", "dsh_inbound", inbound, "{ 0 }"),
         Table::new("char *const", "dsh_apply_groups", groups_list, "NULL"),
         Table::new("int64_t", "dsh_allowed", allowed, "0"),
-        Table::new("dsh_implies_t", "dsh_implies", pools.implies, "{ { 0 } }"),
+        Table::new(
+            "dsh_implies_t",
+            "dsh_implies",
+            pools.implies,
+            "{ .key = 0u }",
+        ),
         Table::new("dsh_desired_t", "dsh_desired", desired, "{ 0 }"),
         Table::new("dsh_echo_t", "dsh_echo", echo, "{ 0 }"),
         Table::new("dsh_reported_t", "dsh_reported", reported, "{ 0 }"),
@@ -202,7 +209,7 @@ fn tables_of(tables: &Tables, hash: &str) -> Vec<Table> {
         Table::new("dsh_error_bit_t", "dsh_error_bits", bits, "{ 0 }"),
         Table::new("dsh_arg_t", "dsh_args", pools.args, "{ 0 }"),
         Table::new("dsh_step_t", "dsh_steps", pools.steps, "{ 0 }"),
-        Table::new("dsh_command_t", "dsh_commands", commands, "{ { 0 } }"),
+        Table::new("dsh_command_t", "dsh_commands", commands, "{ .topic = 0u }"),
         Table::new("dtp_topic_t", "dtp_topics", topics, "{ 0 }"),
         Table::new("dsh_reported_t", "dtp_payload", payload, "{ 0 }"),
         Table::new("dtp_var_t", "dtp_vars", pools.vars, "{ 0 }"),

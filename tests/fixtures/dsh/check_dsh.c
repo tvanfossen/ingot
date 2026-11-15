@@ -10,6 +10,12 @@
 
 _Static_assert(DSH_IF_MAJOR == 1, "shadow table interface major");
 
+/* Row counts of the tables a variant may leave empty, held as objects: a loop bounded by a 0u
+ * constant is an always-false unsigned comparison under -Wextra. */
+static const size_t n_desired = DSH_NUM_DESIRED;
+static const size_t n_echo = DSH_NUM_ECHO;
+static const size_t n_commands = DSH_NUM_COMMANDS;
+
 /**
  * @brief   Whether a value reference lies inside dsh_value_blob.
  * @version 1
@@ -128,18 +134,19 @@ static int desired_row_violations(size_t i)
 
 /**
  * @brief   Count violations in the binder's tables: desired and echo rows sorted and unique.
- * @version 1
+ *          v2: either table may be empty.
+ * @version 2
  * @return  the number of violations.
  */
 static int binder_violations(void)
 {
     int bad = 0;
     size_t i;
-    for (i = 0u; i < DSH_NUM_DESIRED; i++) {
+    for (i = 0u; i < n_desired; i++) {
         bad += i > 0u && strcmp(dsh_desired[i - 1u].path, dsh_desired[i].path) >= 0;
         bad += desired_row_violations(i);
     }
-    for (i = 1u; i < DSH_NUM_ECHO; i++) {
+    for (i = 1u; i < n_echo; i++) {
         bad += strcmp(dsh_echo[i - 1u].path, dsh_echo[i].path) >= 0;
     }
     return bad;
@@ -163,7 +170,8 @@ static size_t shared_objects(const char *a, const char *b)
 
 /**
  * @brief   Count violations in one reported row's references.
- * @version 1
+ *          v2: the echo table may be empty.
+ * @version 2
  * @return  the number of violations.
  */
 static int reported_row_violations(const dsh_reported_t *r)
@@ -172,7 +180,7 @@ static int reported_row_violations(const dsh_reported_t *r)
     bad += !index_ok(r->enum_index, DSH_NUM_ENUMS);
     bad += r->kind == DSH_RK_KEY && r->key == DMT_ID_NONE;
     bad += r->kind == DSH_RK_CONSTANT && r->constant == NULL;
-    bad += r->kind == DSH_RK_ECHO && r->ref >= DSH_NUM_ECHO;
+    bad += r->kind == DSH_RK_ECHO && r->ref >= n_echo;
     bad += r->outbound_unknown == DSH_OUT_WIRE && r->outbound_unknown_wire == NULL;
     bad += (r->flags & DSH_RF_FORCED) != 0u && (r->scope & DSH_SC_DELTA) == 0u;
     return bad;
@@ -242,14 +250,15 @@ static int step_violations(const dsh_step_t *s)
 
 /**
  * @brief   Count violations in the command rows: a sub topic, steps exactly for the steps action.
- * @version 1
+ *          v2: the table may be empty.
+ * @version 2
  * @return  the number of violations.
  */
 static int command_violations(void)
 {
     int bad = 0;
     size_t c, i;
-    for (c = 0u; c < DSH_NUM_COMMANDS; c++) {
+    for (c = 0u; c < n_commands; c++) {
         const dsh_command_t *r = &dsh_commands[c];
         bad += r->topic >= DTP_NUM_TOPICS || dtp_topics[r->topic].direction != DTP_SUB;
         bad += !slice_ok(r->steps_first, r->steps_count, DSH_NUM_STEPS);
@@ -319,16 +328,17 @@ static size_t longer(size_t n, const char *path)
 /**
  * @brief   Count binder bounds (minor 8) that differ from a walk of the binder and reporter
  *          tables: rejected-list members and the longest desired or echo path.
- * @version 1
+ *          v2: either table may be empty.
+ * @version 2
  * @return  the number of violations.
  */
 static int binder_bound_violations(void)
 {
     size_t i, path = 0u, items = 0u;
-    for (i = 0u; i < DSH_NUM_DESIRED; i++) {
+    for (i = 0u; i < n_desired; i++) {
         path = longer(path, dsh_desired[i].path);
     }
-    for (i = 0u; i < DSH_NUM_ECHO; i++) {
+    for (i = 0u; i < n_echo; i++) {
         path = longer(path, dsh_echo[i].path);
     }
     for (i = 0u; i < DSH_NUM_REPORTED; i++) {
