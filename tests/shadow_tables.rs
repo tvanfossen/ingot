@@ -7,7 +7,6 @@ mod common;
 use common::*;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 /// @brief Generate the 1.1 model with `edits` applied for `variant`; returns the output dir.
 /// @version 1
@@ -18,63 +17,6 @@ fn generated(dir: &Path, tag: &str, variant: &str, edits: &[(&str, &str, &str)])
     let (ok, stderr) = generate(&case.join("contract.toml"), &out, &["--variant", variant]);
     assert!(ok, "{tag} ({variant}): {stderr}");
     out
-}
-
-/// @brief Run `cc` (or `c++`) with `args`, asserting success.
-/// @version 1
-fn compile(cc: &str, args: &[&str]) {
-    let out = Command::new(cc)
-        .args(args)
-        .output()
-        .expect("spawn compiler");
-    assert!(
-        out.status.success(),
-        "{cc} {args:?}:\n{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-}
-
-/// @brief Build check_dsh.c against the tables in `gen` as strict C11 and run it; and include
-/// the header from C++.
-/// @version 1
-fn compile_and_walk(gen: &Path) {
-    let check = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/dsh/check_dsh.c");
-    let exe = gen.join("check_dsh");
-    let include = format!("-I{}", gen.display());
-    let tables = gen.join("dsh_tables.c");
-    let strict = [
-        "-std=c11",
-        "-Wall",
-        "-Wextra",
-        "-pedantic",
-        "-Werror",
-        &include,
-    ];
-    let files = [
-        check.to_str().unwrap(),
-        tables.to_str().unwrap(),
-        "-o",
-        exe.to_str().unwrap(),
-    ];
-    compile("cc", &[&strict[..], &files[..]].concat());
-    assert!(Command::new(&exe).status().unwrap().success(), "check_dsh");
-    let cpp = gen.join("tu.cpp");
-    fs::write(
-        &cpp,
-        "#include \"dsh_tables.h\"\nint main() { return dsh_if_major_1 != 1u; }\n",
-    )
-    .unwrap();
-    compile(
-        "c++",
-        &[
-            "-std=c++11",
-            "-Wall",
-            "-Werror",
-            "-fsyntax-only",
-            &include,
-            cpp.to_str().unwrap(),
-        ],
-    );
 }
 
 /// @brief The initialiser rows of table `name` in dsh_tables.c.
@@ -131,7 +73,7 @@ fn the_tables_compile_and_walk_on_every_variant() {
     let dir = unique_dir("dsh_walk");
     for variant in ["sku_a", "sku_b"] {
         let gen = generated(&dir, "plain", variant, &[]);
-        compile_and_walk(&gen);
+        walk_dsh_tables(&gen);
         for (name, count) in [
             ("dsh_desired", "DSH_NUM_DESIRED"),
             ("dtp_topics", "DTP_NUM_TOPICS"),
@@ -309,7 +251,7 @@ fn a_discrete_set_a_sentinel_and_an_integer_form_reach_the_binder() {
         "{fan}"
     );
     assert!(fan.contains(".inbound_unknown = DSH_IN_NONE"), "{fan}");
-    compile_and_walk(&gen);
+    walk_dsh_tables(&gen);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -478,7 +420,7 @@ fn a_raw_unknown_an_integer_path_and_a_scope_reach_the_reporter() {
         at("state.tones").contains(".scope = DSH_SC_FULL, .flags = 0u"),
         "a full-only path"
     );
-    compile_and_walk(&gen);
+    walk_dsh_tables(&gen);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -509,7 +451,7 @@ fn a_bool_path_reports_0_1_in_one_document_and_true_false_in_the_other() {
     let docked = key_json(&gen, "drive.state.docked");
     assert_eq!(docked["shadow"], serde_json::json!(["state.docked"]));
     assert_eq!(docked["shadow_forms"][0]["as"], "integer");
-    compile_and_walk(&gen);
+    walk_dsh_tables(&gen);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -531,7 +473,7 @@ fn the_rejected_settings_list_exists_only_on_its_variants() {
         !c.contains("DSH_RK_REJECTED"),
         "no row on a variant not listed"
     );
-    compile_and_walk(&listed);
+    walk_dsh_tables(&listed);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -562,7 +504,7 @@ fn the_rejected_settings_list_is_a_delta_row_at_its_declared_path() {
     assert!(!fs::read_to_string(plain.join("dsh_tables.c"))
         .unwrap()
         .contains("DSH_RK_REJECTED"));
-    compile_and_walk(&gen);
+    walk_dsh_tables(&gen);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -734,7 +676,7 @@ fn argument_forms_resolve_names_elements_and_encodings() {
     );
     assert!(stop[0].contains(".element = DSH_NONE_U16"));
     assert_eq!(value(&gen, &stop[2]), vec![0xff, 0xff]);
-    compile_and_walk(&gen);
+    walk_dsh_tables(&gen);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -756,7 +698,7 @@ fn an_internal_row_carries_its_declared_id() {
         .find(|r| r["internal_id"] == 7);
     assert!(declared.is_some(), "{json}");
     assert!(json[0].get("internal_id").is_none());
-    compile_and_walk(&gen);
+    walk_dsh_tables(&gen);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -793,7 +735,7 @@ fn rows_without_a_command_answer_stay_internal_or_write_state() {
         mobile[0].0
     );
     assert!(mobile[0].1[0].contains(".field = \"label\"") && mobile[0].1[0].contains(".type = 8u"));
-    compile_and_walk(&gen);
+    walk_dsh_tables(&gen);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -833,7 +775,7 @@ fn a_pub_topic_declares_the_vars_its_publisher_fills() {
         .find(|t| t["id"] == "telemetry")
         .unwrap();
     assert_eq!(declared["vars"][1]["name"], "event");
-    compile_and_walk(&gen);
+    walk_dsh_tables(&gen);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -859,8 +801,8 @@ fn a_topic_exists_only_on_its_variants() {
     assert!(has_topic(&listed, "telemetry"));
     let other = generated(&dir, "other", "sku_a", &edits);
     assert!(!has_topic(&other, "telemetry"));
-    compile_and_walk(&listed);
-    compile_and_walk(&other);
+    walk_dsh_tables(&listed);
+    walk_dsh_tables(&other);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -879,7 +821,7 @@ fn a_sub_topic_declares_the_vars_its_consumer_extracts() {
         t.contains(".direction = DTP_SUB") && t.contains(".vars_count = 1u"),
         "{t}"
     );
-    compile_and_walk(&gen);
+    walk_dsh_tables(&gen);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -903,7 +845,7 @@ fn a_declared_placeholder_is_emitted_for_the_consumer_to_configure() {
     );
     let json = &contract_json(&gen)["shadow"]["placeholders"];
     assert_eq!(json[1]["name"], "env");
-    compile_and_walk(&gen);
+    walk_dsh_tables(&gen);
     let plain = generated(&dir, "plain", "sku_a", &[]);
     let h = fs::read_to_string(plain.join("dsh_tables.h")).unwrap();
     assert!(h.contains("#define DTP_NUM_PLACEHOLDERS 0u"), "{h}");
@@ -1030,7 +972,7 @@ fn a_model_without_a_mapping_has_no_shadow_tables_but_the_fixed_header() {
     assert!(ok, "{stderr}");
     let fixed = fs::read_to_string(types.join("dsh_types.h")).unwrap();
     assert_eq!(fixed, fs::read_to_string(gen.join("dsh_types.h")).unwrap());
-    assert!(fixed.contains("#define DSH_IF_MAJOR 1") && fixed.contains("#define DSH_IF_MINOR 8"));
+    assert!(fixed.contains("#define DSH_IF_MAJOR 1") && fixed.contains("#define DSH_IF_MINOR 9"));
     assert!(fixed.contains("DSH_FORM_BOOL_INTEGER = 4"));
     assert!(fixed.contains("DSH_RK_REJECTED = 4"));
     assert!(
@@ -1057,7 +999,7 @@ fn error_bits_are_sorted_by_bit_not_by_key() {
         bits[0].ends_with(".bit = 2u }") && bits[1].ends_with(".bit = 3u }"),
         "{bits:?}"
     );
-    compile_and_walk(&gen);
+    walk_dsh_tables(&gen);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -1115,7 +1057,7 @@ fn a_row_submits_further_commands_as_steps() {
     );
     assert!(steps[0].1.is_empty() && steps[1].1.is_empty());
     assert_eq!(value(&gen, &steps[2].1[0]), vec![7, 0]);
-    compile_and_walk(&gen);
+    walk_dsh_tables(&gen);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -1168,7 +1110,7 @@ fn base64_text_decodes_into_a_struct_argument_and_steps_name_their_command_type(
         steps(&gen, &go)[0].0.ends_with(".command_type = 9u }"),
         "a binary command"
     );
-    compile_and_walk(&gen);
+    walk_dsh_tables(&gen);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -1189,7 +1131,7 @@ fn a_config_key_is_reported_and_never_desired() {
             .any(|r| r.contains("config.serial")),
         "never desired"
     );
-    compile_and_walk(&gen);
+    walk_dsh_tables(&gen);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -1224,7 +1166,7 @@ fn a_topic_payload_is_built_from_keys_and_constants() {
         "{fan}"
     );
     assert!(at("sw.fanCode").contains(".form = DSH_FORM_INTEGER"));
-    compile_and_walk(&gen);
+    walk_dsh_tables(&gen);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -1263,7 +1205,7 @@ fn bare_binder_copy(case: &Path) {
 }
 
 #[test]
-fn a_variant_without_binder_or_command_rows_still_builds_strictly() {
+fn a_variant_without_binder_or_command_rows_builds_strictly_and_bounds_no_desired_text() {
     let dir = unique_dir("dsh_bare");
     let case = dir.join("bare");
     bare_binder_copy(&case);
@@ -1275,9 +1217,11 @@ fn a_variant_without_binder_or_command_rows_still_builds_strictly() {
         "DSH_NUM_ECHO",
         "DSH_NUM_IMPLIES",
         "DSH_NUM_COMMANDS",
+        "DSH_DESIRED_PATH_MAX_BYTES",
+        "DSH_DESIRED_VALUE_MAX_BYTES",
     ] {
         assert_eq!(define(&gen, count), "0u", "{count}");
     }
-    compile_and_walk(&gen);
+    walk_dsh_tables(&gen);
     let _ = fs::remove_dir_all(&dir);
 }

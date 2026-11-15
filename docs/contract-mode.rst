@@ -199,7 +199,16 @@ Outputs
    desired and echo path; 0 without a rejected-settings list), ``DSH_DESIRED_PATH_MAX_BYTES`` (the
    longest desired or echo path with its terminator), ``DSH_ERROR_IDS_PUBLISHED`` (every group's
    bits up to ``publish_max_bit`` that are not reserved) and ``DSH_ERROR_ID_MAX`` (the largest wire
-   id of a published or declared bit).
+   id of a published or declared bit). Interface 1.9 adds ``DSH_DESIRED_VALUE_MAX_BYTES``: 1 plus
+   the longest JSON text of a value any ``dsh_desired`` or ``dsh_echo`` row accepts (0 with no
+   row), each counted at the longest text the document size bound uses for its type: a bool 5, an
+   integer type its longer extreme in decimal, a float32 47 (``%f`` of ``-FLT_MAX``), and a JSON
+   string that unescapes to *n* bytes 2 + 6\ *n* (every byte as ``\u00XX``). A string row accepts
+   up to ``max_size`` bytes; an enum wire-string row accepts its wire strings and accept aliases
+   (an unknown string its ``inbound_unknown`` rule maps is not counted); an enum integer row and
+   an echo row count by their type (an ``int`` echo as int32). A desired value the binder
+   refuses can be any text the sender wrote, so a consumer listing refused values leaves out one
+   longer than ``DSH_DESIRED_VALUE_MAX_BYTES - 1``.
 
 ``sdk/<principal>/`` (with ``--sdk-binding <DIR>``)
    Each file of the binding directory rendered once per principal, named after the file without a

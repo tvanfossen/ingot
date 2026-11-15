@@ -73,7 +73,9 @@ its result codes with ``outcome = "<enum>"``) and ``contract.json`` for the sele
 breaks any rule; every refusal is logged. It always uses the built-in templates.
 A model that maps keys to the shadow also gets ``dsh_types.h`` (the fixed shadow
 table interface) and ``dsh_tables.h`` / ``dsh_tables.c``: the binder, reporter,
-command-router, error-group and topic tables of the variant. With ``--sdk-binding <DIR>``, every
+command-router, error-group and topic tables of the variant, and the bounds a shadow consumer
+sizes its buffers with (interface 1.9: rejected-list members, the longest desired path and
+desired value text, published error ids and the largest error id; see Contract Mode). With ``--sdk-binding <DIR>``, every
 principal gets an SDK in ``sdk/<principal>/`` (dots in the name become underscores): each file of
 the binding directory is a template rendered once per principal, under its file name with a
 trailing ``.tera`` removed (``x_PRINCIPAL.c.tera`` and ``x_PRINCIPAL.c`` both render to

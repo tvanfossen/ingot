@@ -126,9 +126,11 @@ fn int_text(ty: KeyType) -> usize {
 /// The longest value text of a type: `false`, an extreme integer, the longest float, or a
 /// string of `max_size` bytes each escaped to six (`\u00XX`) in quotes.
 ///
-/// @version 1
+/// v2: public, shared with the desired value bound.
+/// @version 2
 /// @req REQ-ING-SIZ-001
-fn type_text(ty: KeyType, max_size: u32) -> usize {
+/// @req REQ-ING-DSH-007
+pub fn type_text(ty: KeyType, max_size: u32) -> usize {
     match ty {
         KeyType::Bool => 5,
         KeyType::Float32 => FLOAT_TEXT,
@@ -184,9 +186,11 @@ fn enum_text(e: &super::enums::ResolvedEnum, raw: bool, ty: KeyType) -> usize {
 
 /// The longest text of an echo-only value.
 ///
-/// @version 1
+/// v2: public, shared with the desired value bound.
+/// @version 2
 /// @req REQ-ING-SIZ-001
-fn echo_text(e: &Echo) -> usize {
+/// @req REQ-ING-DSH-007
+pub fn echo_text(e: &Echo) -> usize {
     match e.ty {
         EchoType::Bool => 5,
         EchoType::Int => int_text(KeyType::Int32),

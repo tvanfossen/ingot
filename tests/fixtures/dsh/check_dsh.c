@@ -2,8 +2,10 @@
  * command router and error reporter would: every table the header declares must be defined,
  * sorted where the interface says so, and every index and value reference must be in range.
  * Built by tests/shadow_tables.rs. */
+#include <float.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "dsh_tables.h"
@@ -373,16 +375,92 @@ static int error_bound_violations(void)
 }
 
 /**
+ * @brief   Bytes of the decimal text of `v`.
+ * @version 1
+ * @return  the byte count.
+ */
+static size_t decimal_len(long long v)
+{
+    return (size_t)snprintf(NULL, 0u, "%lld", v);
+}
+
+/**
+ * @brief   The longest JSON text of a value of DMT_T_* `type`: "false", the longer extreme of an
+ *          integer type, printf %f of -FLT_MAX, or `max_size` bytes each escaped as \u00XX in
+ *          quotes; 0 for a type without a JSON value.
+ * @version 1
+ * @return  the byte count.
+ */
+static size_t type_text(uint8_t type, uint32_t max_size)
+{
+    static const long long lo[] = { 0, 0, 0, 0, INT8_MIN, INT16_MIN, INT32_MIN };
+    static const long long hi[] = { 1, UINT8_MAX, UINT16_MAX, UINT32_MAX, INT8_MAX, INT16_MAX, INT32_MAX };
+    size_t n = 0u;
+    if (type == DMT_T_BOOL) {
+        n = 5u;
+    } else if (type == DMT_T_F32) {
+        n = (size_t)snprintf(NULL, 0u, "%f", (double)-FLT_MAX);
+    } else if (type == DMT_T_STRING) {
+        n = 2u + 6u * (size_t)max_size;
+    } else if (type <= DMT_T_I32) {
+        size_t a = decimal_len(lo[type]), b = decimal_len(hi[type]);
+        n = a > b ? a : b;
+    }
+    return n;
+}
+
+/**
+ * @brief   The longest value text desired row `r` accepts: on an enum wire-string row its longest
+ *          inbound string as a JSON string, else its type's.
+ * @version 1
+ * @return  the byte count.
+ */
+static size_t desired_text(const dsh_desired_t *r)
+{
+    size_t i, longest = 0u;
+    if (r->form != DSH_FORM_ENUM) {
+        return type_text(r->type, r->max_size);
+    }
+    for (i = 0u; i < dsh_enums[r->enum_index].in_count; i++) {
+        size_t len = strlen(dsh_inbound[dsh_enums[r->enum_index].in_first + i].text);
+        longest = len > longest ? len : longest;
+    }
+    return type_text(DMT_T_STRING, (uint32_t)longest);
+}
+
+/**
+ * @brief   Count a desired value bound (minor 9) that differs from a walk of the binder tables:
+ *          1 + the longest value text of a desired or echo row, 0 with none.
+ * @version 1
+ * @return  the number of violations.
+ */
+static int value_bound_violations(void)
+{
+    static const uint8_t echo_type[] = { DMT_T_BOOL, DMT_T_I32, DMT_T_F32, DMT_T_STRING };
+    size_t i, top = 0u;
+    for (i = 0u; i < n_desired; i++) {
+        size_t n = desired_text(&dsh_desired[i]) + 1u;
+        top = n > top ? n : top;
+    }
+    for (i = 0u; i < n_echo; i++) {
+        size_t n = type_text(echo_type[dsh_echo[i].type], dsh_echo[i].max_size) + 1u;
+        top = n > top ? n : top;
+    }
+    return DSH_DESIRED_VALUE_MAX_BYTES != top;
+}
+
+/**
  * @brief   Walk every table.
  *          v2: the consumer bounds (minor 8).
- * @version 2
+ *          v3: the desired value bound (minor 9).
+ * @version 3
  * @return  0 when the tables are consistent.
  */
 int main(void)
 {
     int bad = enum_violations() + binder_violations() + reporter_violations();
     bad += error_violations() + command_violations() + topic_violations();
-    bad += binder_bound_violations() + error_bound_violations();
+    bad += binder_bound_violations() + error_bound_violations() + value_bound_violations();
     bad += dsh_if_major_1 != 1u;
     return bad != 0;
 }

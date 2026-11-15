@@ -22,6 +22,7 @@ extern "C" {
 #define DSH_DESIRED_PATH_MAX_BYTES {{ bounds.desired_path_max_bytes }}u   /* longest desired or echo path, with its terminator */
 #define DSH_ERROR_IDS_PUBLISHED {{ bounds.error_ids_published }}u   /* ids the full error table publishes */
 #define DSH_ERROR_ID_MAX {{ bounds.error_id_max }}u   /* largest wire id of an error payload */
+#define DSH_DESIRED_VALUE_MAX_BYTES {{ bounds.desired_value_max_bytes }}u   /* longest JSON text of a value a desired or echo row accepts, with its terminator */
 {%- for t in tables %}
 #define {{ t.count }} {{ t.len }}u
 {%- endfor %}

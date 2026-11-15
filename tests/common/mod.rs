@@ -187,3 +187,62 @@ pub fn assert_same_store_tables(a: &Path, b: &Path) {
         assert_eq!(digests(a, name), digests(b, name), "{name}");
     }
 }
+
+/// @brief Run `cc` (or `c++`) with `args`, asserting success.
+/// v2: shared by the test crates.
+/// @version 2
+pub fn compile(cc: &str, args: &[&str]) {
+    let out = Command::new(cc)
+        .args(args)
+        .output()
+        .expect("spawn compiler");
+    assert!(
+        out.status.success(),
+        "{cc} {args:?}:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+/// @brief Build check_dsh.c against the shadow tables in `gen` as strict C11 and run it; and
+/// include the header from C++.
+/// v2: shared by the test crates (was compile_and_walk in the shadow table tests).
+/// @version 2
+pub fn walk_dsh_tables(gen: &Path) {
+    let check = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/dsh/check_dsh.c");
+    let exe = gen.join("check_dsh");
+    let include = format!("-I{}", gen.display());
+    let tables = gen.join("dsh_tables.c");
+    let strict = [
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-pedantic",
+        "-Werror",
+        &include,
+    ];
+    let files = [
+        check.to_str().unwrap(),
+        tables.to_str().unwrap(),
+        "-o",
+        exe.to_str().unwrap(),
+    ];
+    compile("cc", &[&strict[..], &files[..]].concat());
+    assert!(Command::new(&exe).status().unwrap().success(), "check_dsh");
+    let cpp = gen.join("tu.cpp");
+    fs::write(
+        &cpp,
+        "#include \"dsh_tables.h\"\nint main() { return dsh_if_major_1 != 1u; }\n",
+    )
+    .unwrap();
+    compile(
+        "c++",
+        &[
+            "-std=c++11",
+            "-Wall",
+            "-Werror",
+            "-fsyntax-only",
+            &include,
+            cpp.to_str().unwrap(),
+        ],
+    );
+}
