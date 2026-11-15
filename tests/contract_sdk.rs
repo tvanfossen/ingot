@@ -336,21 +336,26 @@ fn each_struct_key_a_principal_reads_gets_one_event_view() {
 /// The line the generic model's command class starts with, before which a key is added.
 const COMMAND_CLASS: &str = "[[classes]]\nid = \"command\"\n";
 
-/// @brief Generate the 1.1 model with a struct key drive.map.extra on sku_b only into
-/// `dir/<variant>`, through a binding listing each principal's views; returns the output.
+/// The app.net grant line, after which a write-only struct right is added.
+const NET_GRANT: &str = "{ namespace = \"net\", class = \"credentials\", access = \"w\" },\n";
+
+/// @brief Generate the 1.1 model with a struct key drive.map.extra on sku_b only and a
+/// write-only right of app.net on drive.map.map_data into `dir/<variant>`, through a binding
+/// listing each principal's views; returns the output.
 /// @version 1
 fn with_variant_struct(dir: &Path, variant: &str) -> PathBuf {
     let key = format!(
         "[[classes.keys]]\nid = \"extra\"\nkey_index = 1\ntype = \"struct\"\nmax_size = 64\n\
          introduced_in = \"1.0\"\nvariants = [\"sku_b\"]\n\n{COMMAND_CLASS}"
     );
+    let grant = format!("{NET_GRANT}  {{ key = \"drive.map.map_data\", access = \"w\" }},\n");
     let model_dir = dir.join("model");
     if !model_dir.exists() {
-        edited_copy(
-            "v1_1",
-            &model_dir,
-            &[("ns/drive.toml", COMMAND_CLASS, &key)],
-        );
+        let edits = [
+            ("ns/drive.toml", COMMAND_CLASS, key.as_str()),
+            ("contract.toml", NET_GRANT, grant.as_str()),
+        ];
+        edited_copy("v1_1", &model_dir, &edits);
     }
     let binding = dir.join("binding");
     fs::create_dir_all(&binding).unwrap();
@@ -389,5 +394,6 @@ fn a_struct_key_of_one_variant_has_a_view_on_that_variant_only() {
     );
     assert_eq!(read(&on_a, "integrator"), want, "sku_a has no such key");
     assert_eq!(read(&on_a, "tool"), "\n", "no struct right, no view");
+    assert_eq!(read(&on_a, "app_net"), "\n", "a struct it may only write");
     let _ = fs::remove_dir_all(&dir);
 }
