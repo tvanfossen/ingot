@@ -1,6 +1,7 @@
 //! Command write-rate burst: `rate_burst` on a command type sets the token-bucket burst of its
 //! command, result and dedupe keys; a burst without a write rate is refused on a command and on
-//! a key, and so is a declared burst of 0 (it would switch the rate limit off); a minor may
+//! a key, and so is a declared burst of 0 (it would switch the rate limit off), and so is a
+//! `[bounds] default_rate_burst` of 0; a minor may
 //! change a released command's burst (a rate-table change only).
 
 mod common;
@@ -158,6 +159,45 @@ fn a_burst_of_one_is_the_least_accepted() {
     for path in MAP_EDIT_KEYS {
         assert_eq!(rate(&dir.join("gen"), path), (1440, 1), "{path}");
     }
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// The generic model's default burst line, the text the default-burst cases replace.
+const DEFAULT_BURST: &str = "default_rate_burst = 4";
+
+#[test]
+fn a_default_burst_of_0_is_refused_once() {
+    let dir = unique_dir("burst_default_zero");
+    let edits = [("contract.toml", DEFAULT_BURST, "default_rate_burst = 0")];
+    let (ok, stderr) = generate_edited(&dir, &edits, "sku_a");
+    let refusal = "bounds.default_rate_burst must be at least 1 (0 switches the write-rate \
+                   limit off on every write_rate without its own rate_burst)";
+    assert!(!ok, "{stderr}");
+    let lines: Vec<&str> = stderr.lines().filter(|l| l.contains(refusal)).collect();
+    assert_eq!(lines.len(), 1, "once per run:\n{stderr}");
+    assert!(
+        !lines[0].contains("variant "),
+        "a model-level refusal: {stderr}"
+    );
+    assert!(!dir.join("gen/dmt_tables.c").exists());
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_default_burst_of_1_is_given_to_every_rate_without_its_own() {
+    let dir = unique_dir("burst_default_one");
+    let edits = [("contract.toml", DEFAULT_BURST, "default_rate_burst = 1")];
+    let (ok, stderr) = generate_edited(&dir, &edits, "sku_a");
+    assert!(ok, "{stderr}");
+    let gen = dir.join("gen");
+    assert_eq!(rate(&gen, "core.command.factory_reset"), (1, 1));
+    assert_eq!(rate(&gen, "core.command.factory_reset_dedupe"), (1, 1));
+    assert_eq!(
+        rate(&gen, MAP_EDIT_KEYS[0]),
+        (1440, 8),
+        "its own burst wins"
+    );
+    assert_eq!(rate(&gen, "drive.command.drive_result"), (0, 0));
     let _ = fs::remove_dir_all(&dir);
 }
 

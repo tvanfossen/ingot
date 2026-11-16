@@ -63,12 +63,31 @@ pub fn inproc_floors(tables: &Tables) -> (u64, u64) {
     (snapshot, queue)
 }
 
-/// Refuse budgets below their lower bounds.
+/// Refuse `[bounds] default_rate_burst = 0`: it is the burst of every write rate without its
+/// own, and a burst of 0 would switch the store's rate limit off on each of them. Refused once,
+/// whether or not any declaration uses the default.
 ///
 /// @version 1
+/// @req REQ-ING-TIV-019
+fn default_burst(tables: &Tables, errors: &mut Errors) {
+    if tables.bounds.default_rate_burst == 0 {
+        errors.push(
+            "bounds.default_rate_burst must be at least 1 (0 switches the write-rate limit off \
+             on every write_rate without its own rate_burst)"
+                .to_string(),
+        );
+    }
+}
+
+/// Refuse budgets below their lower bounds, and a default burst of 0.
+///
+/// v2: the default burst checked.
+/// @version 2
 /// @req REQ-ING-TIV-007
 /// @req REQ-ING-TIV-010
+/// @req REQ-ING-TIV-019
 pub fn check(tables: &Tables, errors: &mut Errors) {
+    default_burst(tables, errors);
     let staging = tables
         .principals
         .iter()

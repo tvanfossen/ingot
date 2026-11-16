@@ -79,7 +79,8 @@ Each ``dmt_keys`` row and each ``contract.json`` key carries ``rate_per_day`` an
 from its ``write_rate`` and ``rate_burst`` (else ``[bounds] default_rate_burst``); a command
 type's pair applies to its command, result and dedupe keys alike, and a ``rate_burst`` without a
 ``write_rate``, or of 0 (it would switch the rate limit off; omit ``write_rate`` for no limit),
-is refused. ``--previous-contract`` lets a minor change either.
+is refused, as is a ``[bounds] default_rate_burst`` of 0. ``--previous-contract`` lets a minor
+change either.
 A model that maps keys to the shadow also gets ``dsh_types.h`` (the fixed shadow
 table interface) and ``dsh_tables.h`` / ``dsh_tables.c``: the binder, reporter,
 command-router, error-group and topic tables of the variant, and the bounds a shadow consumer

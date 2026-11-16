@@ -41,7 +41,9 @@ A key's ID encodes its namespace, class, index and type. A class has a role (``s
 bit. A ``write_rate`` (``"<n>/s|min|h|day"``) becomes ``rate_per_day`` and a token-bucket
 ``rate_burst``: the declared one, else ``[bounds] default_rate_burst``; a ``rate_burst`` without a
 ``write_rate`` is refused, and so is a declared ``rate_burst`` of 0, which would switch the
-store's rate limit off (a key or command that wants no limit omits ``write_rate``). A command type (``[[classes.commands]]``) creates its command, result
+store's rate limit off (a key or command that wants no limit omits ``write_rate``); for the same
+reason ``[bounds] default_rate_burst`` must be at least 1, whether or not any declaration uses
+it. A command type (``[[classes.commands]]``) creates its command, result
 and dedupe keys with its owner, payload kind and sizes; ``internal`` says why it is never
 requested on the wire. Its ``write_rate`` and ``rate_burst`` apply to all three keys alike (each
 row of ``dmt_keys`` and each key of ``contract.json`` carries them), under the same rules:
