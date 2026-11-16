@@ -48,6 +48,8 @@ whole set. Without either, model mode uses the first ``templates/`` directory it
 finds next to the executable, in ``<exe>/../share/ingot/templates``, in
 ``<exe>/../../templates`` (a ``target/<profile>/`` build), in the working directory,
 or in ``/usr/share/ingot/templates``, and the built-in templates when there is none.
+A template the found directory lacks (it may come from an older ingot) is taken from the
+built-in set, with a warning naming the template and the directory.
 Contract mode and ``--table-types`` do not search: they use the built-in templates
 (``--table-types`` also accepts ``--templates``).
 ``--table-types`` writes ``dmt_types.h`` and ``dsh_types.h``, the table-interface headers, which do

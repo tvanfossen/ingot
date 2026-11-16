@@ -69,7 +69,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   still searches next to the executable, the FHS share directory, the
   working directory and `/usr/share/ingot/templates` first; the built-in
   templates are used only when no `templates/` directory is found, where
-  ingot used to stop with an error. Packages still install `templates/`.
+  ingot used to stop with an error, and a template the found directory
+  lacks (an older ingot's `templates/`) is taken from the built-in set with
+  a warning. Packages still install `templates/`.
   Contract mode and `--table-types` always use the built-in templates.
 
 ### Removed

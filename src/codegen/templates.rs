@@ -145,24 +145,51 @@ pub fn load(dir: Option<&Path>) -> Result<Tera, Box<dyn std::error::Error>> {
     }
 }
 
-/// Load the model-mode templates: `dir` when given, else the first template directory on
-/// upstream ingot's search path, else the embedded set.
+/// Load the model-mode templates: `dir` when given (the whole set), else the first template
+/// directory on upstream ingot's search path with every template it lacks taken from the
+/// embedded set, else the embedded set.
 ///
-/// @version 1
+/// v2: a searched directory is completed from the embedded set.
+/// @version 2
 /// @req REQ-ING-CLI-002
 /// @return the loaded templates, or the error of an explicit directory that does not exist
 pub fn load_searching(dir: Option<&Path>) -> Result<Tera, Box<dyn std::error::Error>> {
+    if let Some(dir) = dir {
+        log::info!("Templates: {}", dir.display());
+        return from_dir(dir);
+    }
     let exe = std::env::current_exe().ok();
     let exe_dir = exe.as_deref().and_then(Path::parent);
     let cwd = std::env::current_dir().ok();
-    let found = dir
-        .map(Path::to_path_buf)
-        .or_else(|| first_dir(&search_dirs(exe_dir, cwd.as_deref())));
-    match &found {
-        Some(d) => log::info!("Templates: {}", d.display()),
-        None => log::info!("Templates: built in (no template directory on the search path)"),
+    match first_dir(&search_dirs(exe_dir, cwd.as_deref())) {
+        Some(found) => {
+            log::info!("Templates: {}", found.display());
+            completed(from_dir(&found)?, &found)
+        }
+        None => {
+            log::info!("Templates: built in (no template directory on the search path)");
+            embedded()
+        }
     }
-    load(found.as_deref())
+}
+
+/// `tera`, loaded from the searched directory `dir`, with each embedded template it lacks
+/// added from the embedded set and named in a warning.
+///
+/// @version 1
+/// @req REQ-ING-CLI-002
+/// @return the completed templates, or the error of an embedded template that fails to parse
+fn completed(mut tera: Tera, dir: &Path) -> Result<Tera, Box<dyn std::error::Error>> {
+    let present: std::collections::HashSet<String> =
+        tera.get_template_names().map(str::to_string).collect();
+    for (name, source) in EMBEDDED.iter().filter(|(n, _)| !present.contains(*n)) {
+        log::warn!(
+            "Template {name} is not in {}; using the built-in copy",
+            dir.display()
+        );
+        tera.add_raw_template(name, source)?;
+    }
+    Ok(tera)
 }
 
 /// The template directories upstream ingot searched without `--templates`, in its order:
@@ -283,5 +310,30 @@ mod tests {
         let picked = first_dir(&[missing.clone(), b.path().into(), a.path().into()]);
         assert_eq!(picked.as_deref(), Some(b.path()));
         assert_eq!(first_dir(&[missing]), None);
+    }
+
+    /// @brief A searched directory holding `only.h` and its own `dm.h`, completed.
+    /// @version 1
+    fn completed_dir() -> Tera {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("only.h"), "x").unwrap();
+        std::fs::write(tmp.path().join("dm.h"), "from the directory").unwrap();
+        completed(from_dir(tmp.path()).unwrap(), tmp.path()).unwrap()
+    }
+
+    #[test]
+    fn a_searched_directory_is_completed_from_the_embedded_set() {
+        let tera = completed_dir();
+        let names: BTreeSet<&str> = tera.get_template_names().collect();
+        assert_eq!(names.len(), EMBEDDED.len() + 1);
+        assert!(names.contains("only.h") && names.contains("dmt_types.h"));
+    }
+
+    #[test]
+    fn a_template_the_directory_has_wins_over_the_embedded_copy() {
+        let dm_h = completed_dir()
+            .render("dm.h", &tera::Context::new())
+            .unwrap();
+        assert_eq!(dm_h, "from the directory");
     }
 }

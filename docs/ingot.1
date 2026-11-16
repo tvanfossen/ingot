@@ -329,8 +329,9 @@ in the current working directory, or in
 .IR /usr/share/ingot/templates ,
 and the templates built into
 .B ingot
-when there is none. Contract mode and \fB\-\-table\-types\fR use the built-in
-templates.
+when there is none. A template the found directory lacks is taken from the
+built-in set, with a warning. Contract mode and \fB\-\-table\-types\fR use the
+built-in templates.
 .SH SEE ALSO
 The full user guide is available at
 .I docs/user\-guide.md

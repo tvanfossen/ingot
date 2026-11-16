@@ -140,6 +140,34 @@ fn model_mode_uses_templates_in_the_working_directory() {
     assert_eq!(header.trim_end(), MARKER);
 }
 
+/// A stale `templates/` in the working directory, without a template this ingot added, still
+/// generates it from the built-in copy and names the template and the directory in a warning.
+#[test]
+fn a_stale_searched_directory_falls_back_per_template() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    marked_templates_in(tmp.path());
+    fs::remove_file(tmp.path().join("templates/dm_key_event_list.hpp")).unwrap();
+    let out = tmp.path().join("generated");
+    let stderr = tinyfsm_full_from(tmp.path(), &out);
+    let list = fs::read_to_string(out.join("dm_key_event_list.hpp")).unwrap();
+    assert!(list.contains("dm_event_list"), "{list}");
+    let dir = tmp.path().join("templates");
+    let named = format!("dm_key_event_list.hpp is not in {}", dir.display());
+    assert!(stderr.contains(&named), "{stderr}");
+}
+
+/// @brief Generate examples/full.toml with --emit-tinyfsm from `cwd` into `out`, asserting
+/// success.
+/// @version 1
+/// @return ingot's stderr
+fn tinyfsm_full_from(cwd: &std::path::Path, out: &std::path::Path) -> String {
+    let model = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/full.toml");
+    let (m, o) = (model.to_str().unwrap(), out.to_str().unwrap());
+    let result = run_ingot_from(cwd, &["--model", m, "--output", o, "--emit-tinyfsm"]);
+    assert!(result.status.success(), "{result:?}");
+    String::from_utf8_lossy(&result.stderr).into_owned()
+}
+
 /// Contract mode and --table-types never search: a `templates/` in the working directory
 /// leaves their output the built-in templates'.
 #[test]
