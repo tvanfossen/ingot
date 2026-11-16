@@ -31,12 +31,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `BatteryLevel`), reused across every key that references it. Keys with
   `enum = "..."` get enum-typed accessor methods (`from_raw`/`to_raw`
   convert to/from the underlying storage type) instead of the raw integer.
-- `--emit-tinyfsm`: `dm_key_has_event.hpp` declares `dm_key_has_event(key)`,
-  true for exactly the keys that have an `FSM_EVENT_` struct. A value-change
-  callback can call it before enqueueing, so keys declared `event = false`
-  stop taking dispatch-queue slots. Generated from the same key list as the
-  event structs and `send_tinyfsm_event_by_key()`, and skipped with them
-  when the model has no event keys.
 - `--emit-tinyfsm`: `dm_key_event_list.hpp` declares
   `dm_event_list<KE, L>`, every event key paired with its `FSM_EVENT_`
   struct as `L<KE<DM_KEY_X, FSM_EVENT_X>, ...>` in model order, plus
@@ -61,9 +55,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   1.0, 1.1 and 2.0. In each, one principal writes a durable key, deferred
   keys at two intervals and volatile keys, so one batch can mix
   persistence classes, and the in-process principal writes a key and
-  submits a command.
+  submits a command. `docs/contract-mode.rst` is the reference.
+- Contract mode, model features: declared variants with per-variant enum
+  values and wire strings, per-variant key presence; units, ranges,
+  discrete sets, sentinel defaults and scale; error groups (one bool key
+  per error, composed into a group word); command outcome enums, a
+  per-command write-rate burst (`rate_burst`, default
+  `[bounds] default_rate_burst`; a burst of 0 is refused); a fixed header
+  before a struct key's payload.
+- Contract mode, outputs: `dmt_constants.h` (enum value constants, command
+  outcomes, struct value header layouts and inline encode/decode); the
+  keyspace declaration for tooling (`keyspace.json`,
+  `keyspace.<variant>.json` with `.json.gz` and `.head.json`, and
+  `keyspace.schema.json`, schema_version 1.0).
+- Contract mode, shadow mapping: keys, enums and rows mapped to a
+  JSON shadow document (paths, forms, scopes, `report_as`, apply groups,
+  echo-only and constant rows, rejected-settings list), topics with
+  envelopes and per-message or declared placeholders (optionally naming an
+  enum), and command rows that enumerate every command. `dsh_types.h`
+  (shadow table interface 1.10) and `dsh_tables.h/.c` hold the binder,
+  reporter, command-router, error-group and topic tables and the bounds a
+  consumer sizes its buffers with; `--shadow-buffer <BYTES>` warns when the
+  full document can exceed a composer buffer. Within a major the mapping
+  only grows.
+- Contract mode, SDKs: `--sdk-binding <DIR>` renders a per-principal SDK
+  through consumer-supplied templates (typed accessors, command submits,
+  struct value headers and one event view per readable struct key).
 
 ### Changed
+- `ingot --version` also prints the commit the binary was built from.
 - Templates are also compiled into the binary. `--templates` /
   `INGOT_TEMPLATES_DIR` still replaces them with a directory, and model mode
   still searches next to the executable, the FHS share directory, the
@@ -73,18 +93,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   lacks (an older ingot's `templates/`) is taken from the built-in set with
   a warning. Packages still install `templates/`.
   Contract mode and `--table-types` always use the built-in templates.
-
-### Removed
-- The `rand` dependency and the unused entropy-seeded perfect-hash
-  generator; code generation only uses seeds derived from the key set.
-
-### Changed
 - The example variant names in `examples/battery.toml` and the CLI
   documentation are now `variant_a`, `variant_b_v2` and `variant_c`. Pass
   those names to `--variant` when generating from the example.
 - `LICENSE` names BISSELL Homecare, Inc. as the copyright holder.
 
+### Removed
+- The `rand` dependency and the unused entropy-seeded perfect-hash
+  generator; code generation only uses seeds derived from the key set.
+
 ### Fixed
+- `--include-list`, `--exclude-list` and `--persistent-keys` entries given
+  as a hex key ID now match their key.
 - C targets: `DataModel_LoadPersistentKeys()` no longer reads past a string
   field when the persisted file holds that field with no NUL terminator, as a
   corrupt or hand-made image can. The loader now terminates each string field
