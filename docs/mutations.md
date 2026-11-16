@@ -1487,3 +1487,17 @@ extracted (knots ABC), with the same result.
 | TSF3 | src/main.rs | `&codegen::templates::load(None)?,` | `&codegen::templates::load_searching(None)?,` | contract mode never searches | KILLED | contract_mode_and_table_types_ignore_the_search_path |
 | TSF4 | src/main.rs | `write_table_types(&codegen::templates::load(explicit)?` | `write_table_types(&codegen::templates::load_searching(explicit)?` | --table-types never searches | KILLED | contract_mode_and_table_types_ignore_the_search_path |
 | TSF5 | src/codegen/templates.rs | `dirs.push(cwd.join("templates"));` | `let _ = cwd;` | the working directory is on the search path, in upstream's place | KILLED | model_mode_uses_templates_in_the_working_directory search_dirs_follow_upstream_order |
+
+## A template a searched directory lacks comes from the built-in set (REQ-ING-CLI-002)
+
+Same procedure; the test commands are `--test template_resolution` and `--bins templates`. TPF1
+is the behaviour before the change (a searched directory was the whole set) and so is the observed
+red of the stale-directory test. TPF1-TPF3 were rerun after the tests' helpers were extracted
+(knots ABC), with the same result.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| TPF1 | src/codegen/templates.rs | `completed(from_dir(&found)?, &found)` | `from_dir(&found)` | a searched directory is completed from the built-in set (not completed: the pre-change behaviour) | KILLED | a_stale_searched_directory_falls_back_per_template |
+| TPF2 | src/codegen/templates.rs | `.filter(\|(n, _)\| !present.contains(*n))` | `.filter(\|(n, _)\| !present.contains(*n) \|\| true)` | only missing templates are added; the directory's own win | KILLED | model_mode_uses_templates_in_the_working_directory a_template_the_directory_has_wins_over_the_embedded_copy |
+| TPF3 | src/codegen/templates.rs | `log::warn!(\n            "Template {name}` | `log::debug!(\n            "Template {name}` | each fallback is warned about | KILLED | a_stale_searched_directory_falls_back_per_template |
+| TPF4 | src/codegen/templates.rs | `dir.display()\n        );` | `"?"\n        );` | the warning names the directory | KILLED | a_stale_searched_directory_falls_back_per_template |
