@@ -1501,3 +1501,19 @@ red of the stale-directory test. TPF1-TPF3 were rerun after the tests' helpers w
 | TPF2 | src/codegen/templates.rs | `.filter(\|(n, _)\| !present.contains(*n))` | `.filter(\|(n, _)\| !present.contains(*n) \|\| true)` | only missing templates are added; the directory's own win | KILLED | model_mode_uses_templates_in_the_working_directory a_template_the_directory_has_wins_over_the_embedded_copy |
 | TPF3 | src/codegen/templates.rs | `log::warn!(\n            "Template {name}` | `log::debug!(\n            "Template {name}` | each fallback is warned about | KILLED | a_stale_searched_directory_falls_back_per_template |
 | TPF4 | src/codegen/templates.rs | `dir.display()\n        );` | `"?"\n        );` | the warning names the directory | KILLED | a_stale_searched_directory_falls_back_per_template |
+
+## The search order, with the template tests on a copy of the binary (REQ-ING-CLI-002)
+
+Same procedure; the test commands are `--test template_resolution` and `--bins templates`. The
+observed red is the CI failure itself: at 7d1ed28, with the default target directory inside the
+checkout, `model_mode_uses_templates_in_the_working_directory` and
+`a_stale_searched_directory_falls_back_per_template` failed because `<exe>/../../templates` (the
+checkout's own `templates/`) comes first; reproduced locally with `cargo test --test
+template_resolution` in the checkout (exit 101). The tests now run a copy of the binary in a
+fresh tree and pass with either target directory.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| HTO1 | src/codegen/templates.rs | `let mut dirs = Vec::new();\n    if let Some(exe_dir) = exe_dir {` | `let mut dirs = Vec::new();\n    if let Some(cwd) = cwd {\n        dirs.push(cwd.join("templates"));\n    }\n    if let Some(exe_dir) = exe_dir {` | the executable-relative directories come before the working directory | KILLED | templates_beside_the_executable_come_before_the_working_directory a_build_tree_root_comes_before_the_working_directory search_dirs_follow_upstream_order |
+| HTO2 | src/codegen/templates.rs | `dirs.push(root.join("templates"));` | `let _ = root;` | `<exe>/../../templates` is searched | KILLED | a_build_tree_root_comes_before_the_working_directory search_dirs_follow_upstream_order |
+| HTO3 | src/codegen/templates.rs | `dirs.push(exe_dir.join("templates"));` | `let _ = 0;` | `<exe>/templates` is searched | KILLED | templates_beside_the_executable_come_before_the_working_directory search_dirs_follow_upstream_order |
