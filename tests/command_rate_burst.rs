@@ -1,6 +1,7 @@
 //! Command write-rate burst: `rate_burst` on a command type sets the token-bucket burst of its
 //! command, result and dedupe keys; a burst without a write rate is refused on a command and on
-//! a key; a minor may change a released command's burst (a rate-table change only).
+//! a key, and so is a declared burst of 0 (it would switch the rate limit off); a minor may
+//! change a released command's burst (a rate-table change only).
 
 mod common;
 
@@ -98,6 +99,65 @@ fn a_burst_without_a_rate_on_another_variant_refuses_this_one() {
         stderr.contains("variant sku_b: drive.state.error_dock_jam: rate_burst needs a write_rate"),
         "{stderr}"
     );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// The refusal a declared burst of 0 gives, after the declaration's path.
+const ZERO_BURST: &str = "rate_burst must be at least 1 (0 switches the write-rate limit off; \
+                          omit write_rate for no limit)";
+
+#[test]
+fn a_zero_burst_is_refused_once_per_declaration() {
+    let dir = unique_dir("burst_zero");
+    let velocity = "rate_burst = 20\n\n[[classes.keys]]\nid = \"odometer\"";
+    let cases = [
+        (
+            "command",
+            MAP_EDIT_BURST,
+            "\nrate_burst = 0 ".to_string(),
+            "drive.command.map_edit:",
+        ),
+        (
+            "key",
+            velocity,
+            velocity.replace("20", "0"),
+            "drive.state.velocity:",
+        ),
+    ];
+    for (tag, from, to, path) in cases {
+        let edits = [("ns/drive.toml", from, to.as_str())];
+        let (ok, stderr) = generate_edited(&dir.join(tag), &edits, "sku_a");
+        let refusal = format!("variant sku_a: {path} {ZERO_BURST}");
+        assert!(!ok && stderr.contains(&refusal), "{tag}: {stderr}");
+        let lines = stderr.lines().filter(|l| l.contains(&refusal)).count();
+        assert_eq!(lines, 1, "{tag}: once per variant, not per key:\n{stderr}");
+        assert!(!dir.join(tag).join("gen/dmt_tables.c").exists(), "{tag}");
+    }
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_zero_burst_on_another_variant_refuses_this_one() {
+    let dir = unique_dir("burst_zero_variant");
+    let from = "id = \"error_dock_jam\"\n";
+    let to = format!("{from}write_rate = \"1/h\"\nrate_burst = 0\n");
+    let (ok, stderr) = generate_edited(&dir, &[("ns/drive.toml", from, &to)], "sku_a");
+    assert!(!ok, "a sku_b refusal refuses the sku_a run");
+    let refusal = format!("variant sku_b: drive.state.error_dock_jam: {ZERO_BURST}");
+    assert!(stderr.contains(&refusal), "{stderr}");
+    assert!(!dir.join("gen/dmt_tables.c").exists());
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_burst_of_one_is_the_least_accepted() {
+    let dir = unique_dir("burst_one");
+    let edits = [("ns/drive.toml", MAP_EDIT_BURST, "\nrate_burst = 1 ")];
+    let (ok, stderr) = generate_edited(&dir, &edits, "sku_a");
+    assert!(ok, "{stderr}");
+    for path in MAP_EDIT_KEYS {
+        assert_eq!(rate(&dir.join("gen"), path), (1440, 1), "{path}");
+    }
     let _ = fs::remove_dir_all(&dir);
 }
 

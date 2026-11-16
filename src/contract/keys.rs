@@ -467,10 +467,12 @@ fn rate_key(
 }
 
 /// The writes per day and token-bucket burst of the declaration at `path`: (0, 0) without a
-/// write rate, the declared burst or else `default` with one. A burst without a rate, and a
-/// malformed rate, are recorded against `path` and give (0, 0).
+/// write rate, the declared burst or else `default` with one. A burst without a rate, a declared
+/// burst of 0 (it would switch the store's rate limit off), and a malformed rate are recorded
+/// against `path` and give (0, 0).
 ///
-/// @version 1
+/// v2: a declared burst of 0 is refused.
+/// @version 2
 /// @req REQ-ING-TIV-007
 /// @req REQ-ING-TIV-019
 fn rate_of(
@@ -481,6 +483,13 @@ fn rate_of(
     errors: &mut Errors,
 ) -> (u32, u32) {
     match (rate.map(parse_rate), burst) {
+        (Some(Ok(_)), Some(0)) => {
+            errors.push(format!(
+                "{path}: rate_burst must be at least 1 (0 switches the write-rate limit off; \
+                 omit write_rate for no limit)"
+            ));
+            (0, 0)
+        }
         (Some(Ok(per_day)), _) => (per_day, burst.unwrap_or(default)),
         (Some(Err(e)), _) => {
             errors.push(format!("{path}: {e}"));

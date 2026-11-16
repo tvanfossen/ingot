@@ -40,7 +40,8 @@ A key's ID encodes its namespace, class, index and type. A class has a role (``s
 ``wk`` (a well-known role), ``doc``, ``variants`` (the variants it exists on), and an ``error``
 bit. A ``write_rate`` (``"<n>/s|min|h|day"``) becomes ``rate_per_day`` and a token-bucket
 ``rate_burst``: the declared one, else ``[bounds] default_rate_burst``; a ``rate_burst`` without a
-``write_rate`` is refused. A command type (``[[classes.commands]]``) creates its command, result
+``write_rate`` is refused, and so is a declared ``rate_burst`` of 0, which would switch the
+store's rate limit off (a key or command that wants no limit omits ``write_rate``). A command type (``[[classes.commands]]``) creates its command, result
 and dedupe keys with its owner, payload kind and sizes; ``internal`` says why it is never
 requested on the wire. Its ``write_rate`` and ``rate_burst`` apply to all three keys alike (each
 row of ``dmt_keys`` and each key of ``contract.json`` carries them), under the same rules:
@@ -327,7 +328,7 @@ Every rule above has a refusal, grouped as follows:
   negative code or a code longer than its ``max_len``, and an ``enum`` on a placeholder; an
   enum, outcome or topic var enum constant that is not a C identifier, longer than 63
   characters, or named twice; a write rate that is not ``"<n>/s|min|h|day"`` within u32 per day,
-  and a ``rate_burst`` (on a key or a command type) without a ``write_rate``.
+  and a ``rate_burst`` (on a key or a command type) without a ``write_rate`` or of 0.
 * **Struct value headers:** a header on a key that is not a struct, an empty header, a field type
   other than bool and the 8-, 16- and 32-bit integers, a field name that is not a C identifier or
   is repeated, a header of ``max_size`` bytes or more, and a generated name longer than 63
