@@ -1440,3 +1440,19 @@ the freeze that the Versions rule leaves out, and the minor test kills it.
 | RB07 | src/contract/previous.rs | `&& old.command == new.command\n` | `&& old.command == new.command\n        && old.rate_burst == new.rate_burst\n` | a minor may change a released key's burst (rates are not frozen) | KILLED | a_minor_may_change_a_released_command_s_rate_and_burst |
 | RBC1 | src/contract/keys.rs | `def.rate_burst,\n        ctx.default_burst,\n        errors,\n    );\n    command_parts(def)` | `None,\n        ctx.default_burst,\n        errors,\n    );\n    command_parts(def)` | the C value check reads a command's declared burst | KILLED | generic_model_versions_and_previous_checks |
 | RBC2 | src/contract/keys.rs | `(key.rate_per_day, key.rate_burst) = rate;` | `(key.rate_per_day, key.rate_burst) = if part == CmdPart::Command { rate } else { (rate.0, ctx.default_burst) };` | the C value check reads the burst on the result and dedupe keys | KILLED | generic_model_versions_and_previous_checks |
+
+## A declared burst of 0 is refused (REQ-ING-TIV-019)
+
+Same procedure, on a fresh copy with a fresh target directory; the test command is `--test
+command_rate_burst`. RBZ1 removes the refusal, which is the behaviour before the change, and so
+is the observed red of both refusal tests. RBZ4 and RBZ5 turn a declared 0 into "not declared"
+before the check, one for a command and one for a key, so each declaration path is shown to reach
+it.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| RBZ1 | src/contract/keys.rs | `(Some(Ok(_)), Some(0)) => {` | `(Some(Ok(_)), Some(u32::MAX)) => {` | a declared burst of 0 is refused (the refusal arm removed: the pre-change behaviour) | KILLED | a_zero_burst_is_refused_once_per_declaration a_zero_burst_on_another_variant_refuses_this_one |
+| RBZ2 | src/contract/keys.rs | `(Some(Ok(_)), Some(0)) => {` | `(Some(Ok(_)), Some(0 \| 1)) => {` | a burst of 1 is accepted (the boundary) | KILLED | a_burst_of_one_is_the_least_accepted |
+| RBZ3 | src/contract/keys.rs | `"{path}: rate_burst must be at least 1` | `"rate_burst must be at least 1` | the refusal names the declaration's path | KILLED | a_zero_burst_is_refused_once_per_declaration a_zero_burst_on_another_variant_refuses_this_one |
+| RBZ4 | src/contract/keys.rs | `def.rate_burst,\n        ctx.default_burst,\n        errors,\n    );\n    command_parts(def)` | `def.rate_burst.filter(\|b\| *b != 0),\n        ctx.default_burst,\n        errors,\n    );\n    command_parts(def)` | a command's burst of 0 reaches the check (not replaced by the default) | KILLED | a_zero_burst_is_refused_once_per_declaration |
+| RBZ5 | src/contract/keys.rs | `(key.rate_per_day, key.rate_burst) = rate_of(&key.path, rate, burst, default, errors);` | `(key.rate_per_day, key.rate_burst) = rate_of(&key.path, rate, burst.filter(\|b\| *b != 0), default, errors);` | a key's burst of 0 reaches the check (not replaced by the default) | KILLED | a_zero_burst_is_refused_once_per_declaration a_zero_burst_on_another_variant_refuses_this_one |
