@@ -38,8 +38,21 @@ A key's ID encodes its namespace, class, index and type. A class has a role (``s
 ``rate_burst``, ``persistence``, ``deferred_ms``, ``secret`` with its ``readers``,
 ``survives_reset``, ``alias_of``, ``default`` (``defaults`` per variant), ``enum``, ``max_size``,
 ``wk`` (a well-known role), ``doc``, ``variants`` (the variants it exists on), and an ``error``
-bit. A command type (``[[classes.commands]]``) creates its command, result and dedupe keys with
-its owner, payload kind and sizes; ``internal`` says why it is never requested on the wire.
+bit. A ``write_rate`` (``"<n>/s|min|h|day"``) becomes ``rate_per_day`` and a token-bucket
+``rate_burst``: the declared one, else ``[bounds] default_rate_burst``; a ``rate_burst`` without a
+``write_rate`` is refused. A command type (``[[classes.commands]]``) creates its command, result
+and dedupe keys with its owner, payload kind and sizes; ``internal`` says why it is never
+requested on the wire. Its ``write_rate`` and ``rate_burst`` apply to all three keys alike (each
+row of ``dmt_keys`` and each key of ``contract.json`` carries them), under the same rules:
+
+.. code-block:: toml
+
+   [[classes.commands]]
+   id = "map_edit"
+   # ... indices, owner, sizes ...
+   write_rate = "1/min"   # rate_per_day 1440 on map_edit, map_edit_result and map_edit_dedupe
+   rate_burst = 8         # rate_burst 8 on all three; absent: the default burst
+
 ``outcome = "<enum>"`` names an enum of the command's namespace whose values are the codes its
 result's outcome field carries (``DMT_RESULT_HEADER_BYTES``: epoch, sequence, outcome); it changes
 no table, only ``dmt_constants.h`` and ``contract.json``:
@@ -295,6 +308,10 @@ name them for the first time), error bits stay, and the shadow mapping only grow
 entries and wire attributes, its paths and accept aliases may be added to, and every echo,
 constant, topic, command and payload row stays as it was. A topic var may name an enum for the
 first time in a minor; one it named stays named, with every name and code of that enum kept. A major reserves the IDs of removed keys.
+Write rates and bursts are not frozen: a minor may change the ``write_rate`` or ``rate_burst`` of
+a released key or command. That is a rate-table change (``rate_per_day`` and ``rate_burst`` in
+``dmt_keys`` and ``contract.json``): no KSET digest and no release-review line depends on either;
+the keyspace files carry the rate (so a rate change moves their body hash) but not the burst.
 ``--previous-contract`` checks all of this against the previous release's ``contract.json``.
 
 Refusals
@@ -309,7 +326,8 @@ Every rule above has a refusal, grouped as follows:
   no enum of its namespace; a topic var ``enum`` naming no ``<namespace>::<enum>``, with a
   negative code or a code longer than its ``max_len``, and an ``enum`` on a placeholder; an
   enum, outcome or topic var enum constant that is not a C identifier, longer than 63
-  characters, or named twice.
+  characters, or named twice; a write rate that is not ``"<n>/s|min|h|day"`` within u32 per day,
+  and a ``rate_burst`` (on a key or a command type) without a ``write_rate``.
 * **Struct value headers:** a header on a key that is not a struct, an empty header, a field type
   other than bool and the 8-, 16- and 32-bit integers, a field name that is not a C identifier or
   is repeated, a header of ``max_size`` bytes or more, and a generated name longer than 63

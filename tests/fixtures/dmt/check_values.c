@@ -10,6 +10,14 @@
 
 static int bad;
 
+/* drive.command.map_edit's burst on its command, result and dedupe keys: the default at 1.0,
+ * its declared rate_burst from 1.1 on. */
+#if DMT_CONTRACT_MAJOR == 1 && DMT_CONTRACT_MINOR == 0
+#define MAP_EDIT_BURST 4u
+#else
+#define MAP_EDIT_BURST 8u
+#endif
+
 #define EXPECT(cond) do { if (!(cond)) { bad++; } } while (0)
 
 /**
@@ -104,7 +112,8 @@ static void command(size_t c, const uint32_t keys[3], uint32_t payload, uint32_t
  *              drive command and its argument keys.
  *          v4: a sub-consumer's, the in-process and the UART principal's names.
  *          v5: drive.map.map_data moved to versioned (2.0 raises its max_size).
- * @version 5
+ *          v6: drive.command.map_edit's keys at MAP_EDIT_BURST.
+ * @version 6
  */
 static void common(void)
 {
@@ -138,9 +147,9 @@ static void common(void)
     key(0x00440348u, 126u, 0u, 0u, 0u, 0x0010u, 0u, DMT_T_BINARY, DMT_P_NONE, DMT_R_COMMAND, 0x07u);
     key(0x00800040u, 64u, 1u, 4u, 0u, 0x0082u, 0u, DMT_T_STRING, DMT_P_DURABLE, DMT_R_CONFIG, 0x07u);
     key(0x00C20098u, 4u, 86400u, 4u, 5000u, 0x0000u, 0u, DMT_T_U32, DMT_P_DEFERRED, DMT_R_STATE, 0x07u);
-    key(0x00C60050u, 32776u, 1440u, 4u, 0u, 0x0010u, 0u, DMT_T_STRUCT, DMT_P_DURABLE, DMT_R_COMMAND, 0x01u);
-    key(0x00C600C8u, 268u, 1440u, 4u, 0u, 0x0020u, 0u, DMT_T_BINARY, DMT_P_DURABLE, DMT_R_COMMAND, 0x07u);
-    key(0x00C60148u, 512u, 1440u, 4u, 0u, 0x0040u, 0u, DMT_T_BINARY, DMT_P_DURABLE, DMT_R_COMMAND, 0x07u);
+    key(0x00C60050u, 32776u, 1440u, MAP_EDIT_BURST, 0u, 0x0010u, 0u, DMT_T_STRUCT, DMT_P_DURABLE, DMT_R_COMMAND, 0x01u);
+    key(0x00C600C8u, 268u, 1440u, MAP_EDIT_BURST, 0u, 0x0020u, 0u, DMT_T_BINARY, DMT_P_DURABLE, DMT_R_COMMAND, 0x07u);
+    key(0x00C60148u, 512u, 1440u, MAP_EDIT_BURST, 0u, 0x0040u, 0u, DMT_T_BINARY, DMT_P_DURABLE, DMT_R_COMMAND, 0x07u);
     key(0x01000040u, 64u, 1u, 4u, 0u, 0x0001u, 0u, DMT_T_STRING, DMT_P_DURABLE, DMT_R_CONFIG, 0x03u);
     key(0x00C00088u, 1u, 1440u, 4u, 0u, 0x0008u, 0u, DMT_T_U8, DMT_P_DURABLE, DMT_R_SETTINGS, 0x07u);
     value(0x008000C0u, serial, sizeof serial, 0u);

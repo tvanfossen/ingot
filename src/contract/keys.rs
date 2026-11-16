@@ -336,10 +336,19 @@ fn command_parts(def: &CommandDef) -> [CommandPart; 3] {
 
 /// The three keys of one command type.
 ///
-/// @version 1
+/// v2: the command's write rate and burst, resolved once, on all three keys.
+/// @version 2
 /// @req REQ-ING-TIV-005
+/// @req REQ-ING-TIV-019
 pub fn command_keys(ctx: &ClassCtx, def: &CommandDef, errors: &mut Errors) -> [Key; 3] {
     let introduced = version(ctx, &def.introduced_in, errors);
+    let rate = rate_of(
+        &ctx.path(&def.id),
+        def.write_rate.as_deref(),
+        def.rate_burst,
+        ctx.default_burst,
+        errors,
+    );
     command_parts(def).map(|(name, index, ty, part, size)| {
         check_index(ctx, &name, index, errors);
         let mut key = ctx.base(&name, index, ty, introduced);
@@ -347,13 +356,7 @@ pub fn command_keys(ctx: &ClassCtx, def: &CommandDef, errors: &mut Errors) -> [K
         key.persist = def.persistence;
         key.command = Some((ctx.path(&def.id), part));
         key.doc.clone_from(&def.doc);
-        rate_key(
-            &mut key,
-            def.write_rate.as_deref(),
-            None,
-            ctx.default_burst,
-            errors,
-        );
+        (key.rate_per_day, key.rate_burst) = rate;
         if part == CmdPart::Command {
             key.wk = def
                 .wk
@@ -447,10 +450,12 @@ fn layout_key(key: &mut Key, def: &KeyDef, errors: &mut Errors) {
     key.header = header::resolve(key, def.header.as_deref(), errors);
 }
 
-/// Apply a declared write rate and its burst.
+/// Apply a declared key's write rate and its burst.
 ///
-/// @version 1
+/// v2: the rate and burst from rate_of (a burst without a rate is refused).
+/// @version 2
 /// @req REQ-ING-TIV-007
+/// @req REQ-ING-TIV-019
 fn rate_key(
     key: &mut Key,
     rate: Option<&str>,
@@ -458,14 +463,34 @@ fn rate_key(
     default: u32,
     errors: &mut Errors,
 ) {
-    if let Some(rate) = rate {
-        match parse_rate(rate) {
-            Ok(per_day) => {
-                key.rate_per_day = per_day;
-                key.rate_burst = burst.unwrap_or(default);
-            }
-            Err(e) => errors.push(format!("{}: {e}", key.path)),
+    (key.rate_per_day, key.rate_burst) = rate_of(&key.path, rate, burst, default, errors);
+}
+
+/// The writes per day and token-bucket burst of the declaration at `path`: (0, 0) without a
+/// write rate, the declared burst or else `default` with one. A burst without a rate, and a
+/// malformed rate, are recorded against `path` and give (0, 0).
+///
+/// @version 1
+/// @req REQ-ING-TIV-007
+/// @req REQ-ING-TIV-019
+fn rate_of(
+    path: &str,
+    rate: Option<&str>,
+    burst: Option<u32>,
+    default: u32,
+    errors: &mut Errors,
+) -> (u32, u32) {
+    match (rate.map(parse_rate), burst) {
+        (Some(Ok(per_day)), _) => (per_day, burst.unwrap_or(default)),
+        (Some(Err(e)), _) => {
+            errors.push(format!("{path}: {e}"));
+            (0, 0)
         }
+        (None, Some(_)) => {
+            errors.push(format!("{path}: rate_burst needs a write_rate"));
+            (0, 0)
+        }
+        (None, None) => (0, 0),
     }
 }
 

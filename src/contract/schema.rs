@@ -411,6 +411,8 @@ pub struct CommandDef {
     pub max_edits: u16,
     pub dedupe_ring: u16,
     pub write_rate: Option<String>,
+    /// The token-bucket burst of all three keys; needs `write_rate`; absent: the default burst.
+    pub rate_burst: Option<u32>,
     pub wk: Option<String>,
     pub doc: Option<String>,
     /// Not on the wire, with the reason (a model mapping commands enumerates every other one).

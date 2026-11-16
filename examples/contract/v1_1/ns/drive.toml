@@ -249,6 +249,7 @@ result_max = 256
 max_edits = 32
 dedupe_ring = 8
 write_rate = "1/min"
+rate_burst = 8                          # all three keys; 1.0 had the default burst (a rate change only)
 
 [[classes.commands]]
 id = "drive"
