@@ -16,16 +16,23 @@ requirements:
       A valid model generates and exits 0; an invalid model logs each validation error and exits 1;
       --include-list with --exclude-list is refused.
   REQ-ING-CLI-002:
-    name: Embedded templates
+    name: Embedded templates and the template search path
     subsystem: CLI
     description: >-
-      Every template is compiled into the binary, so the ingot commit alone determines the
-      output (table-interface R-T5). --templates or INGOT_TEMPLATES_DIR replaces them with a
-      directory for template development; a directory that does not exist is an error.
+      Every template is compiled into the binary. --templates or INGOT_TEMPLATES_DIR replaces
+      them with a directory (the whole set); a directory that does not exist is an error. In
+      model mode without either, the template directories upstream ingot searched are still
+      used, in its order (templates/ next to the executable, <exe>/../share/ingot/templates,
+      <exe>/../../templates, templates/ in the working directory, /usr/share/ingot/templates),
+      and the embedded templates are the fallback when none exists, so an installed or local
+      templates/ keeps working. Contract mode (table-interface R-T5) and --table-types never
+      search: they use the embedded templates (--table-types also accepts --templates).
     acceptance_criteria: >-
-      Generation works from a directory with no templates/; every file in templates/ is
-      embedded; an explicit missing path is a clear error; an explicit or environment path is
-      used instead of the embedded set.
+      Generation works from a directory with no templates/ anywhere on the search path; every
+      file in templates/ is embedded; an explicit missing path is a clear error; an explicit
+      or environment path is used instead of the embedded set; in model mode a templates/
+      directory in the working directory is used before the embedded set, and contract mode
+      ignores it.
   REQ-ING-TIV-001:
     name: Fixed table-interface header
     subsystem: Table interface
