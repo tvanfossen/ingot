@@ -567,8 +567,10 @@ requirements:
       [bounds] default_rate_burst. A `rate_burst` without a `write_rate` is refused, on a command
       type and on a key alike, once per declaration. Write rates and bursts are not frozen within
       a major: against --previous-contract a minor may change the write_rate or rate_burst of a
-      released key or command, a rate-table change only (no KSET digest, keyspace file or
-      release-review line depends on it). A command without `rate_burst` generates as before.
+      released key or command, a rate-table change only: no KSET digest or release-review line
+      depends on either, and the keyspace files carry the rate but not the burst (a burst change
+      moves only the rate_burst column, contract.json and the model hash). A command without
+      `rate_burst` generates as before.
     acceptance_criteria: >-
       The generic model's map_edit command declares a burst from 1.1 on, the C value check reads
       it on all three of its keys, and 1.1 generates against 1.0's contract with 1.0's digests;
