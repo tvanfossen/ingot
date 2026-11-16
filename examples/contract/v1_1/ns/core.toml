@@ -116,7 +116,7 @@ wk = "TRACE_ENABLE"
 doc = "Signed trace-enable envelope; the core verifies it."
 internal = "a signed envelope a diagnostic tool delivers, not a shadow request"
 
-# -- shadow wire mapping (G2 1.4): the request origin enum and the core's command rows -------
+# -- shadow wire mapping: the request origin enum and the core's command rows -------
 [enums.origin.values]                    # the envelope source; absent is unspecified
 unspecified = 0
 unknown = 1

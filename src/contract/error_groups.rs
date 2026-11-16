@@ -1,4 +1,4 @@
-//! Error groups (R24, G2 1.5): one bool STATE key per error, composed into a group word whose
+//! Error groups: one bool STATE key per error, composed into a group word whose
 //! bit positions, per resolved variant, are unique and append-only; the wire id of a bit is the
 //! group's (per-variant) wire base plus the bit, published as `e<id>`.
 

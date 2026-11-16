@@ -1,4 +1,4 @@
-//! The shadow wire mapping (G2 1.4): what contract.json and the keyspace files carry, the
+//! The shadow wire mapping: what contract.json and the keyspace files carry, the
 //! worst-case document size, and that the mapping never changes the store tables or digests.
 
 mod common;

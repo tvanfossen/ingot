@@ -1,5 +1,5 @@
 /* Pins the frozen TIV 1.0 content of the generated dmt_types.h: every value, struct size and
- * field offset the table-interface specification (section 2) fixes. Compiled as C11 by
+ * field offset the table interface fixes. Compiled as C11 by
  * tests/table_types.rs; a mismatch is a compile error. main() exercises DMT_RIGHTS. */
 #include <stddef.h>
 #include <stdint.h>

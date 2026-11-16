@@ -1,4 +1,4 @@
-//! The contract-level shadow rows of a model (G2 1.4: apply groups, echo-only paths, constant
+//! The contract-level shadow rows of a model (apply groups, echo-only paths, constant
 //! rows, topics and the command rows of the variant), the checks of the whole mapping, and what
 //! contract.json and the keyspace say about it.
 
@@ -205,8 +205,8 @@ pub fn json(tables: &Tables) -> Option<Value> {
     Some(doc)
 }
 
-/// Every refusal of the mapping: keys and rows (S1, S3, S4, S5), the path trees (S1), the
-/// full document's size (Z1), topics (T1, T2) and command rows (S2, S6).
+/// Every refusal of the mapping: keys and rows, the path trees, the full document's size,
+/// topics and command rows.
 ///
 /// The path trees and the size are checked per variant: in the all-variants view rows of
 /// disjoint variants may share a path, and each variant's own pass checks its documents.
@@ -233,7 +233,7 @@ pub fn check(tables: &Tables, errors: &mut Errors) {
     }
 }
 
-/// S1 path conflicts of the trees and Z1, the full document's size.
+/// Path conflicts of the trees and the full document's size.
 ///
 /// @version 1
 /// @req REQ-ING-SHD-001

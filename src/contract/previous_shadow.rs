@@ -1,4 +1,4 @@
-//! P1 (G2 7, 8): within a major the shadow wire mapping only grows. A key that was mapped keeps
+//! Within a major the shadow wire mapping only grows. A key that was mapped keeps
 //! every path entry (form, scope, variants) and every wire attribute, and its accept aliases
 //! only grow; every echo row, constant row, topic and command row of the previous contract is
 //! still there unchanged. Additions are a minor.

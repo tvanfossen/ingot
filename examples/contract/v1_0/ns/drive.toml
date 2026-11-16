@@ -271,7 +271,7 @@ max_size = 512
 introduced_in = "1.0"
 doc = "Base64 text of a map request, passed through as text."
 
-# -- shadow wire mapping (G2 1.4): how requests reach the commands ---------------------------
+# -- shadow wire mapping: how requests reach the commands ---------------------------
 [[shadow_commands]]
 topic = "command_topic"
 selector = { field = "state", wire = "go" }

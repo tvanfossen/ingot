@@ -264,7 +264,7 @@ typedef struct {
     uint8_t     encoding;           /* DSH_ENC_* */
 } dsh_arg_t;
 
-/* One error group (R24); its bits are dsh_error_bits[bits_first ..], sorted by bit. */
+/* One error group; its bits are dsh_error_bits[bits_first ..], sorted by bit. */
 typedef struct {
     const char *id;
     const char *shadow;             /* the reported path of the list, or NULL */

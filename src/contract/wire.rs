@@ -1,4 +1,4 @@
-//! The shadow wire attributes of one key (G2 1.4), resolved from its declaration; they are
+//! The shadow wire attributes of one key, resolved from its declaration; they are
 //! written into contract.json and the keyspace files and never enter the store tables.
 
 use super::enums::ResolvedEnum;

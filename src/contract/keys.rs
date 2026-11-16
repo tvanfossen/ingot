@@ -54,14 +54,14 @@ pub struct Key {
     /// Reference documentation, carried into contract.json.
     pub doc: Option<String>,
     pub unit: Option<String>,
-    /// Range, allowed set, sentinel default and scale (G2 1.3); tooling and binder inputs.
+    /// Range, allowed set, sentinel default and scale; tooling and binder inputs.
     pub range: Option<Range>,
     pub allowed: Option<Vec<i64>>,
     pub unset: Option<i64>,
     pub scale: f64,
-    /// The error group and bit of an error key (R24).
+    /// The error group and bit of an error key.
     pub error: Option<ErrorRef>,
-    /// The shadow wire attributes (G2 1.4).
+    /// The shadow wire attributes.
     pub wire: KeyWire,
     /// The fixed header a struct value starts with, when declared.
     pub header: Option<Vec<HeaderField>>,
@@ -219,9 +219,9 @@ fn check_index(ctx: &ClassCtx, name: &str, index: u16, errors: &mut Errors) {
 
 /// Resolve one declared key; problems go to `errors`.
 ///
-/// v2: units, ranges, allowed sets, sentinels and scale (G2 1.3).
+/// v2: units, ranges, allowed sets, sentinels and scale.
 /// v3: the enum name, for the keyspace.
-/// v4: the shadow wire attributes (G2 1.4).
+/// v4: the shadow wire attributes.
 /// v5: the struct value header.
 /// @version 5
 /// @req REQ-ING-TIV-003

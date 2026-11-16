@@ -43,7 +43,7 @@ pub struct Snapshot {
     /// Name to code of each enum a topic var names, by `namespace::enum`; absent when none does.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub var_enums: BTreeMap<String, BTreeMap<String, i64>>,
-    /// The shadow wire mapping's rows and sizes (G2 1.4); absent when the model maps nothing.
+    /// The shadow wire mapping's rows and sizes; absent when the model maps nothing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shadow: Option<serde_json::Value>,
 }
@@ -130,7 +130,7 @@ pub struct KeyJson {
     pub limits: Limits,
 }
 
-/// The shadow wire mapping of a key in contract.json (G2 1.2.1, 1.4); read back for the
+/// The shadow wire mapping of a key in contract.json; read back for the
 /// previous-contract checks (absent in older snapshots: no mapping).
 #[derive(Debug, Serialize, Deserialize, PartialEq, Default)]
 #[serde(default)]
@@ -176,7 +176,7 @@ impl Mapping {
     }
 }
 
-/// The G2 limits and shadow wire mapping of a key in contract.json (written flat, beside the
+/// The limits and shadow wire mapping of a key in contract.json (written flat, beside the
 /// other key fields).
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Limits {
@@ -191,7 +191,7 @@ pub struct Limits {
     pub unset: Option<i64>,
     #[serde(default = "one")]
     pub scale: f64,
-    /// The error group and bit (R24).
+    /// The error group and bit.
     #[serde(default)]
     pub error: Option<ErrorRef>,
 }

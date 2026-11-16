@@ -1,6 +1,6 @@
-# clew configuration for this fork.
+# clew configuration for ingot.
 # `guard:` is read by the clew-guard pre-commit hook; everything outside it is clew's index
-# declaration. Fork-only file: not part of upstream ingot.
+# declaration.
 
 guard:
   output_dir: docs/generated/

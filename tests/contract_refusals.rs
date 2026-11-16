@@ -156,7 +156,7 @@ const CASES: &[Case] = &[
     ("v1_0", "ns/drive.toml", "remove = [\"sport\"]", "remove = [\"sprot\"]", "drive::mode (sku_b): the variant removes sprot, which is not a base value"),
     ("v1_0", "ns/drive.toml", "saver = 1", "saver = 3", "drive::mode (sku_b): number 3 has two names"),
     ("v1_0", "ns/drive.toml", "wire = \"sportMode\"", "wire = \"eco\"", "drive::mode (sku_a): wire string eco is used twice"),
-    // -- shadow wire mapping (G2 1.4): S1, S3, S4, S5, Z1 --------------------------------------
+    // -- shadow wire mapping --------------------------------------
     ("v1_0", "ns/drive.toml", "shadow = \"state.docked\"", "shadow = \"state..docked\"", "drive.state.docked: malformed shadow path 'state..docked'"),
     ("v1_0", "ns/drive.toml", "shadow = \"state.docked\"", "shadow = \"state.tones\"", "drive.state.docked: shadow path state.tones is taken by drive.state.tones"),
     ("v1_0", "ns/drive.toml", "shadow = \"state.docked\"", "shadow = \"state.tones.x\"", "drive.state.docked: shadow path state.tones.x is both a value and an object"),
@@ -238,7 +238,7 @@ const CASES: &[Case] = &[
     ("v1_0", "ns/drive.toml", "on_reject = \"clear_desired\"", "on_reject = \"clear_desired\"\napplies = \"drive.settings.speed_limit\"", "drive.settings.speed_limit: applies must be on a STATE key"),
     ("v1_0", "ns/drive.toml", "applies = \"drive.settings.speed_limit\"", "applies = \"drive.state.speed_limit_applied\"", "drive.state.speed_limit_applied: applies must be on a STATE key and name a SETTINGS key"),
     ("v1_0", "ns/drive.toml", "applies = \"drive.settings.speed_limit\"", "applies = \"drive.settings.gain\"", "drive.state.speed_limit_applied: applies must be on a STATE key and name a SETTINGS key of the same type"),
-    // -- topics and envelopes (G2 4, 1.4.8): T1, T2 -------------------------------------------
+    // -- topics and envelopes -------------------------------------------
     ("v1_0", "contract.toml", "template = \"{stage}/{duid}/telemetry\"", "template = \"{stage}/{dui}/telemetry\"", "topic telemetry: template {stage}/{dui}/telemetry uses a placeholder outside {stage}, {duid}, {model}, {thing}, {shadow_name}"),
     ("v1_0", "contract.toml", "template = \"{stage}/{duid}/telemetry\"", "template = \"{stage}/duid}/telemetry\"", "topic telemetry: template {stage}/duid}/telemetry uses a placeholder outside"),
     ("v1_0", "contract.toml", "template = \"{stage}/{duid}/telemetry\"", "template = \"st}age/{duid}/telemetry\"", "topic telemetry: template st}age/{duid}/telemetry uses a placeholder outside"),
@@ -284,7 +284,7 @@ const CASES: &[Case] = &[
     ("v1_0", "contract.toml", "source = { field = \"source\", enum = \"core::origin\"", "source = { field = \"source\", enum = \"core::orign\"", "topic command_topic: the envelope source absent value unspecified is not a member of enum core::orign"),
     ("v1_0", "contract.toml", "template = \"$aws/things/{duid}/shadow/name/{shadow_name}/update/delta\"", "template = \"$aws/things/{duid}/shadow/name/robot/update/delta\"", "topic shadow_delta: shadow name robot is a literal while another topic uses {shadow_name}"),
     ("v1_0", "contract.toml", "local_wrapper = \"shadow_delta\"", "local_wrapper = \"shadow_delta\"\nliteral_shadow_name = true", "topic shadow_delta: literal_shadow_name is for a literal shadow name beside {shadow_name}"),
-    // -- command rows (G2 1.4.6, 1.4.7): S2, S6 -------------------------------------------------
+    // -- command rows -------------------------------------------------
     ("v1_0", "ns/core.toml", "topic = \"command_topic\"\nselector = { field = \"net.factoryReset\"", "topic = \"nope\"\nselector = { field = \"net.factoryReset\"", "shadow_commands nope net.factoryReset=true: topic nope is not a sub topic"),
     ("v1_0", "ns/core.toml", "topic = \"command_topic\"\nselector = { field = \"net.factoryReset\"", "topic = \"command_resp\"\nselector = { field = \"net.factoryReset\"", "shadow_commands command_resp net.factoryReset=true: topic command_resp is not a sub topic"),
     ("v1_0", "ns/drive.toml", "grounded_in = \"the sku_b library build\"\n", "", "shadow_commands command_topic state=approve: a per-variant row names the build it is grounded in, and only it"),
@@ -825,7 +825,7 @@ const MULTI_CASES: &[MultiCase] = &[
         ],
         "drive.command.map_edit: role DIAG_SUBSCRIBERS needs a plain key, not a command",
     ),
-    // T2: the literal-name flag is only for a literal beside {shadow_name}
+    // The literal-name flag is only for a literal beside {shadow_name}
     (
         "v1_0",
         &[

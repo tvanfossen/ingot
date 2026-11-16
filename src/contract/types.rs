@@ -217,7 +217,7 @@ pub struct WkRule {
     pub ty: Option<KeyType>,
     pub persist: Persist,
     pub survives_reset: bool,
-    /// Written only by the core: no principal may have write on it (R-V5).
+    /// Written only by the core: no principal may have write on it.
     pub core_written: bool,
     /// Smallest `max_size` the store core reads the key with: `min_size + per_principal * N`.
     pub min_size: u32,

@@ -1,6 +1,6 @@
 //! Contract mode: generate the table-interface (TIV 1.0) store tables of a keyed model.
 //!
-//! The input is `contract.toml` plus its namespace files (specification section 7); the outputs
+//! The input is `contract.toml` plus its namespace files (docs/contract-mode.rst); the outputs
 //! are `dmt_types.h`, `dmt_tables.h`, `dmt_tables.c`, `contract.json` and, against a previous
 //! contract, `release-review.txt`. Every refusal of section 8 is an error.
 

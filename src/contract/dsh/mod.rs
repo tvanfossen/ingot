@@ -1,4 +1,4 @@
-//! The shadow tables `dsh_tables.h` / `dsh_tables.c` (G2 sections 3 and 4): binder, reporter,
+//! The shadow tables `dsh_tables.h` / `dsh_tables.c`: binder, reporter,
 //! command-router, error-group and topic rows of one variant, against the fixed `dsh_types.h`.
 //! The library's generic walkers read them; nothing in them is per-key code.
 

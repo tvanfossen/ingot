@@ -108,7 +108,7 @@ static int takes(size_t p, uint32_t max)
 
 /**
  * @brief   Count UNIX principals that may read a struct key but cannot take its largest value in
- *          flight (R12: a store refuses such tables at startup).
+ *          flight (a store refuses such tables at startup).
  * @version 1
  * @return  the number of (principal, key) violations.
  */

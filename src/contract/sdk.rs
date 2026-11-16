@@ -1,4 +1,4 @@
-//! Per-principal SDKs (G2 3.1) rendered through a consumer-supplied runtime binding: ingot
+//! Per-principal SDKs rendered through a consumer-supplied runtime binding: ingot
 //! resolves, per principal, the typed accessors its rights give, the command submit helpers, the
 //! event views of the struct keys it reads, its identity (kind, uid, token, KSET digest and keyset) and the contract facts; the binding's
 //! templates turn them into code against the consumer's own store runtime. Ingot names no

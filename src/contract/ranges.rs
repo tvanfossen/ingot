@@ -1,4 +1,4 @@
-//! Units, ranges, discrete sets, sentinel defaults and scale of a declared key (G2 1.3). They
+//! Units, ranges, discrete sets, sentinel defaults and scale of a declared key. They
 //! are tooling and binder inputs: the store tables do not carry them.
 
 use super::keys::{Errors, Key};

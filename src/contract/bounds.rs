@@ -1,4 +1,4 @@
-//! Queue bounds per principal and the staging and in-process budget checks (R-B1).
+//! Queue bounds per principal and the staging and in-process budget checks.
 
 use super::keys::Errors;
 use super::model::Tables;

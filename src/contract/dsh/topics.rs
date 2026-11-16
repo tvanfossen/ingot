@@ -1,4 +1,4 @@
-//! The topic table `dtp_topics` (G2 section 4), with each sub topic's envelope (1.4.8).
+//! The topic table `dtp_topics`, with each sub topic's envelope.
 
 use super::super::model::Tables;
 use super::super::schema::{Direction, Envelope, Topic, TopicVar};

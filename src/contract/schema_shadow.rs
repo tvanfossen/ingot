@@ -1,4 +1,4 @@
-//! Contract-mode input of the shadow wire mapping (G2 1.4): the per-key attributes' types, the
+//! Contract-mode input of the shadow wire mapping: the per-key attributes' types, the
 //! apply groups, echo-only desired paths and constant reported rows of `contract.toml`. The same
 //! types are written into contract.json and the keyspace files.
 

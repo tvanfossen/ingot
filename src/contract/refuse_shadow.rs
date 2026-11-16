@@ -1,4 +1,4 @@
-//! Refusals of the shadow wire mapping of keys and rows (G2 section 8: S1, S3, S4, S5).
+//! Refusals of the shadow wire mapping of keys and rows.
 
 use super::enums::ResolvedEnum;
 use super::keys::{Errors, Key};
@@ -53,7 +53,7 @@ fn listed_twice(forms: &[PathForm]) -> bool {
     })
 }
 
-/// S1: shadow paths on SETTINGS, STATE and CONFIG keys of a JSON-valued type, each listed once per
+/// Shadow paths on SETTINGS, STATE and CONFIG keys of a JSON-valued type, each listed once per
 /// variant.
 ///
 /// v2: once per variant.
@@ -78,7 +78,7 @@ fn placement(key: &Key, errors: &mut Errors) {
     attribute_placement(key, errors);
 }
 
-/// S1: forced and render on shadowed STATE keys (render on a string, with items), on_reject on
+/// Forced and render on shadowed STATE keys (render on a string, with items), on_reject on
 /// shadowed SETTINGS keys.
 ///
 /// @version 1
@@ -138,7 +138,7 @@ fn as_rule(key: &Key) -> Option<&'static str> {
     }
 }
 
-/// S1 of the path forms: `as` by `as_rule`, `scope` for reported paths (STATE and CONFIG), and a
+/// The path forms: `as` by `as_rule`, `scope` for reported paths (STATE and CONFIG), and a
 /// forced key has a path in the delta.
 ///
 /// v2: CONFIG keys are reported too.
@@ -169,7 +169,7 @@ fn wire_strings(key: &Key) -> bool {
     key.wire.shadow_forms.iter().any(|f| !f.integer())
 }
 
-/// S3 and S4: a shadowed key's enum where a path carries its wire strings (and a rendered
+/// A shadowed key's enum where a path carries its wire strings (and a rendered
 /// list's) has explicit wire strings; such a SETTINGS enum key declares inbound_unknown and
 /// such a reported (STATE or CONFIG) enum key outbound_unknown, and nothing else declares either.
 ///
@@ -215,7 +215,7 @@ fn enum_rules(key: &Key, errors: &mut Errors) {
     );
 }
 
-/// S4 for one direction: `declared` is required exactly where `applies_to` is the key's enum,
+/// One direction of a shadowed enum: `declared` is required exactly where `applies_to` is the key's enum,
 /// and is `reject` or `ignore` (inbound) or `raw` (outbound), or a string of the enum that way.
 ///
 /// v2: `ignore` inbound; the rule is for keys with a wire-string path.
@@ -285,7 +285,7 @@ pub(super) fn known_unknown(e: &ResolvedEnum, v: &str, inbound: bool) -> bool {
     }
 }
 
-/// S5: apply groups on SETTINGS keys, declared; implies writes of other keys of the same
+/// Apply groups on SETTINGS keys, declared; implies writes of other keys of the same
 /// group, each value valid for its key (only a SETTINGS key may join a group, so the target is
 /// one).
 ///
@@ -323,7 +323,7 @@ fn group_rules(tables: &Tables, key: &Key, errors: &mut Errors) {
     }
 }
 
-/// S1: `applies` is on a STATE key and names a SETTINGS key of the same type and enum.
+/// `applies` is on a STATE key and names a SETTINGS key of the same type and enum.
 ///
 /// @version 1
 /// @req REQ-ING-SHD-001
@@ -344,7 +344,7 @@ fn applies_rule(tables: &Tables, key: &Key, errors: &mut Errors) {
     }
 }
 
-/// S1 (D5): a shadowed SETTINGS key has exactly one reported STATE twin that applies it.
+/// A shadowed SETTINGS key has exactly one reported STATE twin that applies it.
 ///
 /// @version 1
 /// @req REQ-ING-SHD-001
@@ -383,7 +383,7 @@ fn telem_names(tables: &Tables, errors: &mut Errors) {
     }
 }
 
-/// S1 and S5 of the rows: apply group ids unique; an echo string has a max_size and only it;
+/// The rows: apply group ids unique; an echo string has a max_size and only it;
 /// an echo's command key is a SETTINGS key; a constant has a scalar value or an image; a
 /// rejected-settings list needs a desired path to reject.
 ///

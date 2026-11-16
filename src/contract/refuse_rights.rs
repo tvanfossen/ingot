@@ -1,5 +1,5 @@
 //! Rights refusals: secrets, transports, aliases, reset/MFG/trace writes, heartbeats,
-//! core-written keys and command owners (specification section 8, R-V2..R-V5).
+//! core-written keys and command owners.
 
 use super::keys::Errors;
 use super::model::Tables;
@@ -50,7 +50,7 @@ fn transport(tables: &Tables, p: usize, k: usize, errors: &mut Errors) {
     }
 }
 
-/// An alias has exactly its target's rights (R-V2).
+/// An alias has exactly its target's rights.
 ///
 /// @version 1
 /// @req REQ-ING-TIV-011
@@ -69,7 +69,7 @@ fn alias(tables: &Tables, p: usize, k: usize, errors: &mut Errors) {
     }
 }
 
-/// A UART principal writes no reset command, MFG key or trace-enable command (R-V3).
+/// A UART principal writes no reset command, MFG key or trace-enable command.
 ///
 /// @version 1
 /// @req REQ-ING-TIV-011
@@ -88,7 +88,7 @@ fn uart_writes(tables: &Tables, p: usize, errors: &mut Errors) {
     }
 }
 
-/// A heartbeat key belongs to one principal, which is its only writer (R-V4). Two principals
+/// A heartbeat key belongs to one principal, which is its only writer. Two principals
 /// sharing a heartbeat cannot both be its only writer, so the writer check refuses that too.
 ///
 /// v2: no separate owner count: it was implied by the writer check.
@@ -115,7 +115,7 @@ fn heartbeats(tables: &Tables, errors: &mut Errors) {
     }
 }
 
-/// No principal writes a core-written well-known key (R-V5).
+/// No principal writes a core-written well-known key.
 ///
 /// @version 1
 /// @req REQ-ING-TIV-011
@@ -131,7 +131,7 @@ fn core_written(tables: &Tables, errors: &mut Errors) {
     }
 }
 
-/// Exactly one principal writes the trace-enable command (R-V5, Q14).
+/// Exactly one principal writes the trace-enable command.
 ///
 /// @version 1
 /// @req REQ-ING-TIV-011

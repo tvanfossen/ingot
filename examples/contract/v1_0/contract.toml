@@ -22,7 +22,7 @@ inproc_snapshot_bytes = 4096
 [[reserved]]
 id = 0x00C20480   # drive.state index 9 (bool): retired before 1.0
 
-# -- error groups (R24): one bool STATE key per error, published as "e<wire_base + bit>" ----
+# -- error groups: one bool STATE key per error, published as "e<wire_base + bit>" ----
 [[error_groups]]
 id = "product"
 width = 32
@@ -206,7 +206,7 @@ inflight_fd = 1
 inflight_bytes = 65536
 open_fds = 4
 
-# -- shadow wire mapping (G2 1.4): apply groups, echo-only paths, constant reported rows -------
+# -- shadow wire mapping: apply groups, echo-only paths, constant reported rows -------
 [[apply_groups]]
 id = "motion"
 doc = "Drive settings one desired update writes as one store batch."

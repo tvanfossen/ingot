@@ -1,4 +1,4 @@
-//! The shadow tables `dsh_tables.h` / `dsh_tables.c` (G2 sections 3, 4 and 2.5): compiled and
+//! The shadow tables `dsh_tables.h` / `dsh_tables.c`: compiled and
 //! walked in C (tests/fixtures/dsh/check_dsh.c), and their rows checked against the generic
 //! model and edited copies of it.
 
@@ -1196,11 +1196,7 @@ fn bare_binder_copy(case: &Path) {
         Some("\n\n"),
     );
     cut(&drive, "shadow = \"settings.fanSpeed\"", Some("\n\n"));
-    cut(
-        &drive,
-        "# -- shadow wire mapping (G2 1.4): how requests",
-        None,
-    );
+    cut(&drive, "# -- shadow wire mapping: how requests", None);
     cut(&case.join("ns/core.toml"), "[[shadow_commands]]", None);
 }
 

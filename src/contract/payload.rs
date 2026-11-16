@@ -1,4 +1,4 @@
-//! Topic payloads built from keys (G2 section 4): `[[topic_payload]]` members of a pub topic,
+//! Topic payloads built from keys: `[[topic_payload]]` members of a pub topic,
 //! each from a key (CONFIG, SETTINGS or STATE, any JSON-valued type) or a constant; their
 //! refusals (T3) and their `dtp_payload` rows.
 

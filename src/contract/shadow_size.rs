@@ -1,5 +1,4 @@
-//! The shadow path trees (S1) and the worst-case size of the full reported document (G2 3.2,
-//! Z1): every reported row at its longest value text, as compact JSON under
+//! The shadow path trees and the worst-case size of the full reported document: every reported row at its longest value text, as compact JSON under
 //! `{"state":{"reported":...}}`.
 
 use super::keys::Key;

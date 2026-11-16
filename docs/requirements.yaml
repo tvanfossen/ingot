@@ -1,4 +1,4 @@
-# Requirements catalog for this fork of ingot (clew-guard). Fork-only file: not part of upstream.
+# Requirements catalog of ingot (clew-guard).
 # Every `@req REQ-ING-...` tag in source resolves to an entry here (cross_reference: true).
 # Id pattern: ^REQ-ING-[A-Z]+-[0-9]{3}$ (.clew.yaml). HAND-EDITED: add the entry before the code.
 # Schema is clew-guard's: a mapping keyed by id; `name` is required.
@@ -43,8 +43,8 @@ requirements:
     name: Fixed table-interface header
     subsystem: Table interface
     description: >-
-      ingot emits dmt_types.h, the TIV 1.0 header frozen in the table-interface specification
-      section 2 (type codes, persistence classes, roles, principal kinds, flags, sizing
+      ingot emits dmt_types.h, the frozen TIV 1.0 table-interface header
+      (type codes, persistence classes, roles, principal kinds, flags, sizing
       constants, the rights macro, the dmt_key_t, dmt_principal_t, dmt_uid_caps_t and
       dmt_command_t layouts and the well-known role list). Its bytes depend only on the TIV, never
       on a model; --table-types writes it with no model.
@@ -428,8 +428,8 @@ requirements:
     subsystem: Table interface
     description: >-
       --contract reads contract.toml (contract version, bounds, reserved IDs, principals, per-uid
-      caps) and the namespace files in its namespace_dir, in the schema of the table-interface
-      specification section 7. Unknown fields are errors, and every namespace_id, class_index
+      caps) and the namespace files in its namespace_dir, in the schema documented in
+      docs/contract-mode.rst. Unknown fields are errors, and every namespace_id, class_index
       and key_index is explicit (no positional IDs). Every grant names either one existing key,
       or a namespace with an optional class that covers at least one key.
     acceptance_criteria: >-
@@ -451,7 +451,7 @@ requirements:
     subsystem: Table interface
     description: >-
       A key's default for the selected variant (defaults.<variant>, else default) is encoded into
-      dmt_default_blob in the specification's value encoding (little-endian scalars, one-byte
+      dmt_default_blob in the table interface's value encoding (little-endian scalars, one-byte
       bool, IEEE-754 float32, string and binary bytes); struct keys have none.
     acceptance_criteria: >-
       Two variants give different blobs for keys with per-variant defaults and equal ones otherwise.
@@ -470,7 +470,7 @@ requirements:
     description: >-
       Principals (uid or token sub-consumer, kind, flags, heartbeat, caps, resync limits) are
       sorted by (kind, uid, token); rights per key come from (namespace, class) grants overridden
-      by key grants, read on a secret only for its readers, packed in the specification's bitmap
+      by key grants, read on a secret only for its readers, packed in the table interface's bitmap
       layout; every principal's declared name is emitted (a sub-consumer's and a UART or
       in-process principal's as well as a UNIX uid's), never NULL.
     acceptance_criteria: >-
@@ -508,7 +508,7 @@ requirements:
     name: Model refusals
     subsystem: Table interface
     description: >-
-      Contract mode refuses, as errors, the structural refusals of the specification section 8:
+      Contract mode refuses, as errors, these structural refusals:
       duplicate namespace IDs, namespace names or encoded IDs, ID 0, read_only or thread_safe
       keys, live keys on reserved IDs, persistent keys without a rate, deferred keys without an
       interval, struct keys without max_size, bad aliases, introduced-in later than the
@@ -648,7 +648,7 @@ requirements:
       command declaring the default burst has the same store tables as one declaring none.
   REQ-ING-RNG-001:
     name: Units, ranges, discrete sets, sentinels and scale
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       contract.toml may name a unit vocabulary; every unit is then one of its tokens. An integer
       key without an enum may declare an inclusive min/max/step range in wire units or an allowed
@@ -661,7 +661,7 @@ requirements:
       narrowing is refused against the previous contract.
   REQ-ING-KSP-001:
     name: Keyspace declaration files
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       Contract mode writes keyspace.json (every variant: base values plus per-variant enum
       overrides and per-key presence), keyspace.<variant>.json (resolved for the variant), its
@@ -675,7 +675,7 @@ requirements:
       the 64 KB image budget.
   REQ-ING-PRS-001:
     name: Per-variant key presence
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       A key or command may list the variants it exists on; on any other variant it is not in the
       tables, contract.json or the resolved keyspace, and the all-variants keyspace states its
@@ -684,7 +684,7 @@ requirements:
       A key limited to one variant is generated for it only, and keyspace.json shows its presence.
   REQ-ING-ERR-001:
     name: Error groups
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       contract.toml declares error groups (width 8, 16, 32 or 64, a wire base with per-variant
       overrides, a writer, reserved bits, the highest published bit, the shadow field). An error
@@ -697,7 +697,7 @@ requirements:
       or a changed group is refused against the previous contract.
   REQ-ING-SHD-001:
     name: Shadow wire mapping of keys and enums
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       A SETTINGS or STATE key may name the shadow paths it maps to (one or several). An enum value
       may carry inbound accept aliases beside its wire string; within a resolved enum an inbound
@@ -716,7 +716,7 @@ requirements:
       byte-identical.
   REQ-ING-SHD-002:
     name: Apply groups, echo-only paths and constant rows
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       contract.toml declares apply groups; a SETTINGS key may join one and declare implies writes
       of other keys of its group, with values of their type. Echo-only desired paths have a type
@@ -728,7 +728,7 @@ requirements:
       value and a malformed row are refused; the outputs carry them.
   REQ-ING-SHD-003:
     name: Per-path wire form and document scope
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       Each shadow path of a key may be a table { path, as, scope }. `as` is for enum keys:
       "enum" (the default) carries the wire string, "integer" carries the code as a JSON integer
@@ -747,7 +747,7 @@ requirements:
       outputs, store tables and digests are byte-identical.
   REQ-ING-SHD-004:
     name: Per-variant shadow paths and echo rows, and the delta's error list
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       A shadow path table and an echo row may carry `variants`, the declared variants they exist
       on (absent: every variant); a variant's tables, contract.json and resolved keyspace hold only
@@ -765,7 +765,7 @@ requirements:
       echo row is refused; a delta-only key at the error field is refused.
   REQ-ING-SHD-005:
     name: Declared outbound many-to-one (report_as)
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       An enum value may declare `report_as` (the name or wire string of another member) instead
       of a wire string: its code reports that member's wire string outbound, and it has no
@@ -778,8 +778,8 @@ requirements:
       duplicate, a missing or chained target, and both or neither of wire and report_as are
       refused.
   REQ-ING-SHD-006:
-    name: The shadow mapping only grows within a major (P1)
-    subsystem: Generated outputs (G2)
+    name: The shadow mapping only grows within a major
+    subsystem: Contract mode
     description: >-
       Against --previous-contract in a minor, contract.json's key mappings and shadow rows are
       read back typed. A key that was mapped keeps every path entry (path, form, scope, variants)
@@ -793,7 +793,7 @@ requirements:
       path and an echo row is accepted.
   REQ-ING-SHD-007:
     name: Scope of an echo row
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       An echo row may declare `scope` (full, delta or both; absent: both) like a STATE key's path:
       it is reported in those documents only, so a delta-only echo may share its path with a key
@@ -805,7 +805,7 @@ requirements:
       dsh_reported; the same echo without a scope is refused.
   REQ-ING-SHD-008:
     name: Reported paths of CONFIG keys
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       A CONFIG key (a device's configured identity, such as its SKU) may carry shadow paths:
       like a STATE key's they are reported, never desired, with the reported path forms, scopes and
@@ -816,7 +816,7 @@ requirements:
       a shadow path on a DIAG key is still refused.
   REQ-ING-SHD-009:
     name: An echo row and a key share a delta member
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       One echo row may share its delta member with a reported key (STATE or CONFIG) that has a
       delta path there and writes the same JSON value (bool, integer, float or string; an enum
@@ -827,7 +827,7 @@ requirements:
       is refused.
   REQ-ING-SHD-010:
     name: A bool reported as 0/1 in one document
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       A bool key's reported path (STATE or CONFIG) may declare as = "integer": the value is
       reported as the JSON number 0 or 1 (DSH_FORM_BOOL_INTEGER, shadow table interface minor 2)
@@ -845,7 +845,7 @@ requirements:
       "enum" on a bool key, as on an integer key, and a bool echo at a 0/1 delta path are refused.
   REQ-ING-SHD-011:
     name: Where the binder lists rejected settings
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       contract.toml may declare `[shadow_rejected] path = "<dotted path>"`: the reported path where
       the binder lists the desired members it rejected in the update it answers. It is a delta
@@ -868,7 +868,7 @@ requirements:
       a variant generates, and moving it off the previous contract's variant is refused.
   REQ-ING-CMD-001:
     name: Shadow commands enumerate every command
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       Namespace files declare shadow_commands rows: topic, variants (with the build each is
       grounded in), protocol (single, or command_array with element selectors), a selector (field
@@ -884,7 +884,7 @@ requirements:
       files list every command with its rows.
   REQ-ING-CMD-002:
     name: Argument forms of shadow command rows
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       An argument takes a request field, or is a constant (`value`, no field) written into its
       key when the row is selected. Its key is a plain key of the command's class or a STATE key.
@@ -893,14 +893,14 @@ requirements:
       holding a decimal integer into an integer key. Base64 text goes into a string key (passed
       through as text), a binary key (decoded: the key holds the bytes, max_size is the decoded
       size) or a struct key (decoded into its buffer; a value too large for a binary key is a
-      struct key, R12). A constant has no field, required rule, result code, absent rule, encoding
+      struct key). A constant has no field, required rule, result code, absent rule, encoding
       or element.
     acceptance_criteria: >-
       A constant argument, an enum value by name, a STATE-key argument, array-element arguments
       and base64 into a binary or struct key generate; each misplaced form is refused.
   REQ-ING-CMD-003:
     name: Row outcomes without a command
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       A row without a command is a settings body; or `answer = <ec>`, a verb answered with that
       result code and nothing else (no args); or `internal = "<reason>"`, a verb the library
@@ -911,7 +911,7 @@ requirements:
       args, an empty internal reason, and a commandless row with a non-STATE argument are refused.
   REQ-ING-CMD-004:
     name: Further commands of a row
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       A shadow command row with a command may list `also`: further commands it submits after its
       own, in order, each with its own arguments, which follow the argument rules against that
@@ -925,7 +925,7 @@ requirements:
       one, and a further command's argument outside its class are refused.
   REQ-ING-CMD-005:
     name: Request fields are dotted identifiers
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       Every request field of a shadow command row (the selector's, a body object and its
       selector's, each argument's, further commands' arguments too) is identifiers joined by dots,
@@ -936,7 +936,7 @@ requirements:
       field, body object, body selector field and argument field are each refused.
   REQ-ING-CMD-006:
     name: A stable id for internal rows
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       An internal shadow_commands row may declare `internal_id` (1..=65535), the model's stable
       id of the action the library performs, so the library dispatches on the id rather than
@@ -949,7 +949,7 @@ requirements:
       a command row and internal_id 0 are refused.
   REQ-ING-TOP-001:
     name: MQTT topic declarations and envelopes
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       contract.toml declares topics: id, template over the placeholders stage, duid, model, thing
       and shadow_name (repeatable), direction, connection, subscribe order, local wrapper, ack
@@ -963,7 +963,7 @@ requirements:
       outputs carry them.
   REQ-ING-TOP-003:
     name: Topic payloads built from keys
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       contract.toml may list `[[topic_payload]]` members of a pub topic's payload: a dotted path
       and one of a key (any key with a JSON value: CONFIG, SETTINGS, STATE), a literal value or an
@@ -980,7 +980,7 @@ requirements:
       integer form generates its dtp_payload rows and slice; each refusal has a triggering model.
   REQ-ING-TOP-004:
     name: Per-message topic placeholders
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       A topic may declare `vars = [{ name, max_len }]`: per-message placeholders, each used as
       `{name}` in the template beside the per-device placeholders (on a pub topic the publisher
@@ -998,7 +998,7 @@ requirements:
       DTP_NUM_VARS 0 and no vars in contract.json. Each refusal above has a triggering model.
   REQ-ING-TOP-005:
     name: Topics limited to variants
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       A topic may declare `variants`: a variant not listed has no dtp_topics row and no entry in
       contract.json or the keyspace, and rows that name the topic on that variant are refused as
@@ -1011,7 +1011,7 @@ requirements:
       sku_b generates and moving it to sku_b only is refused.
   REQ-ING-TOP-006:
     name: Per-message placeholders on sub topics
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       A sub topic may declare vars as a pub topic does; the consumer subscribes with each var as
       a single-level wildcard and extracts its value from a received topic. So each var of a sub
@@ -1023,7 +1023,7 @@ requirements:
       refused.
   REQ-ING-TOP-007:
     name: Declared topic placeholders
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       contract.toml may declare `[[placeholders]] name, max_len`: named values the consumer is
       configured with (a build or device value), usable as `{name}` in any topic template. They
@@ -1041,7 +1041,7 @@ requirements:
       it generates, and adding one in a minor generates.
   REQ-ING-TOP-008:
     name: Topic var enums
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       A topic var may name a model enum, `{ name, max_len, enum = "<namespace>::<enum>" }` (the
       form an envelope source names an enum with), when the var carries that enum's code as its
@@ -1067,7 +1067,7 @@ requirements:
       enum, dropping it or changing one of its codes is refused.
   REQ-ING-SIZ-001:
     name: Worst-case shadow document size
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       For each variant ingot computes the compact byte length of the full reported document with
       every row at its longest value (wire strings, type extremes, strings at six bytes per byte,
@@ -1079,7 +1079,7 @@ requirements:
       8192 bytes is refused.
   REQ-ING-DSH-001:
     name: Shadow table interface and binder tables
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       dsh_types.h is the fixed shadow table interface (DSH 1.0, bytes independent of any model,
       written by --table-types and by contract mode). For a model that maps anything to the shadow,
@@ -1096,7 +1096,7 @@ requirements:
       sorted and in range on every variant; each binder attribute of the model appears in its row.
   REQ-ING-DSH-002:
     name: Reporter tables
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       dsh_reported holds every reported row in emission order: rows whose paths share an object
       prefix are contiguous and siblings keep their first-declaration order (contract.toml's
@@ -1110,7 +1110,7 @@ requirements:
       flags; a C walker finds every object prefix contiguous.
   REQ-ING-DSH-003:
     name: Command-router tables
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       dsh_commands holds the variant's command rows in declaration order: topic, selector (text,
       true, false, array element or object), body (fields, settings or a named object with its own
@@ -1125,7 +1125,7 @@ requirements:
       values; a C walker finds every step and argument in range.
   REQ-ING-DSH-004:
     name: Error-group tables
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       dsh_error_groups holds each error group of the variant in declaration order with its reported
       path, reserved-bit mask, variant wire base, width and highest published bit; its bits
@@ -1135,7 +1135,7 @@ requirements:
       in bit order whatever the key order.
   REQ-ING-DSH-005:
     name: Shadow table header constants and composer buffer
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       dsh_tables.h states the contract version, the SHA-256 of the variant's resolved keyspace body
       (the head's hash, also the ETag of a contract request), the variant, the ingot commit, and the
@@ -1146,7 +1146,7 @@ requirements:
       keyspace's; a buffer one byte short warns and an exact one does not.
   REQ-ING-DSH-006:
     name: Shadow consumer bounds
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       dsh_tables.h states the variant's bounds a shadow consumer sizes its buffers with (shadow
       table interface minor 8): DSH_REJECTED_MAX_ITEMS, the members one rejected-settings list can
@@ -1162,7 +1162,7 @@ requirements:
       reserved bit or a lower publish_max_bit changes the matching bound.
   REQ-ING-DSH-007:
     name: Shadow desired value bound
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       dsh_tables.h states DSH_DESIRED_VALUE_MAX_BYTES (shadow table interface minor 9): 1 plus the
       longest JSON text of a value any dsh_desired or dsh_echo row of the variant accepts, 0 with
@@ -1180,7 +1180,7 @@ requirements:
       echo rows states 0.
   REQ-ING-DSH-008:
     name: Named internal row ids
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       dsh_tables.h states DSH_INTERNAL_<VERB> <internal_id>u (shadow table interface minor 10)
       for every shadow_commands row of the variant that declares an internal_id, so the library
@@ -1198,18 +1198,18 @@ requirements:
       name for two ids on one variant are each refused.
   REQ-ING-TOP-002:
     name: Topic table
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       dtp_topics holds every topic in declaration order: id, template, connection, local wrapper,
       direction, subscribe order, the index of its ack topic, settings_in_every_body and literal
       shadow name flags, and its envelope (id field, required, the JSON text of an absent id,
       source field, source enum and the code of an absent source).
     acceptance_criteria: >-
-      The generic model's topics, including the contract request and response of G2 2.5, carry
+      The generic model's topics, including the contract request and response topics, carry
       their envelopes and acks; an optional id and a non-default absent source appear when declared.
   REQ-ING-SDK-001:
     name: Per-principal SDK identity
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       Contract mode resolves, per principal, its identity for an SDK: its name and identifier
       (dots as underscores), kind (unix, inproc or uart), uid and token, the contract version,
@@ -1220,7 +1220,7 @@ requirements:
       lists and the keyset of the keys each principal may read or write.
   REQ-ING-SDK-002:
     name: Typed key accessors
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       Per principal, an accessor for each key it may read (get) or write (set): its name, path, key
       ID, form (scalar, buffer or struct), C type and its unsigned twin, codec (int or float) and
@@ -1233,7 +1233,7 @@ requirements:
       and a principal without a right has no symbol for it.
   REQ-ING-SDK-003:
     name: Command submit helpers
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       Per principal, a submit helper for each command whose command key it may write: its name,
       path, command key ID, payload_max and whether the command is a struct (through a buffer).
@@ -1243,7 +1243,7 @@ requirements:
       refused, and a struct command goes allocate, fill, submit.
   REQ-ING-SDK-004:
     name: SDK runtime binding
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       Ingot names no store runtime: `--sdk-binding <dir>` names a directory of templates (files
       only, at least one) the consumer supplies. Each is rendered once per principal with the
@@ -1255,7 +1255,7 @@ requirements:
       refused; a template's file name and context render per principal.
   REQ-ING-SDK-005:
     name: Binding template names
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       A binding template may carry a trailing `.tera`, stripped from its output name, so a
       binding directory need hold no source file; a template without it keeps its own name. A
@@ -1266,7 +1266,7 @@ requirements:
       refused.
   REQ-ING-SDK-006:
     name: Struct key event views
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       A struct value reaches a reader only as a delivered event, so per principal the SDK context
       lists, in key ID order, a view for each struct key it may read (read-only or read-write,
@@ -1285,7 +1285,7 @@ requirements:
   # -- struct value headers ---------------------------------------------------------------------
   REQ-ING-HDR-001:
     name: Struct value header declaration
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       A struct key may declare `header = [{ name, type }, ...]`: an ordered list of fields, each a
       C identifier unique within the key, of type bool, uint8, int8, uint16, int16, uint32 or
@@ -1303,7 +1303,7 @@ requirements:
       key without one has no header entry; each refusal is logged and nothing is generated.
   REQ-ING-HDR-002:
     name: Struct value header code
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       For every key of the variant with a header, dmt_constants.h defines
       DMT_<KEY PATH>_HEADER_BYTES, DMT_<KEY PATH>_<FIELD>_OFFSET and DMT_<KEY PATH>_PAYLOAD_MAX
@@ -1323,7 +1323,7 @@ requirements:
       principal's headers; a long name and a collision are refused.
   REQ-ING-HDR-003:
     name: Struct value header compatibility
-    subsystem: Generated outputs (G2)
+    subsystem: Contract mode
     description: >-
       A released key's header is part of its contract: against --previous-contract, adding,
       removing, reordering, renaming or retyping a header field of an existing key is refused in a

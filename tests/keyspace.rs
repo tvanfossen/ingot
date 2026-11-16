@@ -1,4 +1,4 @@
-//! The keyspace files of contract mode (G2 section 2): the resolved body, its gzip and head,
+//! The keyspace files of contract mode: the resolved body, its gzip and head,
 //! the all-variants file with overrides, the schema's trust rule, determinism and size.
 
 mod common;

@@ -1,4 +1,4 @@
-//! Refusals of the shadow command rows (G2 1.4.6, 1.4.7): S2, and S6, every command of the
+//! Refusals of the shadow command rows: their requests and arguments, and every command of the
 //! variant enumerated on the wire or marked internal with a reason.
 
 use super::keys::{Errors, Key};
@@ -317,7 +317,7 @@ pub(super) fn by_name(key: &Key, v: &toml::Value) -> Result<toml::Value, String>
 /// Whether encoding `enc` suits a key of type `ty`: base64 into a string (text), binary or struct
 /// (decoded) key, decimal text into an integer key.
 ///
-/// v2: a struct key (the decoded bytes, published as a buffer; a large value is a struct key, R12).
+/// v2: a struct key (the decoded bytes, published as a buffer; a large value is a struct key).
 /// @version 2
 /// @req REQ-ING-CMD-002
 fn encoding_rule(enc: Encoding, ty: KeyType) -> Option<&'static str> {
@@ -398,7 +398,7 @@ fn duplicates(rows: &[ShadowCommand], errors: &mut Errors) {
     }
 }
 
-/// S6: when any row exists, every command of the variant has a row or is internal with a
+/// When any row exists, every command of the variant has a row or is internal with a
 /// reason, never both (a further command of a row is on the wire too).
 ///
 /// v2: further commands.

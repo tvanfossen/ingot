@@ -1,4 +1,4 @@
-//! KSET v1 handshake digests (the store core's handshake-digest specification, normative).
+//! KSET v1 handshake digests (docs/contract-mode.rst), which the store core recomputes.
 
 use super::model::Tables;
 use super::rights::{READ, WRITE};
@@ -69,7 +69,7 @@ mod tests {
     use super::*;
     use crate::contract::model::hex;
 
-    // Golden vectors V0-V5 of the KSET v1 handshake-digest specification.
+    // Golden vectors V0-V5 of the KSET v1 handshake digest.
     const KA: (u32, u8) = (0x0042_0000, 0);
     const KB: (u32, u8) = (0x0042_0090, 2);
     const KC: (u32, u8) = (0x0042_0140, 8);

@@ -55,7 +55,7 @@ pub struct Tables {
     pub variants: Vec<String>,
     /// The unit vocabulary, when the model declares one.
     pub units: Option<Units>,
-    /// The error groups, resolved for the variant (R24).
+    /// The error groups, resolved for the variant.
     pub error_groups: Vec<ErrorGroup>,
     pub model_hash: String,
     pub keys: Vec<Key>,
@@ -65,7 +65,7 @@ pub struct Tables {
     pub commands: Vec<Command>,
     pub uid_caps: Vec<UidCapsDef>,
     pub bounds: Bounds,
-    /// The contract-level shadow rows (G2 1.4).
+    /// The contract-level shadow rows.
     pub shadow: Shadow,
     /// Every enum, resolved for the variant, by `namespace::name`.
     pub enums: BTreeMap<String, ResolvedEnum>,
@@ -183,7 +183,7 @@ fn principal_rights(
     (principals, rights)
 }
 
-/// The reserved IDs, sorted, always including ID 0 (R-K2).
+/// The reserved IDs, sorted, always including ID 0.
 ///
 /// @version 1
 /// @req REQ-ING-TIV-010

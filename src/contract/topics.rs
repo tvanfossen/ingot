@@ -1,4 +1,4 @@
-//! Topic declarations (G2 section 4) and command envelopes (1.4.8): refusals T1 and T2.
+//! Topic declarations and command envelopes, and their refusals.
 
 use super::keys::Errors;
 use super::model::Tables;
@@ -160,7 +160,7 @@ fn shadow_name(template: &str) -> Option<&str> {
     rest.split('/').next()
 }
 
-/// T2: a literal shadow name where another topic uses `{shadow_name}` is refused unless the
+/// A literal shadow name where another topic uses `{shadow_name}` is refused unless the
 /// topic keeps it explicitly; the flag is only for such a topic.
 ///
 /// @version 1

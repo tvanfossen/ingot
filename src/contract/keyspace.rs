@@ -1,4 +1,4 @@
-//! The keyspace declaration for tooling (G2 section 2): per variant, the SKU-resolved
+//! The keyspace declaration for tooling: per variant, the SKU-resolved
 //! `keyspace.<variant>.json` with its gzip body and head file, and for the whole model the
 //! all-variants `keyspace.json` with per-variant overrides. No values and no secret values
 //! appear; order is namespace ID, class index, key index.
@@ -363,7 +363,7 @@ pub fn head(tables: &Tables, body: &[u8], gz_len: usize) -> Value {
            "gz_size": gz_len, "schema_version": SCHEMA_VERSION})
 }
 
-/// The error groups (R24) with their bits; in the all-variants file, `overrides.<variant>`
+/// The error groups with their bits; in the all-variants file, `overrides.<variant>`
 /// holds a variant's own wire base, and each bit its presence by variant.
 ///
 /// @version 1

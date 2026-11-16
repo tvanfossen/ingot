@@ -70,7 +70,8 @@ repos:
         exclude: '^tests/fixtures/'
         types_or: [rust, python]
 
-  # Fork-only: doxygen/rustdoc gate (@brief, @version bump, @req). Config: `guard:` in .clew.yaml.
+  # Doxygen/rustdoc gate (@brief, @version bump, @req against docs/requirements.yaml).
+  # Config: `guard:` in .clew.yaml.
   - repo: https://github.com/tvanfossen/clew
     rev: v1.2.0
     hooks:

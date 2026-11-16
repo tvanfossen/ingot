@@ -1,4 +1,4 @@
-//! Structural refusals of the table-interface specification section 8: IDs, layout, key
+//! Structural refusals of contract mode: IDs, layout, key
 //! attributes, well-known roles, principals.
 
 use super::keys::{CmdPart, Errors, Key};

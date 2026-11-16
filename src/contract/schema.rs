@@ -1,5 +1,5 @@
-//! Contract-mode input: `contract.toml` and the namespace files it names (table-interface
-//! specification section 7). Unknown fields are errors; every index is explicit.
+//! Contract-mode input: `contract.toml` and the namespace files it names (see
+//! docs/contract-mode.rst). Unknown fields are errors; every index is explicit.
 
 pub use super::schema_shadow::*;
 use serde::Deserialize;
@@ -183,7 +183,7 @@ pub struct NamespaceFile {
     pub enums: BTreeMap<String, EnumDef>,
     #[serde(default)]
     pub classes: Vec<ClassDef>,
-    /// How requests reach commands (G2 1.4.6, 1.4.7).
+    /// How requests reach commands.
     #[serde(default)]
     pub shadow_commands: Vec<ShadowCommand>,
 }
@@ -344,7 +344,7 @@ pub struct KeyDef {
     pub scale: Option<f64>,
     /// The variants the key exists on; absent: every variant.
     pub variants: Option<Vec<String>>,
-    /// The error group and bit of a one-bool-per-error STATE key (R24).
+    /// The error group and bit of a one-bool-per-error STATE key.
     pub error: Option<ErrorRef>,
     /// The shadow path or paths (desired for SETTINGS, reported for STATE).
     pub shadow: Option<Paths>,
@@ -431,7 +431,7 @@ pub struct ErrorRef {
     pub bit: u8,
 }
 
-/// `[[error_groups]]`: one composed error word (R24).
+/// `[[error_groups]]`: one composed error word.
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct ErrorGroupDef {

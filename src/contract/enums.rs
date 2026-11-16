@@ -206,7 +206,7 @@ fn apply_variant(
 /// Numbers and wire strings of a resolved enum are unique, and each inbound string (a wire
 /// string or an accept alias) means one code.
 ///
-/// v2: inbound strings (S5).
+/// v2: inbound strings.
 /// v3: a member that reports as another shares its wire string (refused only when undeclared).
 /// v4: one inbound check for every member (a reporting member's wire string is its target's).
 /// @version 4

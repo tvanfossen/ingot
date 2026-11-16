@@ -1,5 +1,5 @@
-//! Checks against the previous release's contract.json (specification section 8 #15, R-V7,
-//! R-V8) and the release-review report for new principals (Q13).
+//! Checks against the previous release's contract.json (a minor only adds; a major reserves
+//! what it removes; previous principals keep their identity and rights) and the release-review report for new principals.
 
 use super::keys::Errors;
 use super::previous_shadow;
@@ -105,7 +105,7 @@ fn keys_kept(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
 /// v2: well-known roles stay on their keys.
 /// v3: units, scale, sentinels and ranges (widen only), and the unit vocabulary.
 /// v4: the error groups.
-/// v5: the shadow wire mapping (P1); the per-key checks moved to `keys_kept`.
+/// v5: the shadow wire mapping; the per-key checks moved to `keys_kept`.
 /// v6: command outcomes.
 /// v7: the codes of the enums topic vars name.
 /// @version 7
@@ -343,7 +343,7 @@ fn var_enum_codes_kept(prev: &Snapshot, cur: &Snapshot, errors: &mut Errors) {
     }
 }
 
-/// Every previous principal is still there with the same uid, token, kind and flags (R-V8).
+/// Every previous principal is still there with the same uid, token, kind and flags.
 ///
 /// @version 1
 /// @req REQ-ING-TIV-012
