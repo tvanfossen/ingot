@@ -127,8 +127,8 @@ a legacy \fBdm_enums.h\fR declaring the same types. \fImacro\fR must be a
 C identifier.
 .TP
 .BI \-\-templates " " dir
-Use the templates in the specified directory instead of the templates built
-into ingot, for template development. Also configurable through
+Use the templates in the specified directory instead of the searched
+templates and the templates built into ingot. Also configurable through
 \fBINGOT_TEMPLATES_DIR\fR.
 .TP
 .B \-\-table\-types
@@ -314,11 +314,23 @@ ingot -m device.toml -vv
 .RE
 .SH ENVIRONMENT
 .B INGOT_TEMPLATES_DIR
-replaces the templates built into
-.B ingot
-with the files in that directory, as
+replaces the searched and built-in templates with the files in that
+directory, as
 .B \-\-templates
 does.
+.SH FILES
+Without \fB\-\-templates\fR, model mode uses the first
+.I templates/
+directory found next to the executable, in
+.IR <exe>/../share/ingot/templates ,
+in
+.IR <exe>/../../templates ,
+in the current working directory, or in
+.IR /usr/share/ingot/templates ,
+and the templates built into
+.B ingot
+when there is none. Contract mode and \fB\-\-table\-types\fR use the built-in
+templates.
 .SH SEE ALSO
 The full user guide is available at
 .I docs/user\-guide.md

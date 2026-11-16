@@ -41,6 +41,7 @@ jobs:
         run: |
           mkdir -p dist
           cp target/release/ingot dist/
+          cp -r templates dist/
           cp docs/ingot.1 dist/
           cp README.md LICENSE dist/ 2>/dev/null || true
           cp THIRD_PARTY_LICENSES.txt dist/
@@ -88,6 +89,7 @@ jobs:
         run: |
           mkdir -p dist
           cp target/x86_64-pc-windows-gnu/release/ingot.exe dist/
+          cp -r templates dist/
           cp README.md LICENSE dist/ 2>/dev/null || true
           cp THIRD_PARTY_LICENSES.txt dist/
           cp ingot-db.cdx.json dist/
@@ -207,6 +209,7 @@ jobs:
         run: |
           mkdir -p AppDir/usr/bin AppDir/usr/share/ingot AppDir/usr/share/man/man1 AppDir/usr/share/doc/ingot
           cp target/release/ingot AppDir/usr/bin/
+          cp -r templates AppDir/usr/share/ingot/
           cp docs/ingot.1 AppDir/usr/share/man/man1/
           cp LICENSE AppDir/usr/share/doc/ingot/ 2>/dev/null || true
           cp THIRD_PARTY_LICENSES.txt AppDir/usr/share/doc/ingot/

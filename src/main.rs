@@ -112,7 +112,8 @@ struct Cli {
     #[arg(long)]
     variant: Option<String>,
 
-    /// Templates directory replacing the templates built into ingot (for template development)
+    /// Templates directory (overrides INGOT_TEMPLATES_DIR, the template search path and the
+    /// templates built into ingot)
     #[arg(long, env = "INGOT_TEMPLATES_DIR")]
     templates: Option<PathBuf>,
 
@@ -169,7 +170,8 @@ fn main() {
 /// Load the templates and run the mode the command line selects.
 ///
 /// v2: contract mode, which only uses the built-in templates.
-/// @version 2
+/// v3: model mode searches upstream's template directories before the built-in templates.
+/// @version 3
 /// @req REQ-ING-CLI-001
 /// @req REQ-ING-CLI-002
 /// @req REQ-ING-TIV-001
@@ -178,11 +180,16 @@ fn dispatch(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     if cli.contract.is_some() && cli.templates.is_some() {
         return Err("contract mode uses the built-in templates; drop --templates".into());
     }
-    let tera = codegen::templates::load(cli.templates.as_deref())?;
+    let explicit = cli.templates.as_deref();
     match (&cli.contract, cli.table_types) {
-        (Some(contract), _) => contract::generate(&contract_options(cli, contract), &tera),
-        (None, true) => codegen::tables::write_table_types(&tera, &cli.output),
-        (None, false) => run(cli, &tera),
+        (Some(contract), _) => contract::generate(
+            &contract_options(cli, contract),
+            &codegen::templates::load(None)?,
+        ),
+        (None, true) => {
+            codegen::tables::write_table_types(&codegen::templates::load(explicit)?, &cli.output)
+        }
+        (None, false) => run(cli, &codegen::templates::load_searching(explicit)?),
     }
 }
 

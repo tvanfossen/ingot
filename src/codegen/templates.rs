@@ -1,9 +1,11 @@
-//! Templates compiled into the binary, so the ingot commit alone determines the output.
+//! Templates compiled into the binary, and the template directories ingot searches.
 //!
-//! `--templates` / `INGOT_TEMPLATES_DIR` replaces the embedded set with a directory, for
-//! template development.
+//! `--templates` / `INGOT_TEMPLATES_DIR` replaces the embedded set with a directory. Model mode
+//! without either searches upstream's template directories first and falls back to the
+//! embedded set; contract mode and --table-types use the embedded set (so there the ingot
+//! commit alone determines the output).
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tera::Tera;
 
 /// Every file in `templates/`, under its file name. A test checks the list is complete.
@@ -143,6 +145,58 @@ pub fn load(dir: Option<&Path>) -> Result<Tera, Box<dyn std::error::Error>> {
     }
 }
 
+/// Load the model-mode templates: `dir` when given, else the first template directory on
+/// upstream ingot's search path, else the embedded set.
+///
+/// @version 1
+/// @req REQ-ING-CLI-002
+/// @return the loaded templates, or the error of an explicit directory that does not exist
+pub fn load_searching(dir: Option<&Path>) -> Result<Tera, Box<dyn std::error::Error>> {
+    let exe = std::env::current_exe().ok();
+    let exe_dir = exe.as_deref().and_then(Path::parent);
+    let cwd = std::env::current_dir().ok();
+    let found = dir
+        .map(Path::to_path_buf)
+        .or_else(|| first_dir(&search_dirs(exe_dir, cwd.as_deref())));
+    match &found {
+        Some(d) => log::info!("Templates: {}", d.display()),
+        None => log::info!("Templates: built in (no template directory on the search path)"),
+    }
+    load(found.as_deref())
+}
+
+/// The template directories upstream ingot searched without `--templates`, in its order:
+/// next to the executable, the FHS share directory beside its bin/, the crate root of a
+/// `target/<profile>/` build, the working directory, and `/usr/share/ingot/templates`.
+///
+/// @version 1
+/// @req REQ-ING-CLI-002
+/// @return the candidate directories, existing or not
+pub(crate) fn search_dirs(exe_dir: Option<&Path>, cwd: Option<&Path>) -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if let Some(exe_dir) = exe_dir {
+        dirs.push(exe_dir.join("templates"));
+        dirs.push(exe_dir.join("../share/ingot/templates"));
+        if let Some(root) = exe_dir.parent().and_then(Path::parent) {
+            dirs.push(root.join("templates"));
+        }
+    }
+    if let Some(cwd) = cwd {
+        dirs.push(cwd.join("templates"));
+    }
+    dirs.push(PathBuf::from("/usr/share/ingot/templates"));
+    dirs
+}
+
+/// The first of `candidates` that is a directory.
+///
+/// @version 1
+/// @req REQ-ING-CLI-002
+/// @return that directory, or None when none exists
+fn first_dir(candidates: &[PathBuf]) -> Option<PathBuf> {
+    candidates.iter().find(|d| d.is_dir()).cloned()
+}
+
 /// The templates compiled into this binary.
 ///
 /// @version 1
@@ -206,5 +260,28 @@ mod tests {
         let tera = load(Some(tmp.path())).unwrap();
         let names: Vec<&str> = tera.get_template_names().collect();
         assert_eq!(names, vec!["only.h"]);
+    }
+
+    #[test]
+    fn search_dirs_follow_upstream_order() {
+        let dirs = search_dirs(Some(Path::new("/opt/x/bin")), Some(Path::new("/work")));
+        let expected = [
+            "/opt/x/bin/templates",
+            "/opt/x/bin/../share/ingot/templates",
+            "/opt/templates",
+            "/work/templates",
+            "/usr/share/ingot/templates",
+        ];
+        assert_eq!(dirs, expected.map(PathBuf::from));
+    }
+
+    #[test]
+    fn first_existing_directory_wins_and_none_falls_back() {
+        let a = tempfile::tempdir().unwrap();
+        let b = tempfile::tempdir().unwrap();
+        let missing = a.path().join("missing");
+        let picked = first_dir(&[missing.clone(), b.path().into(), a.path().into()]);
+        assert_eq!(picked.as_deref(), Some(b.path()));
+        assert_eq!(first_dir(&[missing]), None);
     }
 }

@@ -64,11 +64,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   submits a command.
 
 ### Changed
-- Templates are compiled into the binary, so an ingot build always
-  generates the same output wherever it runs. `--templates` /
-  `INGOT_TEMPLATES_DIR` still replaces them with a directory; the search
-  next to the executable, in the working directory and under
-  `/usr/share/ingot` is gone, and packages no longer install `templates/`.
+- Templates are also compiled into the binary. `--templates` /
+  `INGOT_TEMPLATES_DIR` still replaces them with a directory, and model mode
+  still searches next to the executable, the FHS share directory, the
+  working directory and `/usr/share/ingot/templates` first; the built-in
+  templates are used only when no `templates/` directory is found, where
+  ingot used to stop with an error. Packages still install `templates/`.
+  Contract mode and `--table-types` always use the built-in templates.
 
 ### Removed
 - The `rand` dependency and the unused entropy-seeded perfect-hash

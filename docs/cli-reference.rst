@@ -36,14 +36,20 @@ Output & Target
 | ``--dm-enums-guard``  | none           | Legacy ``dm_enums.h`` guard to defer to          |
 | ``<MACRO>``            |                | (requires ``--dm-compat``)                      |
 +------------------------+----------------+--------------------------------------------------+
-| ``--templates <DIR>``  | built in       | Replace the built-in templates with a directory  |
+| ``--templates <DIR>``  | search, built  | Replace the searched and built-in templates with |
+|                        | in             | a directory                                      |
 +------------------------+----------------+--------------------------------------------------+
 | ``--table-types``      | off            | Write only the fixed table headers (no model)    |
 +------------------------+----------------+--------------------------------------------------+
 
-The templates are compiled into the binary, so a given ingot build always
-generates the same output. ``--templates`` (or the ``INGOT_TEMPLATES_DIR``
-environment variable) replaces them with a directory, for template development.
+The templates are compiled into the binary. ``--templates`` (or the
+``INGOT_TEMPLATES_DIR`` environment variable) replaces them with a directory, the
+whole set. Without either, model mode uses the first ``templates/`` directory it
+finds next to the executable, in ``<exe>/../share/ingot/templates``, in
+``<exe>/../../templates`` (a ``target/<profile>/`` build), in the working directory,
+or in ``/usr/share/ingot/templates``, and the built-in templates when there is none.
+Contract mode and ``--table-types`` do not search: they use the built-in templates
+(``--table-types`` also accepts ``--templates``).
 ``--table-types`` writes ``dmt_types.h`` and ``dsh_types.h``, the table-interface headers, which do
 not depend on any model.
 ``--emit-tinyfsm`` applies only to C targets. It emits additive C++ headers and
