@@ -31,6 +31,11 @@ Output & Target
 +------------------------+----------------+--------------------------------------------------+
 | ``--emit-tinyfsm``     | off            | Emit C++/tinyfsm event types and dispatch        |
 +------------------------+----------------+--------------------------------------------------+
+| ``--dm-compat``       | off            | Emit the DM-shaped C compatibility surface      |
++------------------------+----------------+--------------------------------------------------+
+| ``--dm-enums-guard``  | none           | Legacy ``dm_enums.h`` guard to defer to          |
+| ``<MACRO>``            |                | (requires ``--dm-compat``)                      |
++------------------------+----------------+--------------------------------------------------+
 | ``--templates <DIR>``  | built in       | Replace the built-in templates with a directory  |
 +------------------------+----------------+--------------------------------------------------+
 | ``--table-types``      | off            | Write only the fixed table headers (no model)    |
@@ -42,7 +47,43 @@ environment variable) replaces them with a directory, for template development.
 ``--table-types`` writes ``dmt_types.h`` and ``dsh_types.h``, the table-interface headers, which do
 not depend on any model.
 ``--emit-tinyfsm`` applies only to C targets. It emits additive C++ headers and
-source for consumers using tinyfsm.
+source for consumers using tinyfsm, plus ``dm_key_has_event.hpp``:
+``dm_key_has_event(key)`` reports whether a key was declared ``event = true``,
+and ``dm_key_namespace(key)`` / ``DM_KEY_NS_LOCAL`` let a value-change callback
+skip keys that belong to this model but carry no event.
+
+``--dm-compat`` applies only to C targets and is purely additive: without it,
+output is unchanged (``--emit-tinyfsm`` separately adds
+``dm_key_has_event.hpp``). It lets code written against the legacy
+DM-shaped C API compile against ingot's store:
+
+- ``DATAMODEL_GET_<PATH>`` / ``DATAMODEL_SET_<PATH>`` aliases for every
+  ``helpers = true`` key. Bool and integer accessors stay address-of-able;
+  enum-typed keys get wrappers that return ``<PATH>_ENUM_T`` and take the raw
+  storage type.
+- Lowercase ``DataModel_Get<ns>_<class>_<key>`` aliases, spelled with the
+  optional class and key ``name`` (falling back to ``id``).
+- Bare-key ``#define <PATH> DM_KEY_<PATH>`` constants and
+  ``DATA_MODEL_KEY_TYPE_*`` aliases in ``dm_key.h``.
+- Per-key ``<PATH>_ENUM_T`` typedefs in ``dm_enums.h``, beside the named enums.
+  When the key's named enum is itself called ``<class>_<key>``, its members
+  already carry the per-key constant names, so ``<PATH>_ENUM_T`` is a typedef
+  of that enum.
+- ``DataModel_PrintPersistentKeys()`` in ``persistence_storage.c``.
+- Header-name aliases ``dm_key_definitions.h`` and
+  ``dm_{boolean,integer,string,persistence}_storage.h``, and, with
+  ``--emit-tinyfsm``, ``dm_key_events.h/.c`` providing
+  ``send_dm_key_event(key)``.
+
+These aliases share one C namespace with the key and enum names, so ingot
+stops with an error naming both sources when two of them would declare the
+same identifier: for example, a key ``mode_off`` beside an enum key ``mode``
+with a value ``off``, or two keys whose ``name`` resolves to the same
+lowercase alias. Rename one of them.
+
+If a translation unit may also include a legacy ``dm_enums.h`` that declares
+the same per-key typedefs, pass that header's include guard with
+``--dm-enums-guard`` and ingot skips its copies when the guard is defined.
 
 Contract Mode
 -------------
@@ -137,8 +178,8 @@ Variant Overrides
 Option                     Description
 =========================  ==========================================
 ``--variant <NAME>``       Product variant for per-variant default
-                           overrides (e.g. ``peabodyv0``,
-                           ``omnidrive_v2``). Applies variant-specific
+                           overrides (e.g. ``variant_a``,
+                           ``variant_b_v2``). Applies variant-specific
                            defaults from ``[classes.keys.defaults]``
                            and merges variant enum values from
                            ``[enums.*.variants.*]``.
@@ -174,8 +215,8 @@ Thread-safe keys are protected by the target's mutex mechanism. Keys without
 The ``rust`` target generates a standalone no_std Rust module using static
 perfect-hash storage. It provides named accessors, scalar access by encoded
 key, and ``PERSISTENT_KEYS`` metadata. Persistence I/O and mutex handling are
-left to the consumer. C-only options such as ``--no-events`` and
-``--emit-tinyfsm`` have no effect for Rust.
+left to the consumer. C-only options such as ``--no-events``,
+``--emit-tinyfsm``, and ``--dm-compat`` have no effect for Rust.
 
 
 Examples
@@ -187,7 +228,7 @@ Generate from a single model file::
 
 Merge a directory of namespace TOML files::
 
-    ingot -m models/ -o gen/udm -t linux64
+    ingot -m models/ -o gen/dm -t linux64
 
 Merge files from multiple locations::
 
@@ -204,4 +245,4 @@ Apply per-key property overrides::
 
 Generate for a specific product variant::
 
-    ingot -m models/ --variant peabodyv0 -o gen/
+    ingot -m models/ --variant variant_a -o gen/

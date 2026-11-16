@@ -119,3 +119,12 @@ fn full_no_events_is_byte_identical_across_runs() {
 fn full_rust_target_is_byte_identical_across_runs() {
     assert_byte_identical("full_rust", "examples/full.toml", &["--target", "rust"]);
 }
+
+#[test]
+fn full_with_dm_compat_is_byte_identical_across_runs() {
+    assert_byte_identical(
+        "full_dm_compat",
+        "examples/full.toml",
+        &["--dm-compat", "--emit-tinyfsm"],
+    );
+}

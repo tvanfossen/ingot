@@ -74,6 +74,24 @@ struct Cli {
     #[arg(long)]
     emit_tinyfsm: bool,
 
+    /// Emit the DM-shaped C compatibility surface (additive, opt-in): uppercase
+    /// DATAMODEL_GET/SET_<PATH> aliases, lowercase DataModel_{Get,Set}<path>
+    /// aliases, bare-key `#define <PATH> DM_KEY_<PATH>` constants, per-key
+    /// <PATH>_ENUM_T typedefs, and legacy header-name aliases. C targets only.
+    #[arg(long)]
+    dm_compat: bool,
+
+    /// With --dm-compat: include guard of a legacy dm_enums.h that already
+    /// declares the per-key <PATH>_ENUM_T typedefs. The compat typedefs are
+    /// skipped in any translation unit that has already included it.
+    #[arg(
+        long,
+        value_name = "MACRO",
+        requires = "dm_compat",
+        value_parser = parse_c_identifier
+    )]
+    dm_enums_guard: Option<String>,
+
     /// YAML file listing keys to include (whitelist); all others are excluded
     #[arg(long)]
     include_list: Option<PathBuf>,
@@ -90,7 +108,7 @@ struct Cli {
     #[arg(long)]
     property_override_list: Option<PathBuf>,
 
-    /// Product variant for per-variant default overrides (e.g. peabodyv0, omnidrive_v2)
+    /// Product variant for per-variant default overrides (e.g. variant_a, variant_b_v2)
     #[arg(long)]
     variant: Option<String>,
 
@@ -168,6 +186,70 @@ fn dispatch(cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
+/// The C code-generation toggles selected on the command line.
+///
+/// @version 1
+/// @req REQ-ING-CLI-001
+/// @req REQ-ING-CMP-001
+/// @return the options codegen::generate renders with
+fn codegen_options(cli: &Cli) -> codegen::CodegenOptions {
+    codegen::CodegenOptions {
+        no_events: cli.no_events,
+        emit_tinyfsm: cli.emit_tinyfsm,
+        dm_compat: cli.dm_compat,
+        dm_enums_guard: cli.dm_enums_guard.clone(),
+    }
+}
+
+/// Accept only a C identifier, since the value is pasted into `#ifndef`.
+///
+/// @version 1
+/// @req REQ-ING-CMP-003
+/// @return the identifier, or an error naming the rejected value
+fn parse_c_identifier(raw: &str) -> Result<String, String> {
+    let mut chars = raw.chars();
+    let starts_ok = chars
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_');
+    if starts_ok && chars.all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        Ok(raw.to_string())
+    } else {
+        Err(format!("'{raw}' is not a C identifier"))
+    }
+}
+
+/// Generate the no_std Rust module, warning about any C-only flags given.
+///
+/// @version 1
+/// @req REQ-ING-RST-001
+/// @return Ok once the module is written, else the generation error
+fn generate_rust(
+    cli: &Cli,
+    data_model: &model::schema::DataModel,
+    ns_id: u16,
+    tera: &tera::Tera,
+) -> Result<(), Box<dyn std::error::Error>> {
+    warn_c_only_flags(cli);
+    codegen::rust_kvp::generate(data_model, ns_id, &cli.output, tera)?;
+    log::info!("Rust code generation complete → {}", cli.output.display());
+    Ok(())
+}
+
+/// Warn about each C-only flag given with `--target rust`, where it has no effect.
+///
+/// @version 1
+/// @req REQ-ING-RST-001
+fn warn_c_only_flags(cli: &Cli) {
+    let flags = [
+        (cli.emit_tinyfsm, "--emit-tinyfsm"),
+        (cli.no_events, "--no-events"),
+        (cli.dm_compat, "--dm-compat"),
+    ];
+    for (_, flag) in flags.iter().filter(|(set, _)| *set) {
+        log::warn!("{flag} has no effect for --target rust (C targets only)");
+    }
+}
+
 /// The contract-mode options the command line gives.
 ///
 /// v2: the shadow composer's buffer.
@@ -192,7 +274,8 @@ fn contract_options<'a>(cli: &'a Cli, contract: &'a std::path::Path) -> contract
 ///
 /// v2: renders with the templates `dispatch` loaded.
 /// v3: positions are stamped when each file is parsed (DataModel::from_toml), not here.
-/// @version 3
+/// v4: --target rust goes through generate_rust; C generation takes the CodegenOptions.
+/// @version 4
 /// @req REQ-ING-CLI-001
 fn run(cli: &Cli, tera: &tera::Tera) -> Result<(), Box<dyn std::error::Error>> {
     if cli.include_list.is_some() && cli.exclude_list.is_some() {
@@ -265,15 +348,7 @@ fn run(cli: &Cli, tera: &tera::Tera) -> Result<(), Box<dyn std::error::Error>> {
     let ns_id: u16 = data_model.meta.namespace_id.unwrap_or(0);
 
     if cli.target == Target::Rust {
-        if cli.emit_tinyfsm {
-            log::warn!("--emit-tinyfsm has no effect for --target rust (C++/tinyfsm only)");
-        }
-        if cli.no_events {
-            log::warn!("--no-events has no effect for --target rust (C-only concept)");
-        }
-        codegen::rust_kvp::generate(&data_model, ns_id, &cli.output, tera)?;
-        log::info!("Rust code generation complete → {}", cli.output.display());
-        return Ok(());
+        return generate_rust(cli, &data_model, ns_id, tera);
     }
 
     let target = match cli.target {
@@ -292,8 +367,7 @@ fn run(cli: &Cli, tera: &tera::Tera) -> Result<(), Box<dyn std::error::Error>> {
         &cli.output,
         tera,
         &target_config,
-        cli.no_events,
-        cli.emit_tinyfsm,
+        codegen_options(cli),
     )?;
     log::info!("Code generation complete → {}", cli.output.display());
 

@@ -109,6 +109,16 @@ DM_RETURN_CODE DataModel_LoadPersistentKeys(const char *filepath)
         return DM_RETURN_CODE_PERSISTENCE_MAGIC_MISMATCH;
     }
 
+    /* The file is input: a corrupt or hand-made image can fill a string field
+     * with no NUL, and SyncToStorage measures each one with strlen. Save always
+     * writes the last byte as NUL, so forcing it here leaves any file Save
+     * wrote unchanged and bounds every string read by its field's capacity. */
+{% for e in persistence.entries %}
+{% if e.is_string and e.c_type == "char" %}
+    tmp.{{ e.field_name }}[sizeof(tmp.{{ e.field_name }}) - 1] = '\0';
+{% endif %}
+{% endfor %}
+
     persistence_data = tmp;
     PersistenceStorage_SyncToStorage();
 
@@ -135,3 +145,26 @@ DM_RETURN_CODE DataModel_SavePersistentKeys(const char *filepath)
 
     return DM_RETURN_CODE_SUCCESS;
 }
+{% if dm_compat %}
+
+/* ---- Diagnostic dump (DM-compat) ---- */
+
+void DataModel_PrintPersistentKeys(void)
+{
+    PersistenceStorage_SyncFromStorage();
+{%- for e in persistence.entries %}
+{%- if e.is_string and e.c_type == "char" %}
+    printf("%s = %.*s\n", "{{ e.define_name }}",
+           (int) sizeof(persistence_data.{{ e.field_name }}), persistence_data.{{ e.field_name }});
+{%- elif e.is_string %}
+    printf("%s =", "{{ e.define_name }}");
+    for (size_t i = 0; i < sizeof(persistence_data.{{ e.field_name }}); i++) {
+        printf(" %02x", (unsigned) (unsigned char) persistence_data.{{ e.field_name }}[i]);
+    }
+    printf("\n");
+{%- else %}
+    printf("%s = %lld\n", "{{ e.define_name }}", (long long) persistence_data.{{ e.field_name }});
+{%- endif %}
+{%- endfor %}
+}
+{% endif %}

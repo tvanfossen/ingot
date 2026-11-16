@@ -156,7 +156,8 @@ def build(c, release=False):
 def test(c):
     """Run all Rust unit tests and generated C/C++ integration tests.
 
-    @version 1
+    v2: the generated C tests build with the sanitizers on (-DSANITIZE=ON).
+    @version 2
     @req REQ-ING-TSK-001
     """
     import tempfile, os
@@ -184,7 +185,7 @@ def test(c):
                         pty=True,
                     )
                     c.run(
-                        f"cmake -S {tmp} -B {build_dir} -DUNITY_DIR={unity_dir} > /dev/null 2>&1",
+                        f"cmake -S {tmp} -B {build_dir} -DUNITY_DIR={unity_dir} -DSANITIZE=ON > /dev/null 2>&1",
                     )
                     c.run(f"cmake --build {build_dir} > /dev/null 2>&1")
                     print(f"\n=== C tests: {label} ===")

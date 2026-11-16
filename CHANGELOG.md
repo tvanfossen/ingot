@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `--dm-compat` (C targets, opt-in, additive): emits the legacy DM-shaped C
+  API as aliases over ingot's store, so code written against DM compiles
+  unchanged. Adds `DATAMODEL_GET/SET_<PATH>` and lowercase
+  `DataModel_{Get,Set}<path>` aliases, bare-key `#define <PATH>` constants,
+  `DATA_MODEL_KEY_TYPE_*` aliases, per-key `<PATH>_ENUM_T` typedefs in
+  `dm_enums.h`, `DataModel_PrintPersistentKeys()`, and header-name aliases
+  (`dm_key_definitions.h`, `dm_*_storage.h`, and with `--emit-tinyfsm`
+  `dm_key_events.h/.c`). Classes and keys accept an optional `name` for the
+  lowercase alias spelling; a `name` may hold only letters, digits,
+  underscores and spaces. `--dm-enums-guard <MACRO>` defers the per-key
+  typedefs to a legacy `dm_enums.h` with that include guard. Generation fails
+  with an error naming both sources when two compat identifiers would be the
+  same, and a per-key typedef aliases a named enum that already declares its
+  constants.
+- `--emit-tinyfsm` also emits `dm_key_has_event.hpp`: `dm_key_has_event(key)`
+  reports whether a key carries an event, and `dm_key_namespace(key)` with
+  `DM_KEY_NS_LOCAL` lets a value-change callback drop this model's non-event
+  keys before they reach a dispatch queue.
 - `--target rust`: named enums now generate a shared `#[repr(u8/16/32)]` Rust
   enum per `[enums.*]` block (namespace-qualified type name, e.g.
   `BatteryLevel`), reused across every key that references it. Keys with
@@ -56,7 +74,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `rand` dependency and the unused entropy-seeded perfect-hash
   generator; code generation only uses seeds derived from the key set.
 
+### Changed
+- The example variant names in `examples/battery.toml` and the CLI
+  documentation are now `variant_a`, `variant_b_v2` and `variant_c`. Pass
+  those names to `--variant` when generating from the example.
+- `LICENSE` names BISSELL Homecare, Inc. as the copyright holder.
+
 ### Fixed
+- C targets: `DataModel_LoadPersistentKeys()` no longer reads past a string
+  field when the persisted file holds that field with no NUL terminator, as a
+  corrupt or hand-made image can. The loader now terminates each string field
+  at its capacity before applying it, so such a field loads as its first
+  `max_size - 1` bytes. Files written by `DataModel_SavePersistentKeys()` load
+  unchanged. The generated `CMakeLists.txt` gains a `SANITIZE` option
+  (AddressSanitizer and UndefinedBehaviorSanitizer), and the generated tests
+  load an image with unterminated string fields.
 - `--target rust`: generic by-key setters reject writes to keys marked
   `read_only`, matching the C target's behavior.
 - Linux64 target: `DataModel_TearDown()` no longer calls
@@ -176,7 +208,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - dm_full.yaml manifest generation: YAML dump of resolved data model for downstream tools
 - Tera template infrastructure (14 templates: dm, dm_key, dm_namespace_definitions, dm_helpers, integer_storage, boolean_storage, string_storage, jenkins_hash, key_definitions)
-- Example data models: minimal.toml (5 keys), battery.toml (18 keys, port of UDM)
+- Example data models: minimal.toml (5 keys), battery.toml (18 keys)
 - 32-bit key encoding/decoding with bitfield layout
 - Target abstraction for STM32, ESP32 (Xtensa/RISC-V), 8-bit MCU, Linux64
 - CLI with --model, --output, --target, --verbose options

@@ -22,13 +22,33 @@ const EMBEDDED: &[(&str, &str)] = &[
     ),
     ("dm.c", include_str!("../../templates/dm.c")),
     ("dm.h", include_str!("../../templates/dm.h")),
+    (
+        "dm_boolean_storage.h",
+        include_str!("../../templates/dm_boolean_storage.h"),
+    ),
     ("dm_enums.h", include_str!("../../templates/dm_enums.h")),
     ("dm_helpers.c", include_str!("../../templates/dm_helpers.c")),
     ("dm_helpers.h", include_str!("../../templates/dm_helpers.h")),
+    (
+        "dm_integer_storage.h",
+        include_str!("../../templates/dm_integer_storage.h"),
+    ),
     ("dm_key.h", include_str!("../../templates/dm_key.h")),
+    (
+        "dm_key_definitions.h",
+        include_str!("../../templates/dm_key_definitions.h"),
+    ),
     (
         "dm_key_event_list.hpp",
         include_str!("../../templates/dm_key_event_list.hpp"),
+    ),
+    (
+        "dm_key_events.c",
+        include_str!("../../templates/dm_key_events.c"),
+    ),
+    (
+        "dm_key_events.h",
+        include_str!("../../templates/dm_key_events.h"),
     ),
     (
         "dm_key_events.hpp",
@@ -50,7 +70,15 @@ const EMBEDDED: &[(&str, &str)] = &[
         "dm_namespace_definitions.h",
         include_str!("../../templates/dm_namespace_definitions.h"),
     ),
+    (
+        "dm_persistence_storage.h",
+        include_str!("../../templates/dm_persistence_storage.h"),
+    ),
     ("dm_rust.rs", include_str!("../../templates/dm_rust.rs")),
+    (
+        "dm_string_storage.h",
+        include_str!("../../templates/dm_string_storage.h"),
+    ),
     (
         "dmt_constants.h",
         include_str!("../../templates/dmt_constants.h"),

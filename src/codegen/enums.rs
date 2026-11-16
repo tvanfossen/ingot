@@ -31,9 +31,11 @@ fn split_enum_key<'a>(raw: &'a str, model_id: &'a str) -> (&'a str, &'a str) {
 }
 
 /// C identifier stem shared by an enum's typedef name and its members.
-/// @version 1
+///
+/// v2: crate-visible, so the --dm-compat per-key enum typedefs share the stem.
+/// @version 2
 /// @req REQ-ING-GEN-010
-fn enum_stem(raw: &str, model_id: &str) -> String {
+pub(crate) fn enum_stem(raw: &str, model_id: &str) -> String {
     let (ns, name) = split_enum_key(raw, model_id);
     format!("{}_{}", ns.to_uppercase(), name.to_uppercase())
 }

@@ -23,6 +23,9 @@ ingot \- embedded database code generator with compile-time perfect hashing
 .RB [ \-\-variant
 .IR name ]
 .RB [ \-\-emit\-tinyfsm ]
+.RB [ \-\-dm\-compat ]
+.RB [ \-\-dm\-enums\-guard
+.IR macro ]
 .RB [ \-\-templates
 .IR dir ]
 .RB [ \-v ...]
@@ -106,7 +109,22 @@ When set, \fBDataModel_Initialize()\fR takes no arguments and no callback
 is fired after successful set operations.
 .TP
 .B \-\-emit\-tinyfsm
-Emit C++ tinyfsm event types and a dispatch wrapper for event keys. C targets only.
+Emit C++ tinyfsm event types and a dispatch wrapper for event keys, plus
+\fBdm_key_has_event()\fR and \fBdm_key_namespace()\fR predicates. C targets only.
+.TP
+.B \-\-dm\-compat
+Emit the DM-shaped C compatibility surface: \fBDATAMODEL_GET_\fR/\fBSET_\fR
+and lowercase \fBDataModel_Get\fR/\fBSet\fR aliases, bare-key constants,
+per-key \fB_ENUM_T\fR typedefs, \fBDATA_MODEL_KEY_TYPE_*\fR aliases,
+\fBDataModel_PrintPersistentKeys()\fR, and legacy header-name aliases.
+Additive; C targets only. Fails if two of these names, or a name and an
+existing key or enum identifier, would be the same.
+.TP
+.BI \-\-dm\-enums\-guard " " macro
+With \fB\-\-dm\-compat\fR, skip the per-key enum typedefs in any
+translation unit that has already defined \fImacro\fR, the include guard of
+a legacy \fBdm_enums.h\fR declaring the same types. \fImacro\fR must be a
+C identifier.
 .TP
 .BI \-\-templates " " dir
 Use the templates in the specified directory instead of the templates built
@@ -160,7 +178,7 @@ Overrides the default value for matching keys.
 .TP
 .BI \-\-variant " " name
 Product variant name for per-variant default overrides (e.g.
-\fBpeabodyv0\fR, \fBomnidrive_v2\fR).
+\fBvariant_a\fR, \fBvariant_b_v2\fR).
 For each key with a \fBdefaults[variant]\fR entry, the base default is
 replaced with the variant-specific value.
 For each enum with a \fBvariants[variant]\fR entry, the variant's values
@@ -250,7 +268,7 @@ Merge a directory of namespace TOML files:
 .PP
 .RS
 .nf
-ingot -m models/ -o gen/udm -t linux64
+ingot -m models/ -o gen/dm -t linux64
 .fi
 .RE
 .PP
@@ -283,7 +301,7 @@ Generate for a specific product variant:
 .PP
 .RS
 .nf
-ingot -m models/ --variant peabodyv0 -o gen/
+ingot -m models/ --variant variant_a -o gen/
 .fi
 .RE
 .PP
