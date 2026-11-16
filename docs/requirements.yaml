@@ -25,14 +25,20 @@ requirements:
       used, in its order (templates/ next to the executable, <exe>/../share/ingot/templates,
       <exe>/../../templates, templates/ in the working directory, /usr/share/ingot/templates),
       and the embedded templates are the fallback when none exists, so an installed or local
-      templates/ keeps working. Contract mode (table-interface R-T5) and --table-types never
-      search: they use the embedded templates (--table-types also accepts --templates).
+      templates/ keeps working. A template that a searched directory lacks (one from an older
+      ingot, say) is taken from the embedded set, with a warning naming the template and the
+      directory, so a stale directory cannot break generation; an explicit directory is still
+      the whole set. Contract mode and --table-types never search, so their output depends
+      only on the ingot commit: they use the embedded templates (--table-types also accepts
+      --templates).
     acceptance_criteria: >-
       Generation works from a directory with no templates/ anywhere on the search path; every
       file in templates/ is embedded; an explicit missing path is a clear error; an explicit
       or environment path is used instead of the embedded set; in model mode a templates/
       directory in the working directory is used before the embedded set, and contract mode
-      ignores it.
+      ignores it; a searched directory without dm_key_event_list.hpp still generates it under
+      --emit-tinyfsm, from the embedded copy, and the warning names the template and the
+      directory.
   REQ-ING-TIV-001:
     name: Fixed table-interface header
     subsystem: Table interface
