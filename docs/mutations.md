@@ -1471,3 +1471,19 @@ write rate without its own burst, so the accepting test reads the default and no
 | DBZ3 | src/contract/bounds.rs | `default_burst(tables, errors);\n    let staging` | `default_burst(tables, errors);\n    default_burst(tables, errors);\n    let staging` | the refusal is logged once per run | KILLED | a_default_burst_of_0_is_refused_once |
 | DBZ4 | src/contract/bounds.rs | `"bounds.default_rate_burst must be at least 1` | `"default_rate_burst must be at least 1` | the refusal names bounds.default_rate_burst | KILLED | a_default_burst_of_0_is_refused_once |
 | DBZ5 | src/contract/keys.rs | `(Some(Ok(per_day)), _) => (per_day, burst.unwrap_or(default)),` | `(Some(Ok(per_day)), _) => (per_day, burst.unwrap_or(default.max(4))),` | the bounds default reaches every rate without its own burst | KILLED | a_default_burst_of_1_is_given_to_every_rate_without_its_own |
+
+## The template search path before the built-in templates (REQ-ING-CLI-002)
+
+Same procedure (scratchpad `tsf_mutate.sh`: one mutation per rsync copy, fresh target directory);
+the test commands are `--test template_resolution` and `--bins templates`. TSF1 is the behaviour
+before the change (model mode used the built-in templates without searching), and so is the
+observed red of the model-mode test. TSF3 and TSF4 were rerun after the contract test's helper was
+extracted (knots ABC), with the same result.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| TSF1 | src/main.rs | `run(cli, &codegen::templates::load_searching(explicit)?)` | `run(cli, &codegen::templates::load(explicit)?)` | model mode searches (not searching: the pre-change behaviour) | KILLED | model_mode_uses_templates_in_the_working_directory |
+| TSF2 | src/codegen/templates.rs | `candidates.iter().find(\|d\| d.is_dir()).cloned()` | `candidates.iter().find(\|d\| d.is_dir() && false).cloned()` | an existing search directory is used; none falls back to the built-in set | KILLED | model_mode_uses_templates_in_the_working_directory first_existing_directory_wins_and_none_falls_back |
+| TSF3 | src/main.rs | `&codegen::templates::load(None)?,` | `&codegen::templates::load_searching(None)?,` | contract mode never searches | KILLED | contract_mode_and_table_types_ignore_the_search_path |
+| TSF4 | src/main.rs | `write_table_types(&codegen::templates::load(explicit)?` | `write_table_types(&codegen::templates::load_searching(explicit)?` | --table-types never searches | KILLED | contract_mode_and_table_types_ignore_the_search_path |
+| TSF5 | src/codegen/templates.rs | `dirs.push(cwd.join("templates"));` | `let _ = cwd;` | the working directory is on the search path, in upstream's place | KILLED | model_mode_uses_templates_in_the_working_directory search_dirs_follow_upstream_order |
