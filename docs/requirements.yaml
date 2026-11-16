@@ -565,7 +565,10 @@ requirements:
       A command type may declare `rate_burst` beside its `write_rate`; its command, result and
       dedupe keys then carry that token-bucket burst in dmt_keys and contract.json, in place of
       [bounds] default_rate_burst. A `rate_burst` without a `write_rate` is refused, on a command
-      type and on a key alike, once per declaration. Write rates and bursts are not frozen within
+      type and on a key alike, once per declaration. A declared `rate_burst` is at least 1: a
+      burst of 0 beside a write_rate would switch the store's rate limit off, so it is refused on
+      a command type and on a key alike, once per declaration (a declaration that wants no rate
+      limit omits `write_rate`). Write rates and bursts are not frozen within
       a major: against --previous-contract a minor may change the write_rate or rate_burst of a
       released key or command, a rate-table change only: no KSET digest or release-review line
       depends on either, and the keyspace files carry the rate but not the burst (a burst change
@@ -574,7 +577,8 @@ requirements:
     acceptance_criteria: >-
       The generic model's map_edit command declares a burst from 1.1 on, the C value check reads
       it on all three of its keys, and 1.1 generates against 1.0's contract with 1.0's digests;
-      a command or key with rate_burst and no write_rate is refused on every variant's run; a
+      a command or key with rate_burst and no write_rate, or with rate_burst = 0, is refused on
+      every variant's run; a
       command declaring the default burst has the same store tables as one declaring none.
   REQ-ING-RNG-001:
     name: Units, ranges, discrete sets, sentinels and scale
