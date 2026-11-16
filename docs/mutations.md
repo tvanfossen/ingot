@@ -1419,3 +1419,24 @@ second message to a run the var check already refuses, so it was not swept.
 | TV15 | src/contract/previous_shadow.rs | `.is_none_or(\|n\| n.enum_ref == v.enum_ref);` | `.is_none_or(\|n\| n.enum_ref.is_some());` | a named enum is not renamed in a minor | KILLED | a_minor_may_not_drop_rename_or_renumber_a_var_s_enum |
 | TV16 | src/contract/previous_shadow.rs | `var_enums_kept(&old.topics, &new.topics, errors);\n` | `(deleted)` | a named enum is not dropped in a minor | KILLED | a_minor_may_not_drop_rename_or_renumber_a_var_s_enum |
 | TV17 | src/contract/previous.rs | `var_enum_codes_kept(prev, cur, errors);\n` | `(deleted)` | a var enum's codes are kept in a minor | KILLED | a_minor_may_not_drop_rename_or_renumber_a_var_s_enum |
+
+## Command write-rate burst (REQ-ING-TIV-019)
+
+Same procedure, on a fresh copy with a fresh target directory; the test command is `--test
+command_rate_burst --test contract_mode --test contract_refusals --test keyspace --bins`. Cargo
+stops at the first test binary that fails, so a mutant that command_rate_burst kills never
+reaches the C value check. RBC1 and RBC2 repeat RB01 and RB02 with `--test contract_mode`
+alone, to show that check_values.c reads the burst on all three of map_edit's keys. RB07 adds
+the freeze that the Versions rule leaves out, and the minor test kills it.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| RB01 | src/contract/keys.rs | `def.rate_burst,\n        ctx.default_burst,\n        errors,\n    );\n    command_parts(def)` | `None,\n        ctx.default_burst,\n        errors,\n    );\n    command_parts(def)` | a command's declared burst reaches its keys | KILLED | a_burst_without_a_write_rate_is_refused_once_per_declaration a_command_s_burst_is_on_its_three_keys_and_others_keep_the_default a_minor_may_change_a_released_command_s_rate_and_burst |
+| RB02 | src/contract/keys.rs | `(key.rate_per_day, key.rate_burst) = rate;` | `(key.rate_per_day, key.rate_burst) = if part == CmdPart::Command { rate } else { (rate.0, ctx.default_burst) };` | the result and dedupe keys carry the command's burst too | KILLED | a_command_s_burst_is_on_its_three_keys_and_others_keep_the_default |
+| RB03 | src/contract/keys.rs | `(Some(Ok(per_day)), _) => (per_day, burst.unwrap_or(default)),` | `(Some(Ok(per_day)), _) => (per_day, default),` | a declared burst replaces the default | KILLED | a_command_s_burst_is_on_its_three_keys_and_others_keep_the_default a_minor_may_change_a_released_command_s_rate_and_burst |
+| RB04 | src/contract/keys.rs | `(Some(Ok(per_day)), _) => (per_day, burst.unwrap_or(default)),` | `(Some(Ok(per_day)), _) => (per_day, burst.unwrap_or(0)),` | an absent burst takes the default | KILLED | a_command_s_burst_is_on_its_three_keys_and_others_keep_the_default the_default_burst_declared_has_the_tables_of_none_declared |
+| RB05 | src/contract/keys.rs | `errors.push(format!("{path}: rate_burst needs a write_rate"));` | `(deleted)` | a burst without a write rate is refused | KILLED | a_burst_without_a_rate_on_another_variant_refuses_this_one a_burst_without_a_write_rate_is_refused_once_per_declaration |
+| RB06 | src/contract/keys.rs | `&ctx.path(&def.id),\n        def.write_rate.as_deref(),` | `&ctx.path(&format!("{}_dedupe", def.id)),\n        def.write_rate.as_deref(),` | a command's rate refusal names the command, once | KILLED | a_burst_without_a_write_rate_is_refused_once_per_declaration |
+| RB07 | src/contract/previous.rs | `&& old.command == new.command\n` | `&& old.command == new.command\n        && old.rate_burst == new.rate_burst\n` | a minor may change a released key's burst (rates are not frozen) | KILLED | a_minor_may_change_a_released_command_s_rate_and_burst |
+| RBC1 | src/contract/keys.rs | `def.rate_burst,\n        ctx.default_burst,\n        errors,\n    );\n    command_parts(def)` | `None,\n        ctx.default_burst,\n        errors,\n    );\n    command_parts(def)` | the C value check reads a command's declared burst | KILLED | generic_model_versions_and_previous_checks |
+| RBC2 | src/contract/keys.rs | `(key.rate_per_day, key.rate_burst) = rate;` | `(key.rate_per_day, key.rate_burst) = if part == CmdPart::Command { rate } else { (rate.0, ctx.default_burst) };` | the C value check reads the burst on the result and dedupe keys | KILLED | generic_model_versions_and_previous_checks |
