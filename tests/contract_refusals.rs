@@ -282,7 +282,7 @@ const CASES: &[Case] = &[
     ("v1_0", "contract.toml", "id = { field = \"id\", required = true }, source = { field = \"source\"", "id = { field = \"id\", required = true, absent = 0 }, source = { field = \"source\"", "topic command_topic: the envelope id is required, or optional with an absent value"),
     ("v1_0", "contract.toml", "enum = \"core::origin\", absent = \"unspecified\" } }\n\n[[topics]]\nid = \"command_resp\"", "enum = \"core::origin\", absent = \"nobody\" } }\n\n[[topics]]\nid = \"command_resp\"", "topic command_topic: the envelope source absent value nobody is not a member of enum core::origin"),
     ("v1_0", "contract.toml", "source = { field = \"source\", enum = \"core::origin\"", "source = { field = \"source\", enum = \"core::orign\"", "topic command_topic: the envelope source absent value unspecified is not a member of enum core::orign"),
-    ("v1_0", "contract.toml", "template = \"$aws/things/{duid}/shadow/name/{shadow_name}/update/delta\"", "template = \"$aws/things/{duid}/shadow/name/robot/update/delta\"", "topic shadow_delta: shadow name robot is a literal while another topic uses {shadow_name}"),
+    ("v1_0", "contract.toml", "template = \"$aws/things/{duid}/shadow/name/{shadow_name}/update/delta\"", "template = \"$aws/things/{duid}/shadow/name/device/update/delta\"", "topic shadow_delta: shadow name device is a literal while another topic uses {shadow_name}"),
     ("v1_0", "contract.toml", "local_wrapper = \"shadow_delta\"", "local_wrapper = \"shadow_delta\"\nliteral_shadow_name = true", "topic shadow_delta: literal_shadow_name is for a literal shadow name beside {shadow_name}"),
     // -- command rows -------------------------------------------------
     ("v1_0", "ns/core.toml", "topic = \"command_topic\"\nselector = { field = \"net.factoryReset\"", "topic = \"nope\"\nselector = { field = \"net.factoryReset\"", "shadow_commands nope net.factoryReset=true: topic nope is not a sub topic"),
@@ -829,8 +829,8 @@ const MULTI_CASES: &[MultiCase] = &[
     (
         "v1_0",
         &[
-            ("contract.toml", "shadow/name/{shadow_name}/update\"", "shadow/name/robot/update\""),
-            ("contract.toml", "shadow/name/{shadow_name}/update/delta\"", "shadow/name/robot/update/delta\"\nliteral_shadow_name = true"),
+            ("contract.toml", "shadow/name/{shadow_name}/update\"", "shadow/name/device/update\""),
+            ("contract.toml", "shadow/name/{shadow_name}/update/delta\"", "shadow/name/device/update/delta\"\nliteral_shadow_name = true"),
         ],
         "topic shadow_delta: literal_shadow_name is for a literal shadow name beside {shadow_name}",
     ),

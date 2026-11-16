@@ -927,8 +927,13 @@ fn topics_carry_envelopes_acks_and_the_contract_request() {
 fn a_kept_literal_shadow_name_is_flagged() {
     let dir = unique_dir("dsh_literal_name");
     let delta = "template = \"$aws/things/{duid}/shadow/name/{shadow_name}/update/delta\"";
-    let robot = "template = \"$aws/things/{duid}/shadow/name/robot/update/delta\"\nliteral_shadow_name = true";
-    let gen = generated(&dir, "robot", "sku_a", &[("contract.toml", delta, robot)]);
+    let literal = "template = \"$aws/things/{duid}/shadow/name/device/update/delta\"\nliteral_shadow_name = true";
+    let gen = generated(
+        &dir,
+        "literal",
+        "sku_a",
+        &[("contract.toml", delta, literal)],
+    );
     let topic = row(&table(&gen, "dtp_topics"), "\"shadow_delta\"");
     assert!(
         topic.contains(".flags = DTP_F_LITERAL_SHADOW_NAME,"),

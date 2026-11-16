@@ -326,7 +326,7 @@ fn accepted_topic_and_row_forms() {
         &[(
             "contract.toml",
             "shadow/name/{shadow_name}/update/delta\"",
-            "shadow/name/robot/update/delta\"\nliteral_shadow_name = true",
+            "shadow/name/device/update/delta\"\nliteral_shadow_name = true",
         )],
         &[(
             "ns/drive.toml",
