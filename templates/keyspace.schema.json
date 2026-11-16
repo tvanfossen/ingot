@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/tvanfossen/ingot/keyspace.schema.json",
+  "$id": "https://raw.githubusercontent.com/brandon-arrendondo/ingot/main/templates/keyspace.schema.json",
   "title": "ingot keyspace declaration, schema_version 1.0",
   "description": "The keys a device declares, for tooling. Consumers ignore unknown properties, keys and enum codes (or show them raw), treat a JSON number where an enum wire string is expected as an unknown code, and refuse an unknown schema_version major. No property names a UI class, a layout or an endpoint.",
   "$defs": {

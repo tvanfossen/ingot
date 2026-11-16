@@ -184,6 +184,19 @@ fn no_property_names_a_ui_layout_or_endpoint() {
 }
 
 #[test]
+fn the_schema_id_is_the_schema_file_in_the_ingot_repository() {
+    let dir = unique_dir("ks_schema_id");
+    let gen = dir.join("gen");
+    generate_ok("v1_0", &gen, &[]);
+    let schema = json(&gen, "keyspace.schema.json");
+    assert_eq!(
+        schema["$id"],
+        "https://raw.githubusercontent.com/brandon-arrendondo/ingot/main/templates/keyspace.schema.json"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn keyspace_files_are_deterministic_and_small() {
     let dir = unique_dir("ks_det");
     let (a, b) = (dir.join("a"), dir.join("b"));
