@@ -1456,3 +1456,18 @@ it.
 | RBZ3 | src/contract/keys.rs | `"{path}: rate_burst must be at least 1` | `"rate_burst must be at least 1` | the refusal names the declaration's path | KILLED | a_zero_burst_is_refused_once_per_declaration a_zero_burst_on_another_variant_refuses_this_one |
 | RBZ4 | src/contract/keys.rs | `def.rate_burst,\n        ctx.default_burst,\n        errors,\n    );\n    command_parts(def)` | `def.rate_burst.filter(\|b\| *b != 0),\n        ctx.default_burst,\n        errors,\n    );\n    command_parts(def)` | a command's burst of 0 reaches the check (not replaced by the default) | KILLED | a_zero_burst_is_refused_once_per_declaration |
 | RBZ5 | src/contract/keys.rs | `(key.rate_per_day, key.rate_burst) = rate_of(&key.path, rate, burst, default, errors);` | `(key.rate_per_day, key.rate_burst) = rate_of(&key.path, rate, burst.filter(\|b\| *b != 0), default, errors);` | a key's burst of 0 reaches the check (not replaced by the default) | KILLED | a_zero_burst_is_refused_once_per_declaration a_zero_burst_on_another_variant_refuses_this_one |
+
+## A default burst of 0 is refused (REQ-ING-TIV-019)
+
+Same procedure, on a fresh copy with a fresh target directory; the test command is `--test
+command_rate_burst`. DBZ1 removes the check, which is the behaviour before the change, and so is
+the observed red of the refusal test. DBZ5 shows the bounds' default (here 1) is what reaches a
+write rate without its own burst, so the accepting test reads the default and not a constant.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| DBZ1 | src/contract/bounds.rs | `default_burst(tables, errors);\n    let staging` | `let staging` | a default burst of 0 is refused (the check not called: the pre-change behaviour) | KILLED | a_default_burst_of_0_is_refused_once |
+| DBZ2 | src/contract/bounds.rs | `default_rate_burst == 0 {` | `default_rate_burst <= 1 {` | a default burst of 1 is accepted (the boundary) | KILLED | a_default_burst_of_1_is_given_to_every_rate_without_its_own |
+| DBZ3 | src/contract/bounds.rs | `default_burst(tables, errors);\n    let staging` | `default_burst(tables, errors);\n    default_burst(tables, errors);\n    let staging` | the refusal is logged once per run | KILLED | a_default_burst_of_0_is_refused_once |
+| DBZ4 | src/contract/bounds.rs | `"bounds.default_rate_burst must be at least 1` | `"default_rate_burst must be at least 1` | the refusal names bounds.default_rate_burst | KILLED | a_default_burst_of_0_is_refused_once |
+| DBZ5 | src/contract/keys.rs | `(Some(Ok(per_day)), _) => (per_day, burst.unwrap_or(default)),` | `(Some(Ok(per_day)), _) => (per_day, burst.unwrap_or(default.max(4))),` | the bounds default reaches every rate without its own burst | KILLED | a_default_burst_of_1_is_given_to_every_rate_without_its_own |
