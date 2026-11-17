@@ -1596,3 +1596,24 @@ model with log streams declares no variants.
 | LOG54 | src/contract/refuse_log.rs | `    if flush.is_empty() && s.allowed(&tables.variant) & on_trigger != 0 {` | `    if false && flush.is_empty() && s.allowed(&tables.variant) & on_trigger != 0 {` | flash_on_trigger needs a flush trigger | KILLED | every_log_refusal_has_a_triggering_model |
 | LOG55 | src/contract/refuse_log.rs | `    if flush.is_empty() && s.allowed(&tables.variant) & on_trigger != 0 {` | `    if flush.is_empty() && s.allowed("") & on_trigger != 0 {` | the trigger check uses the selected variant's allowed backings | KILLED | edits_that_break_no_log_rule_are_accepted |
 | LOG56 | src/contract/refuse_log.rs | `            .chain(triggers(tables, s));` | `            .chain(Vec::<String>::new());` | the flush-trigger checks run at all | KILLED | every_log_refusal_has_a_triggering_model |
+
+## A log line fits one ring record (REQ-ING-LOG-010), and the TIV dmt_tables.h states (REQ-ING-TIV-009)
+
+Same procedure, test commands `--bin ingot --test contract_log --test contract_mode --test table_types`.
+The observed red is the new tests before the code: `cargo test --test contract_log` failed
+`every_log_refusal_has_a_triggering_model` and `cargo test --test contract_mode` failed
+`generic_model_versions_and_previous_checks` ("dmt_tables.h must state 'table interface 1.1.'"),
+both exit 101. LOG57 (the header not added) is the old check and is killed by the new refusal
+cases. LOG61 is killed only by the unit test: no model declares a size near `u32::MAX`.
+
+| id | file | from | to | mechanism | status | killed by |
+|---|---|---|---|---|---|---|
+| LOG57 | src/contract/refuse_log.rs | `    u64::from(max_line) + u64::from(RING_RECORD_HEADER_BYTES) <= u64::from(ram_cap)` | `    u64::from(max_line) <= u64::from(ram_cap)` | the ring record header counts against ram_cap_bytes | KILLED | a_line_fits_when_it_and_the_record_header_fill_the_ring_at_most every_log_refusal_has_a_triggering_model |
+| LOG58 | src/contract/refuse_log.rs | `    u64::from(max_line) + u64::from(RING_RECORD_HEADER_BYTES) <= u64::from(ram_cap)` | `    u64::from(max_line) + u64::from(RING_RECORD_HEADER_BYTES) < u64::from(ram_cap)` | a line and its header that fill the ring exactly fit | KILLED | a_line_fits_when_it_and_the_record_header_fill_the_ring_at_most edits_that_break_no_log_rule_are_accepted |
+| LOG59 | src/contract/refuse_log.rs | `pub const RING_RECORD_HEADER_BYTES: u32 = 24;` | `pub const RING_RECORD_HEADER_BYTES: u32 = 25;` | the header is 24 bytes, not more | KILLED | a_line_fits_when_it_and_the_record_header_fill_the_ring_at_most edits_that_break_no_log_rule_are_accepted every_log_refusal_has_a_triggering_model |
+| LOG60 | src/contract/refuse_log.rs | `pub const RING_RECORD_HEADER_BYTES: u32 = 24;` | `pub const RING_RECORD_HEADER_BYTES: u32 = 23;` | the header is 24 bytes, not fewer | KILLED | a_line_fits_when_it_and_the_record_header_fill_the_ring_at_most every_log_refusal_has_a_triggering_model |
+| LOG61 | src/contract/refuse_log.rs | `    u64::from(max_line) + u64::from(RING_RECORD_HEADER_BYTES) <= u64::from(ram_cap)` | `    max_line.wrapping_add(RING_RECORD_HEADER_BYTES) <= ram_cap` | the sum is taken in 64 bits and cannot wrap | KILLED | a_line_fits_when_it_and_the_record_header_fill_the_ring_at_most |
+| LOG62 | src/contract/refuse_log.rs | `(s.may_enable(v) && !line_fits(` | `(true && !line_fits(` | a variant that allows the stream only off checks no ring record | KILLED | edits_that_break_no_log_rule_are_accepted |
+| LOG63 | src/contract/refuse_log.rs | `    if d.max_line_bytes == 0 \|\| (s.may_enable(v) && !line_fits(` | `    if d.max_line_bytes == 0 \|\| (s.may_enable(v) && false && !line_fits(` | the line-fit refusal runs at all | KILLED | every_log_refusal_has_a_triggering_model |
+| TIVH1 | templates/dmt_tables.h | `table interface {{ tiv }}.` | `table interface 1.0.` | dmt_tables.h states the TIV from the context, not a literal | KILLED | generic_model_versions_and_previous_checks |
+| TIVH2 | src/contract/emit.rs | `    ctx.insert("tiv", super::types::TIV);` | `    ctx.insert("tiv", "1.0");` | the context's tiv is types::TIV | KILLED | generic_model_versions_and_previous_checks |
